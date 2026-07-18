@@ -32,6 +32,8 @@ A complete development methodology combining:
     AI
 - 🔁 **Traceable evolution:** decisions are preserved through conventional commits
 
+![Just describe what you want](docs/images/curve.png)
+
 ## Why Hedgehog Exists
 
 AI coding starts fast then breaks down.
