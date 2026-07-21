@@ -219,7 +219,9 @@ ask now than fix forward later.
    expected from day one, since that shapes contract design).
 6. **Write/update `TODO.md`**: a checklist mirroring the Phase A and
    Phase B steps per module in scope. Checked or unchecked is its only
-   state.
+   state. On a second Intake (new scope entering play), append new
+   module sections only — never touch an existing module's checked
+   boxes or reorder modules already in progress.
 7. **File any screen/flow notes** captured during Intake under
    `docs/design/<module>-notes.md`, per module.
 8. **Return a summary**: scope boundary, module list, any open questions.
