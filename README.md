@@ -29,7 +29,6 @@ A complete development methodology combining:
 - 🧩 **Progressive layering:** types → schema → backend → UI, each layer built on a stable one beneath it
 - 🎯 **Small context loops:** decompose work into atomic, verifiable changes
 - 🌳 **Self-documenting architecture:** the codebase carries the context, not the AI
-    AI
 - 🔁 **Traceable evolution:** decisions are preserved through conventional commits
 
 ![Just describe what you want](docs/images/curve.png)
