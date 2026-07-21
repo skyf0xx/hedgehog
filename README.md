@@ -123,4 +123,21 @@ Hedgehog is a package of agents and skills. An opinionated stack is used so the 
 | Commits | Conventional Commits | Architectural decisions become permanent history. |
 | Observability | Sentry | Failures map cleanly back to module boundaries. |
 
-Full generator commands, version-specific flags, and the enforcement config (module boundary tags, lefthook rules, env schema, CI phase gate) live in `skills/
+## How Hedgehog Compares
+
+Superpowers and BMAD both improve on raw prompting: one gives the AI good habits, the other gives it a planning process.
+
+But in both, the order of work is a **convention, not a constraint** it's unable to break.
+
+Hedgehog **enforces its build order with tooling** instead: Nx module boundaries, commit hooks, phase gates. The order holds because the tooling holds it, not because the discipline was followed.
+
+| | Superpowers | BMAD | Hedgehog |
+| --- | --- | --- | --- |
+| **What it is** | A skills library for Claude Code: brainstorm, plan, TDD, debug, review | A multi-agent planning framework: PM, Architect, Dev, QA personas | A build discipline: fixed stack, enforced module order |
+| **Order comes from** | Skill instructions the agent is told to follow | Sequenced documents (brief → PRD → architecture → stories) | Tooling (Nx boundaries, lefthook, phase gate) |
+| **Enforcement mechanism** | None. Prompted convention | None. One optional agent-run checklist between phases | Mechanically enforced by Nx boundaries, commit hooks, and the phase gate |
+| **Unit of work** | A task, planned in worktree-isolated steps | A story, derived from PRD and architecture docs | A module layer (schema → contract → repo → service → controller → UI) |
+| **Stack** | Whatever the project already uses | No stack opinion | One locked stack (Nx, NestJS, Drizzle, ts-rest, Next.js) |
+| **Context per step** | As much as the task pulls in | A full brief, PRD, and architecture doc per story | One module layer at a time (e.g. just the repository, just the controller) |
+| **Finding a bug** | Search wherever the task touched | Search wherever the story touched | Search one layer, in one module, in a fixed order |
+| **Real cost** | No safety net if the model shortcuts its own process | Documentation overhead most solo projects don't need | Less flexibility: the stack and order aren't negotiable |
