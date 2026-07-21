@@ -65,10 +65,15 @@ packages/
   auth       (Better Auth config)
   config     (locked ESLint/Prettier/tsconfig/env schema)
   shared     (cross-cutting types + utils)
+
+docs/
+  design     (<module>.md per module — `ux-planner` agent output)
 ```
 
 `packages/auth` and `packages/jobs` are infra, built once, here — not
-touched again per module.
+touched again per module. `docs/design` fills in per module during
+Phase B — nothing to scaffold here at Bootstrap beyond the empty
+directory.
 
 ### Queues: seam in, usage deferred
 
