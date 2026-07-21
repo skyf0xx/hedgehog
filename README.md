@@ -71,6 +71,9 @@ version of that idea, applied consistently rather than left to chance.
 - [`CLAUDE.md`](CLAUDE.md) - how this repo itself is worked on.
 - [`docs/hedgehog-principles.md`](docs/hedgehog-principles.md) - what
   Hedgehog is and its core stance.
+- [`docs/hedgehog-intake.md`](docs/hedgehog-intake.md) - the input spec:
+  what a project must supply (scope boundary, domain vocabulary) before
+  build starts.
 - [`docs/hedgehog-stack.md`](docs/hedgehog-stack.md) - the locked stack.
 - [`docs/hedgehog-order.md`](docs/hedgehog-order.md) - the build sequence
   and module definition.

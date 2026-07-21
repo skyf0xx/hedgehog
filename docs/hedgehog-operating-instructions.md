@@ -16,6 +16,9 @@ Capture exactly two things from the person:
 1. **Scope boundary** — what's in, what's explicitly out.
 2. **Domain vocabulary** — the nouns and verbs of the problem.
 
+See `docs/hedgehog-intake.md` for the required shape of each (a template
+and a worked example) and for what counts as insufficient input.
+
 If the person starts describing screens or flows, redirect: that comes in
 Phase B, after the backend exists.
 

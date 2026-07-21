@@ -19,6 +19,17 @@ source of the method.
   project's own root `CLAUDE.md` imports or restates. Written from that
   project's perspective, not this repo's.
 - `TODO.md` — template for a consuming project's live build checklist.
+- `agents/` — the subagent roles a consuming project copies into its own
+  `.claude/agents/`. Scoped to what the Loop and mechanical gates
+  (`docs/hedgehog-logic.md`) can't decide on their own: `planner` (Intake,
+  module scoping), `ui-builder` (Phase B), `reviewer` (Phase Transition
+  Checks, Correction Protocol). Deliberately not a full agent roster — the
+  Loop is single-agent by design.
+- `skills/` — packaged procedures a consuming project copies into its own
+  `.claude/skills/`. `hedgehog-bootstrap` runs Project Bootstrap (Order
+  steps 1–7) and wires in Logic's enforcement config, once per project.
+  `conventional-commits` matches commit granularity to Order's step
+  sequence, used mainly for Correction Protocol cleanups.
 
 ## Working in this repo
 
