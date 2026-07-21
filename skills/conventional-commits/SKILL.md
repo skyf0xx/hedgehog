@@ -1,13 +1,13 @@
 ---
 name: conventional-commits
-description: Use when uncommitted changes need to be split into atomic, conventional commits ordered for review. Triggers on "commit this", "make commits", "clean up commits", "commit the changes". In Hedgehog, each Loop step is already meant to be its own commit (Order doc) — this skill matters most when a Correction Protocol fast-forward touches several steps at once and those fixes need splitting back into per-step commits.
+description: Use when uncommitted changes need to be split into atomic, conventional commits ordered for review. Triggers on "commit this", "make commits", "clean up commits", "commit the changes". In Hedgehog, each Loop step is already meant to be its own commit — this skill matters most when a Correction Protocol fast-forward touches several steps at once and those fixes need splitting back into per-step commits.
 ---
 
 # Conventional Commits
 
 Turn uncommitted changes into a series of atomic, conventional commits
-ordered for review, using Hedgehog's commit vocabulary
-(`docs/hedgehog-order.md`, `docs/hedgehog-logic.md`).
+ordered for review, using Hedgehog's commit vocabulary (the `hedgehog-loop`
+skill).
 
 ## When this runs
 
@@ -25,10 +25,10 @@ This skill is for the cases where that didn't happen cleanly:
 
 ## What "atomic" means here
 
-One commit = one Order step, where that applies (one schema, one
+One commit = one build step, where that applies (one schema, one
 contract, one repository, etc.) — not one file. A single step may span
 several files (a Drizzle schema + its migration, or a service + its
-test). If work doesn't map onto an Order step (tooling, config, docs),
+test). If work doesn't map onto a build step (tooling, config, docs),
 fall back to normal atomic-commit judgment: one logical change per commit.
 
 If a hunk can be removed without breaking the others in its commit, it
@@ -50,7 +50,7 @@ haven't read.
 
 ### 2. Group hunks into logical commits
 
-For each hunk, ask: *which Order step is this part of, for which module?*
+For each hunk, ask: *which build step is this part of, for which module?*
 Group by step first, module second. A hunk in the `orders` schema and a
 hunk in the `orders` repository are different commits even though both
 are "orders" — they're different steps.
@@ -65,13 +65,13 @@ Common groupings:
   from any domain step
 
 Do NOT group:
-- Two different Order steps, even for the same module
+- Two different build steps, even for the same module
 - A Correction Protocol fix mixed with unrelated new work
 - Two unrelated modules' changes
 
 ### 3. Order the commits for review
 
-1. **Order-sequence order.** Schema before contract, contract before
+1. **Build-sequence order.** Schema before contract, contract before
    repository, repository before service, service before controller —
    same dependency order the Loop builds in, even when reconstructing
    after the fact.
@@ -112,26 +112,26 @@ amending would rewrite the wrong thing.
 <type>(<scope>): <subject>
 ```
 
-- **type**: `feat` for Order steps; also `fix`, `chore`, `docs`,
+- **type**: `feat` for build steps; also `fix`, `chore`, `docs`,
   `refactor`, `style`, `test`, `build`, `ci`, `perf` as needed.
-- **scope**: the domain module name (`orders`, `users`, ...) for Order
-  steps, or one of the infra scopes from `commitlint.config.js`
-  (`docs/hedgehog-logic.md`): `domain`, `db`, `contracts`, `auth`, `hooks`,
-  `api`, `worker`, `web`, `mobile`, `config`.
-- **subject** for an Order step: the step name itself — `schema`,
+- **scope**: the domain module name (`orders`, `users`, ...) for a build
+  step, or an infra area (`db`, `contracts`, `auth`, `hooks`, `api`,
+  `worker`, `web`, `mobile`, `config`) for bootstrap/tooling commits.
+- **subject** for a build step: the step name itself — `schema`,
   `contract`, `repository`, `service`, `api`, `queue`, `hooks`,
-  `screen-web`, `screen-mobile` — matching the Order doc's table exactly.
-  For non-step commits, imperative and lowercase, under ~70 chars.
+  `screen-web`, `screen-mobile` — matching the `hedgehog-loop` skill's
+  step tables exactly. For non-step commits, imperative and lowercase,
+  under ~70 chars.
 - Body only when the *why* is non-obvious — for a Correction Protocol
-  commit, the body is the explanation (Operating Instructions: "the commit
-  messages are the explanation").
+  commit, the body is the explanation ("the commit messages are the
+  explanation").
 
 ### 6. Hard rules
 
 - Never push. Commits only.
 - Never `git add -A` or `git add .` — specific paths or hunks only.
 - Never amend. Always new commits.
-- Never `--no-verify` — the lefthook gate is the Unit of Work default; a
+- Never `--no-verify` — the lefthook gate is the unit-of-work default; a
   failing gate means the step isn't done, not that the gate is wrong.
 - Never commit files that look like secrets (`.env`, `credentials.*`,
   `*.pem`). Flag and skip.

@@ -1,49 +1,47 @@
 # Hedgehog (this repo)
 
-Hedgehog is a build discipline for AI-guided software projects: an
-alternative to BMAD/Superpowers-style frameworks. This repo holds the
-discipline itself — the docs, skills, and tooling a project imports to
-work Hedgehog-style. It is not a project built with Hedgehog; it's the
-source of the method.
+Hedgehog is a build discipline for AI-guided software projects. This repo
+holds the discipline itself as a package of Claude Code agents and
+skills — the executable payload a consuming project copies in to work
+Hedgehog-style, and is the source of the method. See `README.md` for the
+discipline's stance and rationale.
 
 ## Layout
 
-- `docs/hedgehog-principles.md` — what Hedgehog is and its core stance.
-- `docs/hedgehog-stack.md` — the locked technology stack.
-- `docs/hedgehog-order.md` — the root-first build sequence and module
-  definition.
-- `docs/hedgehog-logic.md` — the enforcement config (Nx boundaries,
-  commit gates, phase gate, env validation) that makes Stack and Order
-  mechanically true rather than merely documented.
-- `docs/hedgehog-operating-instructions.md` — the payload a consuming
-  project's own root `CLAUDE.md` imports or restates. Written from that
-  project's perspective, not this repo's.
-- `TODO.md` — template for a consuming project's live build checklist.
 - `agents/` — the subagent roles a consuming project copies into its own
-  `.claude/agents/`. Scoped to what the Loop and mechanical gates
-  (`docs/hedgehog-logic.md`) can't decide on their own: `planner` (Intake,
-  module scoping), `ui-builder` (Phase B), `reviewer` (Phase Transition
-  Checks, Correction Protocol). Deliberately not a full agent roster — the
-  Loop is single-agent by design.
-- `skills/` — packaged procedures a consuming project copies into its own
-  `.claude/skills/`. `hedgehog-bootstrap` runs Project Bootstrap (Order
-  steps 1–7) and wires in Logic's enforcement config, once per project.
-  `conventional-commits` matches commit granularity to Order's step
-  sequence, used mainly for Correction Protocol cleanups.
+  `.claude/agents/`: `planner` (Intake, module scoping), `ui-builder`
+  (frontend build steps), `reviewer` (phase transition checks,
+  Correction Protocol review). Scoped to the judgment calls mechanical
+  gates can't make on their own — deliberately not a full agent roster,
+  since the build loop itself is single-agent by design.
+- `skills/` — the packaged procedures a consuming project copies into its
+  own `.claude/skills/`:
+  - `hedgehog-bootstrap` — scaffolds a new project once: the locked
+    stack, the monorepo shell, and the enforcement config (Nx module
+    boundaries, lefthook, commitlint, env validation, phase gate) that
+    makes the stack and build order mechanically true.
+  - `hedgehog-loop` — the operating loop for every unit of work once
+    bootstrap has run: the domain module step sequence, phase rules, and
+    Correction Protocol.
+  - `conventional-commits` — reconstructs step-shaped, conventional
+    commit history when work didn't land cleanly as it went (mainly
+    Correction Protocol cleanups).
+- `TODO.md` — the template for a consuming project's live build
+  checklist.
 
 ## Working in this repo
 
 This repo's own content is the product. Changes here are edits to the
-discipline itself: doc content, later the skill/agent packaging, and any
-shared config or generators the discipline references.
+discipline itself: agent and skill content, `README.md`, `TODO.md`, and
+any shared config or generators the discipline references.
 
-- Every `.md` file states current state only — no negation of rejected
-  alternatives, no changelog-style narration, no "we used to think X."
-  If a doc needs to change, edit it to say what's true now.
-- Vocabulary (principles), Stack, and Order are the three standing-default
-  docs. Logic is enforcement config, not a fourth standing default.
-  `docs/hedgehog-operating-instructions.md` is payload, not a standing
-  default either.
-- Keep the four core docs internally consistent — a fact stated in one
-  (e.g. module granularity) has exactly one owning doc; others reference
-  it rather than restating it.
+- Every file states current state only — no negation of alternatives, no
+  changelog-style narration, no "we used to do X." If a file needs to
+  change, edit it to say what's true now.
+- Every rule an agent or skill depends on lives inside that agent or
+  skill file, or in `README.md` — not in a separate reference document.
+  A consuming project copies `agents/` and `skills/` verbatim, so nothing
+  load-bearing may live outside them.
+- A fact restated across multiple agents/skills (e.g. the commit-message
+  format, the domain module shape) has exactly one owning file; others
+  reference it by name rather than restating the substance.

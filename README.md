@@ -1,83 +1,96 @@
 # Hedgehog
 
-A build discipline for AI-guided software projects - an alternative to
-BMAD, Superpowers, and traditional PRD-driven workflows.
+Hedgehog is a build discipline for AI-guided software projects: one
+opinionated way of building software, held as standing defaults, applied
+the same way on every project. Given a **WHAT** (a business need), the
+discipline converts it into a product through a fixed **way of working**.
 
-The fox knows many tricks while the hedgehog knows one thing and does it well. Unlike other systems, Hedgehog uses an opinionated way of building for the AI era:
+The fox knows many tricks; the hedgehog knows one thing and does it well.
 
-## Principles
-1. Without guard-rails, AI projects baloon into unmaintainable ...
+## Core stance
 
-## The problem
-
-PRD-driven frameworks describe a product in **slices**: a user story that
-touches UI, backend, and business logic all at once. That forces every decision, including the architecture, to be made up front, before the team or the AI has enough context to make it well.
-
-It also mixes concerns that don't belong together: a screen's layout has nothing to do with a domain model's invariants, but a slice-shaped PRD asks you to design both in the same breath.
-
-This front-loads ceremony instead of building: a PRD is written and reviewed before a single tested line of code exists, and that document becomes context the AI has to hold onto for the rest of the project.
-
-The bigger cost shows up later. A PRD locks decisions in as if they were facts, then tests get written against those decisions. When reality disagrees with the PRD, the correction isn't a small local fix - it's a course correction against a document that says otherwise, which makes changing course feel like a failure instead of the normal cost of learning something the plan couldn't have known yet.
-
-The result is the opposite of the **last responsible moment**: decisions get locked in early, at the point of highest ignorance, instead of at the
-point of most information.
-
-When a PRD turns out to be wrong, the fix is a
-new round of ceremony - re-plan, re-review re-sign-off - rather than a small, local correction.
-
-## The Hedgehog approach
-
-Build backend-first, root-dependency order, every time:
+Hedgehog builds backend-first, root-dependency order, every time:
 
 ```
-types → data → contracts → domain logic → Thin API → hooks → screens
+types → data → contracts → domain logic → thin API → hooks → screens
 ```
 
-The backend (schema and domain logic) is built and proven first.
+The backend (schema and domain logic) is built and proven first. The
+contract — the typed boundary derived from the schema — is fixed early,
+so the shape of the API is set by what the data and domain actually are.
+The API layer is a thin wire-up over that contract, not a design surface
+in its own right. The frontend arrives last, as a consumer of a finished,
+stable API.
 
-The contract - the typed boundary derived from
-the schema - is fixed early, so the shape of the API is set by what the data and domain actually are, not guessed at in advance.
+This puts every decision at the **last responsible moment**: a screen's
+layout has nothing to do with a domain model's invariants, so Hedgehog
+never asks for both in the same breath. UI decisions happen only once the
+backend and contract that constrain them already exist.
 
-The API layer is a thin wire-up over that contract not a design surface in its own right.
+**Fix forward, fix small.** When a downstream step reveals an upstream
+assumption was wrong, the correction patches the upstream step directly
+and fast-forwards the small set of dependents that broke, each its own
+atomic commit. The commit log is the explanation.
 
-The frontend arrives last, as a consumer of a finished, stable API, never a co-designer of it.
+**Escape hatch:** for novel UX or exploratory products that don't
+decompose cleanly root-first — vibecode a rough draft, mine it for domain
+vocabulary only, discard the code, then build hedgehog-style. The draft
+never gets promoted directly into the structure.
 
-This preserves the last responsible moment naturally: UI decisions happen only once the backend and contract that constrain them already exist.
+## Ordered work graphs
 
-New features can then work as easy scoped slices instead of heavy PRD documents.
-
-### Ordered Work Graphs
-Instead of a PRD, Hedgehog uses an **ordered work graph**: a small,
+Hedgehog replaces a PRD with an **ordered work graph**: a small,
 dependency-aware checklist (`TODO.md`) where each step is one schema, one
-contract, one service - built, tested, and committed before the next step
-starts. The commit log becomes the record of what was built and why,
-replacing the sign-off documents PRD-driven frameworks rely on.
+contract, one service — built, tested, and committed before the next
+step starts. The commit log becomes the record of what was built and
+why.
+
+A PRD describes a product in slices: a user story that touches UI,
+backend, and business logic all at once, forcing every decision —
+including the architecture — to be made up front, before there's enough
+context to make it well. It also front-loads ceremony: a document gets
+written and reviewed before a single tested line of code exists, and
+when reality disagrees with it later, the fix is a new round of
+ceremony rather than a small, local correction. Hedgehog's ordered work
+graph keeps every step small, verified, and revertible instead.
 
 ## Why this suits AI-assisted building
 
 Large, ambiguous instructions ("build this feature") degrade AI
-performance - context gets noisy, assumptions compound, mistakes are hard
-to roll back.
+performance — context gets noisy, assumptions compound, mistakes are
+hard to roll back. Small, ordered, verified steps don't have that
+problem: each one is independently understandable, testable, and
+revertible. Hedgehog's loop — pick the next step, build it, test it,
+commit it — applies that discipline consistently.
 
-Small, ordered, verified steps don't have that problem: each
-one is independently understandable, testable, and revertible.
+## The stack
 
-Hedgehog's
-loop - pick the next step, build it, test it, commit it - is the discipline
-version of that idea, applied consistently rather than left to chance.
+One locked, opinionated stack removes recurring per-project arguments:
+Nx monorepo, pnpm, NestJS, Drizzle + PostgreSQL, ts-rest + Zod contracts,
+Better Auth, TanStack Query, Next.js + ShadCN + Tailwind (Expo + React
+Native Reusables + NativeWind for mobile), BullMQ + Redis, Pino, and
+Conventional Commits enforced by lefthook. The `hedgehog-bootstrap` skill
+carries the full table and the config that enforces it.
 
-## Where to look
+## What this repo is
 
-- [`CLAUDE.md`](CLAUDE.md) - how this repo itself is worked on.
-- [`docs/hedgehog-principles.md`](docs/hedgehog-principles.md) - what
-  Hedgehog is and its core stance.
-- [`docs/hedgehog-intake.md`](docs/hedgehog-intake.md) - the input spec:
-  what a project must supply (scope boundary, domain vocabulary) before
-  build starts.
-- [`docs/hedgehog-stack.md`](docs/hedgehog-stack.md) - the locked stack.
-- [`docs/hedgehog-order.md`](docs/hedgehog-order.md) - the build sequence
-  and module definition.
-- [`docs/hedgehog-logic.md`](docs/hedgehog-logic.md) - the enforcement
-  config that makes Stack and Order mechanically true.
-- [`docs/hedgehog-operating-instructions.md`](docs/hedgehog-operating-instructions.md)
-  - the operating loop a project built with Hedgehog imports.
+This repo is the discipline itself: a package of Claude Code agents and
+skills a project imports to work Hedgehog-style, and the source of the
+method.
+
+- `agents/` — the subagent roles a consuming project copies into its own
+  `.claude/agents/`: `planner` (Intake, module scoping), `ui-builder`
+  (frontend build steps), `reviewer` (phase transition checks,
+  Correction Protocol review).
+- `skills/` — the packaged procedures a consuming project copies into
+  its own `.claude/skills/`: `hedgehog-bootstrap` (scaffolds a new
+  project once, wires in enforcement config), `hedgehog-loop` (the
+  operating loop for every unit of work after bootstrap), and
+  `conventional-commits` (reconstructs step-shaped commit history when
+  work didn't land cleanly as it went).
+- `TODO.md` — the template for a consuming project's live build
+  checklist, copied to that project's repo root.
+
+A consuming project's own root `CLAUDE.md` points at these agents and
+skills; the `hedgehog-loop` skill is the entry point for day-to-day work
+once `hedgehog-bootstrap` has run.
