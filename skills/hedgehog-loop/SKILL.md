@@ -94,14 +94,15 @@ callable (Postman/curl/contract tests) before frontend work starts.
 
 Phase B starts once Phase A is done for the scope being built. The
 frontend is a pure consumer of an already-finished API. Step 6a is where
-the "how it should feel" that Intake deferred gets decided — once, per
-module, after the hook exists and before `ui-builder` starts the screen
-— via the `ux-planner` agent. Its first run for a module is also the
-signal to the user that Phase B has started, and the point where a
-mockup, screenshot, or export from a tool like Google Stitch or Figma
-can be handed over as input. It writes `docs/design/<module>.md`, not a
-step commit of its own; `TODO.md` still only tracks
-hooks/screen-web/screen-mobile per module.
+"how it should feel" gets decided — once, per module, after the hook
+exists and before `ui-builder` starts the screen — via the `ux-planner`
+agent, starting from whatever `planner` filed in
+`docs/design/<module>-notes.md` at Intake. Its first run for a module is
+also the signal to the user that Phase B has started, and the point
+where a mockup, screenshot, or export from a tool like Google Stitch or
+Figma can be handed over as further input. It writes
+`docs/design/<module>.md`, not a step commit of its own; `TODO.md` still
+only tracks hooks/screen-web/screen-mobile per module.
 
 ## The Loop (every unit of work)
 

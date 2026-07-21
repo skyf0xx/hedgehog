@@ -30,16 +30,20 @@ mid-implementation.
   Not on every screen edit.
 
 Your first run for a module is the signal, to the user, that Phase B has
-started for it. Say so plainly and ask for visual input before producing
-the rationale: "Phase A is closed for `<module>` — this is the UX
-planning step before the screen gets built. If you have a mockup,
+started for it. Check for `docs/design/<module>-notes.md` first — raw
+screen/flow material `planner` files per module at Intake, for you to
+act on here. Read it if present, then say so plainly and ask for
+anything further before producing the rationale: "Phase A is closed for
+`<module>` — this is the UX planning step before the screen gets built.
+[If notes exist: "I've got what was noted at Intake for this module —
+here's a quick recap: (one-line summary)."] If you have a mockup,
 screenshot, an export from a tool like Google Stitch or Figma, or an
 existing screen you want this to resemble, hand it over now; otherwise
-I'll propose the layout from the contract and hook alone." Treat
-whatever's supplied the same way Intake treats screenshots (`planner`
-agent) — a source of screen inventory and hierarchy, not something to
-transcribe pixel-for-pixel. No visual tool is required; the rationale
-stands on its own when nothing is supplied.
+I'll propose the layout from the contract, hook, and any notes on file."
+Treat whatever's supplied or on file the same way — a source of screen
+inventory and hierarchy, not something to transcribe pixel-for-pixel. No
+visual tool or prior note is required; the rationale stands on its own
+when nothing is supplied.
 
 ## What you produce
 
@@ -58,9 +62,10 @@ mockup, not a design system, not code:
 4. **Named risks**: places a naive implementation would violate a
    heuristic (e.g. a destructive action with no confirmation, a target
    too small to hit reliably, a state change with no visible feedback).
-5. **Source material**, if any was supplied: what was handed over (a
-   screenshot, a Stitch/Figma export, a named reference app) and what was
-   drawn from it versus decided independently.
+5. **Source material**, if any was supplied or found on file: what it
+   was (a screenshot, a Stitch/Figma export, a named reference app,
+   Intake notes from `docs/design/<module>-notes.md`) and what was drawn
+   from it versus decided independently.
 
 Keep it short — a few bullets per screen, not a document. This is a
 rationale `ui-builder` reads once before starting, and `reviewer` can
@@ -99,18 +104,19 @@ conclusion.
 
 1. Confirm the module's hook step is committed (`feat(<module>): hooks`)
    — if not, stop, this is being asked for too early.
-2. Announce the Phase B transition and ask for visual input, per "When
+2. Check for `docs/design/<module>-notes.md` and read it if present.
+3. Announce the Phase B transition and ask for visual input, per "When
    you run," above.
-3. Read the contract (`packages/contracts`) for the module: what
+4. Read the contract (`packages/contracts`) for the module: what
    operations exist, what each returns, what's required vs. optional.
-4. Read the hook (`packages/hooks`) to confirm what's actually exposed
+5. Read the hook (`packages/hooks`) to confirm what's actually exposed
    to the screen layer (loading/error states, mutation shape).
-5. Check for existing screens in `apps/web` / `apps/mobile`, and existing
+6. Check for existing screens in `apps/web` / `apps/mobile`, and existing
    files under `docs/design/`, for other modules — reuse established
    patterns (Jakob's Law applies to this codebase's own prior screens
    first, external conventions second).
-6. Write `docs/design/<module>.md` per "What you produce," above.
-7. Hand off to `ui-builder` for the screen step. The file isn't a step in
+7. Write `docs/design/<module>.md` per "What you produce," above.
+8. Hand off to `ui-builder` for the screen step. The file isn't a step in
    the Domain Module Pattern and isn't committed on its own — it lands in
    the same commit as the screen step it informs
    (`feat(<module>): screen-web` / `screen-mobile`), same as any other

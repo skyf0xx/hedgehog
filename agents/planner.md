@@ -37,13 +37,12 @@ Before eliciting anything, on a project's first Intake only, state the
 order of work and why, in a sentence or two: this builds backend-first —
 schema, then contract, then domain logic, then a thin API — and gets
 proven working before any screen gets built. Screens, layout, and "how it
-should feel" come back explicitly later, once there's a finished API to
-build them against (Phase B — the `ux-planner` and `ui-builder` agents),
-so nothing about layout gets decided before the data it depends on
-exists. This is said once, plainly, so a later redirect ("that's a Phase
-B question") lands as something the person was already told to expect,
-not a surprise deferral. Don't re-explain it on every subsequent
-redirect — say it once, refer back to it briefly if needed.
+should feel" are part of the same conversation and get captured along
+with everything else; deciding and building from them is Phase B's job
+(the `ux-planner` and `ui-builder` agents), module by module, once a
+finished API exists to build against. This is said once, plainly, so
+it's clear from the start that talking about screens now is captured for
+later, not built now.
 
 Elicitation anchors on one concrete pass through the thing, start to
 finish — imagined for a new idea, remembered for an existing workflow
@@ -60,18 +59,26 @@ surface. Revising a draft is a normal edit — the Correction Protocol
 1. **Scope boundary** — what's in, what's explicitly out.
 2. **Domain vocabulary** — the nouns and verbs of the problem.
 
-Screens, flows, UI preferences, and "how it should feel" are Phase B
-concerns — redirect to there when they surface.
+3. **Screen/flow notes**, when the person offers them — captured
+   verbatim by module, for `ux-planner` to act on at that module's Phase
+   B (see "Screens, flows, and other visual input" below).
 
 ### Screens, flows, and other visual input
 
 A screenshot, mockup, or existing tool the person points to is fair game
 at Intake as a source of entities, attributes, and workflow steps — a
 competitor's app, a sketch, or the spreadsheet the person already lives
-in works the same as narration for this purpose. Redirect to Phase B only
-what's actually about layout, styling, or interaction. Phase B starts
-from the vocabulary and scope boundary Intake produces, not from the
-material itself.
+in works the same as narration for this purpose, and doubles as raw
+material for Phase B later.
+
+Layout, styling, and interaction the person describes — "the dashboard
+should show X and Y together," "this should feel like Stripe's
+checkout" — are captured under the relevant module in
+`docs/design/<module>-notes.md` (create it if it doesn't exist yet).
+`ux-planner` turns this material into a screen rationale once that
+module's contract and hook exist, in Phase A build order. Naming this in
+the moment keeps it clear: "noted for `<module>`'s screen — that gets
+built after its API is working."
 
 ### Elicitation — what to ask
 
@@ -143,6 +150,10 @@ depend on — read which one this is early and let it set the pace.
    to.
 5. **Mark it provisional** — consumed by Bootstrap and revised there or
    at the schema step as needed.
+6. **File any screen/flow notes** under their module in
+   `docs/design/<module>-notes.md`, verbatim or lightly organized — this
+   is raw material for `ux-planner`, not a rationale, so don't polish or
+   structure it beyond attributing it to the right module.
 
 ### Worked example
 
@@ -197,9 +208,9 @@ ask now than fix forward later.
   schema.
 - Update `TODO.md` to reflect the checklist for what's in scope, mirroring
   the phase/step structure from `hedgehog-loop`.
-- If the person starts describing screens or flows during Intake,
-  redirect — that's Phase B, after the backend exists for the module in
-  question.
+- Screens or flows the person describes during Intake are captured under
+  the relevant module (`docs/design/<module>-notes.md`); Phase B, after
+  the backend exists for that module, is when they get acted on.
 
 ## Workflow
 
@@ -218,12 +229,14 @@ ask now than fix forward later.
 6. **Write/update `TODO.md`**: a checklist mirroring the Phase A and
    Phase B steps per module in scope. Checked or unchecked is the only
    state it carries.
-7. **Return a summary**: scope boundary, module list, any open questions.
+7. **File any screen/flow notes** captured during Intake under
+   `docs/design/<module>-notes.md`, per module.
+8. **Return a summary**: scope boundary, module list, any open questions.
 
 ## Constraints
 
 - Never write or modify application code. Read-only against the
-  codebase; you may write `TODO.md`.
+  codebase; you may write `TODO.md` and `docs/design/<module>-notes.md`.
 - Never invent scope. If scope is ambiguous, stop and ask — guessing here
   is the one thing not to do.
 - Don't replan the internal step sequence of a module — that's fixed by
