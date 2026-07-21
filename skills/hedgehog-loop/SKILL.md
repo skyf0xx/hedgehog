@@ -89,10 +89,16 @@ callable (Postman/curl/contract tests) before frontend work starts.
 | # | Step | Lives in | Commit |
 |---|---|---|---|
 | 6 | Hook | `packages/hooks` (TanStack Query) | `feat(<module>): hooks` |
+| 6a | UX rationale | n/a — read-only, `ux-planner` agent | none — input to step 7, not a committed step |
 | 7 | Screen | `apps/web` and/or `apps/mobile` | `feat(<module>): screen-web` / `feat(<module>): screen-mobile` |
 
 Phase B starts once Phase A is done for the scope being built. The
-frontend is a pure consumer of an already-finished API.
+frontend is a pure consumer of an already-finished API. Step 6a is where
+the "how it should feel" that Intake deferred gets decided — once, per
+module, after the hook exists and before `ui-builder` starts the screen
+— via the `ux-planner` agent. It produces a short rationale, not a
+commit; `TODO.md` still only tracks hooks/screen-web/screen-mobile per
+module.
 
 ## The Loop (every unit of work)
 
@@ -155,6 +161,9 @@ ask.
 - **Tests are the gate on every commit** in the sequence.
 - Frontend code for a module (hook, screen) is built after that module's
   API is committed.
+- The screen step doesn't start from a blank slate — `ux-planner` runs
+  once per module, after the hook is committed, before `ui-builder`
+  starts the screen.
 - Shared config in `packages/config` is the single source; a per-app
   override request is a signal to fix the base config at the source.
 

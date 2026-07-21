@@ -168,7 +168,7 @@ usage is deferred (see Queues, above). Call `loadEnv()` at the top of
 
 Commit: `feat(worker): bullmq seam, no consumers`
 
-### 6. `apps/web` — Next shell, TanStack Query provider
+### 6. `apps/web` — Next shell, TanStack Query provider, base theme
 
 ```bash
 npx nx g @nx/next:app apps/web
@@ -176,11 +176,15 @@ pnpm add @tanstack/react-query
 pnpm dlx shadcn@latest init
 ```
 
-Wire the TanStack Query provider at the root layout. No screens or hooks
-yet — Phase B doesn't start until Phase A closes for at least one module.
-Tag: `scope:web`.
+Wire the TanStack Query provider at the root layout. `shadcn init` writes
+`apps/web`'s base theme (CSS variables for color, radius, light/dark
+mode) — set the actual palette here, once, rather than leaving ShadCN's
+placeholder values for `ui-builder` to inherit unnoticed on the first
+screen it builds. Light/dark mode toggle wiring belongs here too, not as
+a per-screen decision later. No screens or hooks yet — Phase B doesn't
+start until Phase A closes for at least one module. Tag: `scope:web`.
 
-Commit: `feat(web): next shell + query provider`
+Commit: `feat(web): next shell + query provider + base theme`
 
 ### 7. `apps/mobile` — Expo shell (only if mobile is in scope)
 
@@ -192,9 +196,12 @@ npx nx g @nx/expo:app apps/mobile
 pnpm add react-native-reusables nativewind
 ```
 
-Tag: `scope:mobile`.
+Configure NativeWind's theme (`tailwind.config.js` colors, light/dark)
+to match `apps/web`'s base theme from step 6 — one visual identity
+across platforms, set once here rather than drifting per-screen. Tag:
+`scope:mobile`.
 
-Commit: `feat(mobile): expo shell`
+Commit: `feat(mobile): expo shell + base theme`
 
 ## Enforcement wiring (do this within step 1, not as a separate pass)
 

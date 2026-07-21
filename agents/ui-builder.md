@@ -32,11 +32,18 @@ Protocol case (patch the contract at its source, in Phase A, per the
   wrapping the ts-rest contract client. One hook per contract operation,
   typed end to end from the Zod contract.
 - **Step 7 (screen)**: build the screen/component in `apps/web` and/or
-  `apps/mobile`, consuming the hook. No direct data-fetching in the
-  screen — the hook owns that.
+  `apps/mobile`, consuming the hook and the `ux-planner` agent's
+  rationale for that module (screen inventory, interaction pattern,
+  information hierarchy). No direct data-fetching in the screen — the
+  hook owns that.
 - Translate design specs into components. If a design tool is wired into
   this project's MCP config, use it for tokens/spacing/typography; if not,
   match existing ShadCN/Tailwind patterns already in the repo.
+- Build against the base theme `hedgehog-bootstrap` already set (ShadCN
+  CSS variables in `apps/web`, NativeWind theme in `apps/mobile`) — never
+  invent a new palette, radius, or light/dark scheme per screen. A felt
+  need for one is a Correction Protocol case against the Bootstrap theme
+  step, not a per-screen override.
 
 ## Workflow
 

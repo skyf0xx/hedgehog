@@ -79,9 +79,10 @@ skills a project imports to work Hedgehog-style, and the source of the
 method.
 
 - `agents/` — the subagent roles a consuming project copies into its own
-  `.claude/agents/`: `planner` (Intake, module scoping), `ui-builder`
-  (frontend build steps), `reviewer` (phase transition checks,
-  Correction Protocol review).
+  `.claude/agents/`: `planner` (Intake, module scoping), `ux-planner`
+  (interaction/layout rationale, once per module at the start of
+  Phase B), `ui-builder` (frontend build steps), `reviewer` (phase
+  transition checks, Correction Protocol review).
 - `skills/` — the packaged procedures a consuming project copies into
   its own `.claude/skills/`: `hedgehog-bootstrap` (scaffolds a new
   project once, wires in enforcement config), `hedgehog-loop` (the
