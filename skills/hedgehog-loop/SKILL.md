@@ -89,16 +89,19 @@ callable (Postman/curl/contract tests) before frontend work starts.
 | # | Step | Lives in | Commit |
 |---|---|---|---|
 | 6 | Hook | `packages/hooks` (TanStack Query) | `feat(<module>): hooks` |
-| 6a | UX rationale | n/a — read-only, `ux-planner` agent | none — input to step 7, not a committed step |
+| 6a | UX rationale | `docs/design/<module>.md`, `ux-planner` agent | bundled into step 7's commit, not its own |
 | 7 | Screen | `apps/web` and/or `apps/mobile` | `feat(<module>): screen-web` / `feat(<module>): screen-mobile` |
 
 Phase B starts once Phase A is done for the scope being built. The
 frontend is a pure consumer of an already-finished API. Step 6a is where
 the "how it should feel" that Intake deferred gets decided — once, per
 module, after the hook exists and before `ui-builder` starts the screen
-— via the `ux-planner` agent. It produces a short rationale, not a
-commit; `TODO.md` still only tracks hooks/screen-web/screen-mobile per
-module.
+— via the `ux-planner` agent. Its first run for a module is also the
+signal to the user that Phase B has started, and the point where a
+mockup, screenshot, or export from a tool like Google Stitch or Figma
+can be handed over as input. It writes `docs/design/<module>.md`, not a
+step commit of its own; `TODO.md` still only tracks
+hooks/screen-web/screen-mobile per module.
 
 ## The Loop (every unit of work)
 
