@@ -1,106 +1,113 @@
-# Hedgehog
+# 🦔 Hedgehog
 
-Hedgehog is a build discipline for AI-guided software projects: one
-opinionated way of building software, held as standing defaults, applied
-the same way on every project. Given a **WHAT** (a business need), the
-discipline converts it into a product through a fixed **way of working**.
+Hedgehog is a build discipline for AI-guided software. It provides:
 
-The fox knows many tricks; the hedgehog knows one thing and does it well.
+1. An opinionated stack
+2. An enforced build order
+3. Agents and skills that make good engineering the default.
 
-## Core stance
+## Hedghog's secret to great outcomes
 
-Hedgehog builds backend-first, root-dependency order, every time:
+- 🧩 **Progressive layering:** types → schema → backend → UI, each layer built on a stable one beneath it
+- 🎯 **Small context loops:** decompose work into atomic, verifiable changes
+- 🌳 **Self-documenting architecture:** the codebase carries the context, not the AI
+    AI
+- 🔁 **Traceable evolution:** decisions are preserved through conventional commits
 
+## Why Hedgehog Exists
+
+AI coding starts fast then breaks down.
+
+Context accumulates, prompts get longer, architecture drifts.
+
+Eventually, adding one more feature feels
+dangerous.
+
+**The enemy isn't AI. It's the absence of guardrails.**
+
+## Plans Expire. Structure Doesn't
+
+Without a build order enforced mechanically, an AI (or a person) has to carry the whole plan in its head: architecture, sequencing, past decisions, etc. as an ever-growing prompt.
+
+Hedgehog doesn't ask the AI to remember a plan. It makes the plan visible in the structure of the build. The architecture itself guides the next step.
+
+### The AI should never wonder what to do next
+
+Instead of asking AI to hold an entire application in context, Hedgehog turns the build into a sequence of small, deterministic steps.
+
+Each module is built progressively: schema → contract → repository → service → controller. Every step is gated by tests and committed before the next begins.
+
+Backend comes first. Every module gets a working, typed API before any screen is built. The frontend becomes a consumer of stable capabilities, not a parallel source of complexity.
+
+The build order is not something you negotiate with the AI. It is encoded into the process.
+
+## The Hedgehog Loop
+
+``` text
+Bootstrap (once per project)
+  ↓
+Intake — scope boundary + domain vocabulary (planner agent)
+  ↓
+Phase A, per module — schema → contract → repository → service → controller
+  ↓
+Phase A closes for the module (gated: typecheck, lint, test)
+  ↓
+Phase B, per module — hook → UX rationale → screen
+  ↓
+Repeat for the next module or the next step
 ```
-types → data → contracts → domain logic → thin API → hooks → screens
-```
 
-The backend (schema and domain logic) is built and proven first. The
-contract — the typed boundary derived from the schema — is fixed early,
-so the shape of the API is set by what the data and domain actually are.
-The API layer is a thin wire-up over that contract, not a design surface
-in its own right. The frontend arrives last, as a consumer of a finished,
-stable API.
+## Comparison
 
-This puts every decision at the **last responsible moment**: a screen's
-layout has nothing to do with a domain model's invariants, so Hedgehog
-never asks for both in the same breath. UI decisions happen only once the
-backend and contract that constrain them already exist.
+| Traditional AI Workflow | Hedgehog |
+| --- | --- |
+| Large prompts | Small, focused steps |
+| Context-heavy conversations | Self-contained build stages |
+| Big planning sessions | One intake, then continuous refinement |
+| Architecture drifts over time | Structure keeps the build aligned |
+| AI needs to remember decisions | The codebase and commit history preserve decisions |
 
-**Fix forward, fix small.** When a downstream step reveals an upstream
-assumption was wrong, the correction patches the upstream step directly
-and fast-forwards the small set of dependents that broke, each its own
-atomic commit. The commit log is the explanation.
+## For Builders
 
-**Escape hatch:** for novel UX or exploratory products that don't
-decompose cleanly root-first — vibecode a rough draft, mine it for domain
-vocabulary only, discard the code, then build hedgehog-style. The draft
-never gets promoted directly into the structure.
+Hedgehog brings proven software engineering practices into AI-assisted development.
 
-## Ordered work graphs
+Once the project brief is defined, Hedgehog takes over the execution: breaking the work into steps, following the build order, validating progress, and keeping decisions traceable.
 
-Hedgehog replaces a PRD with an **ordered work graph**: a small,
-dependency-aware checklist (`TODO.md`) where each step is one schema, one
-contract, one service — built, tested, and committed before the next
-step starts. The commit log becomes the record of what was built and
-why.
+Under the hood, it applies the practices experienced engineers rely on:
 
-A PRD describes a product in slices: a user story that touches UI,
-backend, and business logic all at once, forcing every decision —
-including the architecture — to be made up front, before there's enough
-context to make it well. It also front-loads ceremony: a document gets
-written and reviewed before a single tested line of code exists, and
-when reality disagrees with it later, the fix is a new round of
-ceremony rather than a small, local correction. Hedgehog's ordered work
-graph keeps every step small, verified, and revertible instead.
+- iterative delivery
+- small units of work
+- an opinionated stack
+- clear architectural boundaries
+- ports and adapters
+- continuous verification
+- conventional commits
 
-## Why this suits AI-assisted building
+AI becomes the builder operating inside those constraints — turning ideas into software without requiring you to manage every implementation detail.
 
-Large, ambiguous instructions ("build this feature") degrade AI
-performance — context gets noisy, assumptions compound, mistakes are
-hard to roll back. Small, ordered, verified steps don't have that
-problem: each one is independently understandable, testable, and
-revertible. Hedgehog's loop — pick the next step, build it, test it,
-commit it — applies that discipline consistently.
+## Architecture
 
-## The stack
+Hedgehog is a package of agents and skills. An opinionated stack is used so the build order above is mechanical and enforced by the tooling itself:
 
-One locked, opinionated stack removes recurring per-project arguments:
-Nx monorepo, pnpm, NestJS, Drizzle + PostgreSQL, ts-rest + Zod contracts,
-Better Auth, TanStack Query, Next.js + ShadCN + Tailwind (Expo + React
-Native Reusables + NativeWind for mobile), BullMQ + Redis, Pino, and
-Conventional Commits enforced by lefthook. The `hedgehog-bootstrap` skill
-carries the full table and the config that enforces it.
+| Layer | Choice | Why |
+| --- | --- | --- |
+| Monorepo | Nx | Enforces module boundaries at compile time. |
+| Package manager | pnpm | Prevents accidental cross-package dependencies. |
+| Backend | NestJS | Modules naturally mirror Hedgehog's build progression. |
+| ORM | Drizzle + drizzle-zod | Database schema is the single source of truth. |
+| Database | PostgreSQL | Simple, relational, predictable. |
+| Platform | Railway | Infrastructure is available from the first commit. |
+| API contract | ts-rest | Contracts are code, not documentation. |
+| Validation | Zod | One schema for runtime and compile time. |
+| Auth | Better Auth | Secure by default from day one. |
+| Data fetching | TanStack Query | UI consumes typed APIs, never implementation details. |
+| Web | Next.js + ShadCN + Tailwind | UI remains a thin presentation layer. |
+| Mobile | Expo + RN Reusables | Shares contracts and design tokens with web. |
+| Jobs | BullMQ + Redis | Async boundaries exist before they're needed. |
+| Logging | Pino | Structured logs from the first feature. |
+| Linting | ESLint + Prettier | One shared standard across every module. |
+| Testing | Vitest + Playwright | Every step is verifiable before progressing. |
+| Commits | Conventional Commits | Architectural decisions become permanent history. |
+| Observability | Sentry | Failures map cleanly back to module boundaries. |
 
-Nx itself is operated through nrwl's own agent skills:
-[nx-generate](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-generate)
-for scaffolding steps,
-[nx-workspace](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-workspace)
-for read-only boundary/config checks,
-[nx-run-tasks](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-run-tasks)
-for running build/lint/test targets. Hedgehog's own skills and agents
-defer to these by URL rather than restating Nx usage.
-
-## What this repo is
-
-This repo is the discipline itself: a package of Claude Code agents and
-skills a project imports to work Hedgehog-style, and the source of the
-method.
-
-- `agents/` — the subagent roles a consuming project copies into its own
-  `.claude/agents/`: `planner` (Intake, module scoping), `ux-planner`
-  (interaction/layout rationale, once per module at the start of
-  Phase B), `ui-builder` (frontend build steps), `reviewer` (phase
-  transition checks, Correction Protocol review).
-- `skills/` — the packaged procedures a consuming project copies into
-  its own `.claude/skills/`: `hedgehog-bootstrap` (scaffolds a new
-  project once, wires in enforcement config), `hedgehog-loop` (the
-  operating loop for every unit of work after bootstrap), and
-  `conventional-commits` (reconstructs step-shaped commit history when
-  work didn't land cleanly as it went).
-- `TODO.md` — the template for a consuming project's live build
-  checklist, copied to that project's repo root.
-
-A consuming project's own root `CLAUDE.md` points at these agents and
-skills; the `hedgehog-loop` skill is the entry point for day-to-day work
-once `hedgehog-bootstrap` has run.
+Full generator commands, version-specific flags, and the enforcement config (module boundary tags, lefthook rules, env schema, CI phase gate) live in `skills/
