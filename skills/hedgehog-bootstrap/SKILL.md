@@ -5,18 +5,18 @@ description: Use once, at the start of a new Hedgehog project, to scaffold Proje
 
 # Hedgehog Bootstrap
 
-Scaffolds Project Bootstrap exactly once per project, plus the enforcement
-config that makes the stack and build order mechanically true rather than
-merely documented. After this runs, the `hedgehog-loop` skill takes over
-for every module, one step at a time. This skill does not touch domain
-modules — no schema, no contract, nothing under `libs/<module>/`. That's
-Phase A, started fresh after Bootstrap closes.
+Scaffolds Project Bootstrap once per project, plus the enforcement config
+that makes the stack and build order mechanically true rather than merely
+documented. After this runs, `hedgehog-loop` takes over per module, one
+step at a time. This skill touches no domain modules — no schema, no
+contract, nothing under `libs/<module>/`. That's Phase A, started fresh
+after Bootstrap closes.
 
 Run the `nx g` commands below via nrwl's [nx-generate](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-generate) skill — it dry-runs
 and verifies generator flags against the installed Nx version. Run the
-`nx run` / `nx affected` commands in the Enforcement wiring section via
-[nx-run-tasks](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-run-tasks) the same way. The commands below are the spec either
-way — these skills are how you execute that spec correctly.
+`nx run` / `nx affected` commands in Enforcement wiring via
+[nx-run-tasks](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-run-tasks) the same way. The commands below are the spec; those
+skills execute it correctly.
 
 ## The Stack (locked)
 
@@ -43,10 +43,10 @@ One opinionated stack, applied the same way on every project:
 | Commits | Conventional Commits + commitlint + lefthook |
 | Observability | Sentry |
 
-Constraint-contingent substitutions: Prisma in place of Drizzle when the
-team isn't SQL-comfortable; cloud + Pulumi/SST in place of Railway when
-full declarative IaC is a hard requirement; tRPC in place of ts-rest when
-the client is committed TypeScript-only.
+Constraint-contingent substitutions: Prisma for Drizzle when the team
+isn't SQL-comfortable; cloud + Pulumi/SST for Railway when full
+declarative IaC is a hard requirement; tRPC for ts-rest when the client is
+committed TypeScript-only.
 
 ### Monorepo layout
 
@@ -72,27 +72,26 @@ docs/
 
 `packages/auth` and `packages/jobs` are infra, built once, here — not
 touched again per module. `docs/design` fills in per module during
-Phase B — nothing to scaffold here at Bootstrap beyond the empty
-directory.
+Phase B; nothing to scaffold here beyond the empty directory.
 
 ### Queues: seam in, usage deferred
 
 The queue seam is a day-one standing default: Redis provisioned on
-Railway, a `worker` app in the monorepo, and a `Queue` port with a BullMQ
+Railway, a `worker` app in the monorepo, a `Queue` port with a BullMQ
 adapter (same pattern as repositories). Usage stays last-responsible-
-moment: an operation goes async when it genuinely needs to (long-running
-work, retries, fan-out). Services don't know how their results are
-returned, so the enqueue-vs-await decision lives at the
+moment: an operation goes async only when it genuinely needs to
+(long-running work, retries, fan-out). Services don't know how their
+results are returned — the enqueue-vs-await decision lives at the
 application/controller layer. Workers are idempotent (at-least-once
 delivery).
 
 ## Before running
 
-Confirm Intake has already happened — a scope boundary and domain
-vocabulary should exist (the `planner` agent produces these). Bootstrap
-doesn't need the vocabulary to scaffold infra, but starting it before
-Intake is a sign work is getting ahead of itself. If there's no scope
-boundary yet, stop and point back to the `planner` agent.
+Confirm Intake already happened — a scope boundary and domain vocabulary
+should exist (`planner` produces these). Bootstrap doesn't need the
+vocabulary to scaffold infra, but starting before Intake signals work
+getting ahead of itself. No scope boundary yet: stop and point to
+`planner`.
 
 Confirm this hasn't already run: check for an existing Nx workspace
 (`nx.json` at repo root) or a prior Bootstrap commit
@@ -100,7 +99,7 @@ Confirm this hasn't already run: check for an existing Nx workspace
 existing workspace is a Correction Protocol case (patch the specific
 config step at its source, per `hedgehog-loop`), not a re-scaffold.
 
-## Steps (run in this sequence, one commit per step)
+## Steps (run in sequence, one commit per step)
 
 ### 1. Nx workspace + `packages/config`
 
@@ -108,21 +107,19 @@ config step at its source, per `hedgehog-loop`), not a re-scaffold.
 npx create-nx-workspace@latest . --preset=ts --pm=pnpm --nxCloud=skip
 ```
 
-Then scaffold `packages/config` as a plain `@nx/js` lib holding the
-locked, shared files:
+Scaffold `packages/config` as a plain `@nx/js` lib holding the locked,
+shared files:
 
 - `packages/config/eslint-base.js` — flat config, extended by every
-  app/lib. Include the `@nx/enforce-module-boundaries` rule and
-  `depConstraints` from the Enforcement wiring section below, verbatim.
+  app/lib. Include `@nx/enforce-module-boundaries` and `depConstraints`
+  from Enforcement wiring below, verbatim.
 - `packages/config/prettier.js` — includes `prettier-plugin-tailwindcss`.
-- `packages/config/env.schema.ts` — the Zod env schema from the
-  Enforcement wiring section below (`DATABASE_URL`,
-  `BETTER_AUTH_SECRET`, `REDIS_URL`, `NODE_ENV`; extend per project as
-  new infra is added at later Bootstrap steps).
+- `packages/config/env.schema.ts` — the Zod env schema from Enforcement
+  wiring below (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `REDIS_URL`,
+  `NODE_ENV`; extend per project as new infra is added later).
 - Root `eslint.config.js` extends `packages/config/eslint-base.js` and
-  declares the project tags table below (`scope:*`, `type:*`) as
-  comments or a lookup, so every subsequent generator step tags its
-  project correctly.
+  declares the project tags table below (`scope:*`, `type:*`) as comments
+  or a lookup, so every later generator step tags its project correctly.
 
 Commit: `feat(config): workspace + shared config`
 
@@ -173,8 +170,8 @@ pnpm add bullmq ioredis
 ```
 
 Provision the Redis connection and a `Queue` port shape (port + BullMQ
-adapter, same pattern repositories will use later) but no consumers —
-usage is deferred (see Queues, above). Call `loadEnv()` at the top of
+adapter, same pattern repositories use later) with no consumers — usage
+is deferred (see Queues, above). Call `loadEnv()` at the top of
 `apps/worker/src/main.ts`. Tag: `scope:worker`.
 
 Commit: `feat(worker): bullmq seam, no consumers`
@@ -191,44 +188,44 @@ Wire the TanStack Query provider at the root layout. `shadcn init` writes
 `apps/web`'s base theme (CSS variables for color, radius, light/dark
 mode) — set the actual palette here, once, rather than leaving ShadCN's
 placeholder values for `ui-builder` to inherit unnoticed on the first
-screen it builds. Light/dark mode toggle wiring belongs here too, not as
-a per-screen decision later. No screens or hooks yet — Phase B doesn't
+screen. Light/dark mode toggle wiring belongs here too, not as a
+per-screen decision later. No screens or hooks yet — Phase B doesn't
 start until Phase A closes for at least one module. Tag: `scope:web`.
 
 Commit: `feat(web): next shell + query provider + base theme`
 
 ### 7. `apps/mobile` — Expo shell (only if mobile is in scope)
 
-Skip this step entirely if mobile isn't in the scope boundary from
-Intake — don't scaffold speculative infra.
+Skip entirely if mobile isn't in the scope boundary from Intake — don't
+scaffold speculative infra.
 
 ```bash
 npx nx g @nx/expo:app apps/mobile
 pnpm add react-native-reusables nativewind
 ```
 
-Configure NativeWind's theme (`tailwind.config.js` colors, light/dark)
-to match `apps/web`'s base theme from step 6 — one visual identity
-across platforms, set once here rather than drifting per-screen. Tag:
+Configure NativeWind's theme (`tailwind.config.js` colors, light/dark) to
+match `apps/web`'s base theme from step 6 — one visual identity across
+platforms, set once here rather than drifting per-screen. Tag:
 `scope:mobile`.
 
 Commit: `feat(mobile): expo shell + base theme`
 
-## Enforcement wiring (do this within step 1, not as a separate pass)
+## Enforcement wiring (within step 1, not a separate pass)
 
 These are config *files*, not extra steps — write them as part of step 1
-so the commit gate is live before step 2 even starts. Every rule below is
-a compiler error, a lint failure, or a blocked commit — this is what
-makes the stack and build order mechanically true.
+so the commit gate is live before step 2 starts. Every rule below is a
+compiler error, lint failure, or blocked commit — this is what makes the
+stack and build order mechanically true.
 
 ### Nx module boundaries
 
 Encodes "service imports only ports" as a build-time failure.
-`@nx/enforce-module-boundaries` reasons at Nx-project granularity, so
-each domain module's repository and service are their own Nx lib;
-`apps/api` itself is wiring (controllers + module registration) that
-imports those libs. This makes cross-module isolation (FK-by-ID only,
-per `hedgehog-loop`) mechanically true.
+`@nx/enforce-module-boundaries` reasons at Nx-project granularity, so each
+domain module's repository and service are their own Nx lib; `apps/api`
+itself is wiring (controllers + module registration) importing those
+libs. This makes cross-module isolation (FK-by-ID only, per
+`hedgehog-loop`) mechanically true.
 
 **Tags:**
 
@@ -266,8 +263,8 @@ e.g. `libs/orders/port`, `libs/orders/repository`, `libs/orders/service`.
 }],
 ```
 
-Building out of order (e.g. a controller before a service exists, or a
-hook reaching into `apps/api` directly) fails `nx lint`.
+Building out of order (a controller before a service exists, a hook
+reaching into `apps/api` directly) fails `nx lint`.
 
 ### Commit gate (lefthook + commitlint)
 
@@ -304,17 +301,17 @@ module.exports = {
 };
 ```
 
-Scope is open — it names either a domain module (`orders`, `users`, ...)
-or an infra area (`db`, `contracts`, `auth`, `hooks`, `api`, `worker`,
-`web`, `mobile`, `config`). `@commitlint/config-conventional` validates
-type and subject case; scope isn't restricted to a fixed list since new
-modules enter play throughout a project's life.
+Scope is open — a domain module (`orders`, `users`, ...) or an infra area
+(`db`, `contracts`, `auth`, `hooks`, `api`, `worker`, `web`, `mobile`,
+`config`). `@commitlint/config-conventional` validates type and subject
+case; scope isn't restricted to a fixed list since new modules enter play
+throughout a project's life.
 
 A commit that fails typecheck, lint, or test does not happen. A commit
 exists once it compiles and passes.
 
 Run `pnpm dlx lefthook install` once `lefthook.yml` exists so the gate is
-active for step 2 onward.
+active from step 2 onward.
 
 ### Env validation (fail fast)
 
@@ -351,10 +348,9 @@ Called once, at the top of `apps/api/src/main.ts` and
 ### Phase gate (CI)
 
 Encodes "Phase A closes before Phase B opens" as a CI check. Blocks a PR
-that introduces a `feat(<module>): hooks` or `feat(<module>): screen-*`
-commit for a module with no prior `feat(<module>): api` commit on the
-branch. Can land in step 1's commit or as its own
-`feat(config): phase gate` commit.
+introducing a `feat(<module>): hooks` or `feat(<module>): screen-*` commit
+for a module with no prior `feat(<module>): api` commit on the branch. Can
+land in step 1's commit or as its own `feat(config): phase gate` commit.
 
 **`.github/workflows/phase-gate.yml` (logic sketch):**
 
@@ -382,17 +378,15 @@ One shared config, extended everywhere:
   app/lib.
 - `packages/config/prettier.js` — includes `prettier-plugin-tailwindcss`.
 
-A per-app override request is a signal to fix the base config at the
-source.
+A per-app override request signals to fix the base config at the source.
 
 ## After Bootstrap
 
-Update `TODO.md`: check off every Bootstrap line that's now built, leave
-Phase A/B sections as-is (per-module, filled in by the `planner` agent
-during Intake or when new scope enters play). Hand off to the
-`hedgehog-loop` skill — from here, every domain module goes through
-Phase A steps 1–5(a) one at a time, gated by lefthook, each its own
-commit.
+Update `TODO.md`: check off every Bootstrap line now built, leave Phase
+A/B sections as-is (per-module, filled in by `planner` during Intake or
+when new scope enters play). Hand off to `hedgehog-loop` — from here,
+every domain module goes through Phase A steps 1–5(a) one at a time,
+gated by lefthook, each its own commit.
 
 ## Constraints
 
@@ -401,9 +395,9 @@ commit.
 - Don't add domain schema, contracts, or any `libs/<module>/*` content —
   that's Phase A, started after Bootstrap, one module at a time.
 - Don't deviate from the package/library choices above. If a generator or
-  package name has changed upstream since this skill was written, that's
-  a signal to verify against current docs before running the command
-  blindly — not license to substitute a different library.
+  package name changed upstream since this was written, verify against
+  current docs before running the command — don't substitute a different
+  library.
 - Each of the 7 steps is its own commit, in order — same unit-of-work
   discipline as every other step in the discipline, even though this is
   infra rather than a domain module.

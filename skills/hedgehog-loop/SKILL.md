@@ -7,47 +7,44 @@ description: Use for every unit of work once a Hedgehog project is bootstrapped 
 
 The operating loop for a bootstrapped Hedgehog project: pick the next step,
 build it, gate it, commit it, check it off. `TODO.md` at repo root is the
-live list of what to build right now — read it before starting work. It's
-thin: a short context blurb plus a checklist mirroring the phase/step
-structure below. Checked or unchecked is the only state it carries.
+live list — read it before starting. It's thin: a context blurb plus a
+checklist mirroring the phase/step structure below. Checked/unchecked is
+its only state.
 
 ## Determine phase
 
-Before touching any code, know which phase applies to the module in
-scope:
+Before touching code, know which phase applies to the module in scope:
 
-- **Phase A** — building or extending the backend. Every module in scope
+- **Phase A** — building/extending the backend. Every module in scope
   needs schema → contract → repository → service → controller (→ queue)
   before Phase B starts for any of them.
-- **Phase B** — Phase A is closed for the module in question. Build hooks
-  and screens.
+- **Phase B** — Phase A is closed for the module. Build hooks and screens.
 
-Check `TODO.md`, or the commit log for `feat(<module>): api` commits. A
-module with no such commit is in Phase A.
+Check `TODO.md`, or the commit log for `feat(<module>): api` commits. No
+such commit means the module is in Phase A.
 
 ## The Domain Module Pattern
 
 A **domain module = one table.** `users`, `orders`, `order_items` are each
-their own module, each carrying the full step sequence below. The schema
-is the source of truth for where module boundaries fall.
+their own module, carrying the full step sequence below. The schema is the
+source of truth for module boundaries.
 
 **Cross-module references are FK-by-ID only.** If `orders.user_id`
 references `users`, the `orders` schema holds a plain FK column. The
-`orders` repository and service depend only on their own ports; a service
+`orders` repository and service depend only on their own ports — a service
 knows related entities only as an ID.
 
-- Need the related row too? Resolve it at the contract/controller layer
+- Need the related row? Resolve it at the contract/controller layer
   (parallel calls to each module's own endpoint), or join against the
   other module's *schema* directly inside the repository (Drizzle query).
 - This keeps every service importing only its own ports, so the Nx rule
   `type:service → onlyDependOnLibsWithTags: ['type:port', 'type:util']`
-  holds uniformly (wired during bootstrap).
+  holds uniformly (wired at bootstrap).
 
-A junction table (e.g. `order_items`) is one table, one module. It carries
-two FK-by-ID columns instead of one, each resolved the same way as any
-other cross-module reference.
+A junction table (e.g. `order_items`) is one table, one module, with two
+FK-by-ID columns instead of one, each resolved the same way.
 
-Every module goes through the same shape, in this order:
+Every module goes through the same shape, in order:
 
 ```
 schema      (Drizzle)              — types before data
@@ -58,19 +55,18 @@ controller  (thin HTTP)
 hook        (TanStack Query)       — Phase B only
 ```
 
-Plus, where an operation genuinely needs async: **queue = port + BullMQ
-adapter**, same port/adapter shape as the repository. The service imports
-only ports.
+Plus, when an operation needs async: **queue = port + BullMQ adapter**,
+same port/adapter shape as the repository. The service imports only ports.
 
 Standard Nx generators (`@nx/nest`, `@nx/next`, `@nx/expo`, `@nx/js`)
-scaffold the app/lib shell where applicable. Every step's actual content
-(schema, contract, repository, service, controller, hook) is hand-built,
-following this sequence directly.
+scaffold the app/lib shell. Each step's actual content (schema, contract,
+repository, service, controller, hook) is hand-built, following this
+sequence.
 
 ## Domain Module — Backend Steps (Phase A, every module in scope)
 
-Every module in scope goes through these steps before any module gets a
-hook or a screen — a horizontal pass across the whole backend.
+A horizontal pass across the whole backend — every module goes through
+these before any module gets a hook or screen.
 
 | # | Step | Lives in | Commit |
 |---|---|---|---|
@@ -79,63 +75,57 @@ hook or a screen — a horizontal pass across the whole backend.
 | 3 | Repository | `libs/<module>/repository` (port + Drizzle adapter) | `feat(<module>): repository` |
 | 4 | Service | `libs/<module>/service` (domain logic — imports only ports) | `feat(<module>): service` |
 | 5 | Controller | `apps/api` (thin HTTP, wires contract → service) | `feat(<module>): api` |
-| 5a | Queue *(only if needed)* | `apps/worker` (port + BullMQ adapter) | `feat(<module>): queue` |
+| 5a | Queue *(if needed)* | `apps/worker` (port + BullMQ adapter) | `feat(<module>): queue` |
 
-Repeat 1–5(a) for every module in scope. The API is complete, typed, and
+Repeat 1–5(a) per module in scope. The API is complete, typed, and
 callable (Postman/curl/contract tests) before frontend work starts.
 
-## Domain Module — Frontend Steps (Phase B, after Phase A closes for the module's scope)
+## Domain Module — Frontend Steps (Phase B, after Phase A closes for the module)
 
 | # | Step | Lives in | Commit |
 |---|---|---|---|
 | 6 | Hook | `packages/hooks` (TanStack Query) | `feat(<module>): hooks` |
-| 6a | UX rationale | `docs/design/<module>.md`, `ux-planner` agent | bundled into step 7's commit, not its own |
+| 6a | UX rationale | `docs/design/<module>.md`, `ux-planner` agent | bundled into step 7's commit |
 | 7 | Screen | `apps/web` and/or `apps/mobile` | `feat(<module>): screen-web` / `feat(<module>): screen-mobile` |
 
-Phase B starts once Phase A is done for the scope being built. The
-frontend is a pure consumer of an already-finished API. Step 6a is where
-"how it should feel" gets decided — once, per module, after the hook
-exists and before `ui-builder` starts the screen — via the `ux-planner`
-agent, starting from whatever `planner` filed in
-`docs/design/<module>-notes.md` at Intake. Its first run for a module is
-also the signal to the user that Phase B has started, and the point
-where a mockup, screenshot, or export from a tool like Google Stitch or
-Figma can be handed over as further input. It writes
-`docs/design/<module>.md`, not a step commit of its own; `TODO.md` still
-only tracks hooks/screen-web/screen-mobile per module.
+Phase B starts once Phase A is done for the scope. The frontend is a pure
+consumer of an already-finished API. Step 6a is where "how it should feel"
+gets decided — once per module, after the hook exists and before
+`ui-builder` starts the screen — via `ux-planner`, starting from whatever
+`planner` filed in `docs/design/<module>-notes.md` at Intake. Its first run
+for a module also signals to the user that Phase B has started, and is the
+point a mockup, screenshot, or export (Google Stitch, Figma) can be handed
+over. It writes `docs/design/<module>.md`, not its own step commit;
+`TODO.md` tracks only hooks/screen-web/screen-mobile per module.
 
 ## The Loop (every unit of work)
 
-1. **Pick the next step** per the tables above for the current phase and
-   module, from `TODO.md`. One step at a time, in order.
-2. **Check the gate.** The prior step compiles and passes tests before
-   this one starts.
+1. **Pick the next step** per the tables above, from `TODO.md`. One step
+   at a time, in order.
+2. **Check the gate.** The prior step compiles and passes tests first.
 3. **Build exactly one step.** One schema, one contract, one repository.
 4. **Run the gate on your own work**: typecheck, lint, test (mirrors
-   lefthook — wired during bootstrap).
-5. **Commit** using the exact Conventional Commit format from the tables
-   above.
-6. **Check off the corresponding line in `TODO.md`.**
+   lefthook, wired at bootstrap).
+5. **Commit** using the exact Conventional Commit format above.
+6. **Check off the line in `TODO.md`.**
 7. **Repeat.**
 
-Each commit batches exactly one step. Each step is built right for what's
-known now; a wrong step is fixed forward later via the Correction
-Protocol.
+Each commit batches exactly one step, built right for what's known now; a
+wrong step is fixed forward later via the Correction Protocol.
 
 ## Correction Protocol
 
 When a downstream step reveals an upstream step was wrong:
 
-1. Stop what you're doing.
+1. Stop.
 2. Patch the upstream step directly, in place.
-3. Fast-forward every dependent step that breaks, each as its own small
+3. Fast-forward every dependent step that breaks, each its own small
    commit.
 4. The commit messages are the explanation.
-5. Resume the loop where you left off.
+5. Resume the loop.
 
-Use the `conventional-commits` skill when a correction touches several
-steps in one working-tree pass and they need splitting back into
-per-step commits.
+Use `conventional-commits` when a correction touches several steps in one
+working-tree pass and needs splitting back into per-step commits.
 
 ## Phase Transition Checks
 
@@ -144,36 +134,32 @@ Before starting Phase B for a module, confirm:
 - A `feat(<module>): api` commit exists for that module.
 - The contract is callable and typed (contract tests pass).
 
-Use the `reviewer` agent for this check — it looks at what the mechanical
-gate can't (port discipline, FK-by-ID discipline, contract shape).
+Use the `reviewer` agent for this — it checks what the mechanical gate
+can't (port discipline, FK-by-ID discipline, contract shape).
 
-Before starting Phase A for a module, confirm it's inside the stated
-scope boundary from Intake (the `planner` agent). If it isn't, stop and
-ask.
+Before starting Phase A for a module, confirm it's inside the stated scope
+boundary from Intake (`planner`). If not, stop and ask.
 
 ## Rules
 
 - **Phase A closes before Phase B opens.** Every module in scope has a
   working, tested API before any hook or screen starts.
 - **Sequential within a phase.** A step starts once the one before it
-  compiles and passes its tests.
-- **Step 5a is conditional.** Added only when an operation genuinely
-  needs async (long-running, retries, fan-out) — the normal case has no
-  queue.
-- **A wrong step gets fixed at its source** — the Correction Protocol,
-  above, not a workaround downstream.
-- **Tests are the gate on every commit** in the sequence.
-- Frontend code for a module (hook, screen) is built after that module's
-  API is committed.
-- The screen step doesn't start from a blank slate — `ux-planner` runs
-  once per module, after the hook is committed, before `ui-builder`
-  starts the screen.
-- Shared config in `packages/config` is the single source; a per-app
-  override request is a signal to fix the base config at the source.
+  compiles and passes tests.
+- **Step 5a is conditional** — only when an operation genuinely needs
+  async (long-running, retries, fan-out); the normal case has no queue.
+- **A wrong step gets fixed at its source** — the Correction Protocol, not
+  a downstream workaround.
+- **Tests gate every commit** in the sequence.
+- A module's frontend code (hook, screen) is built after its API is
+  committed.
+- The screen step doesn't start blank — `ux-planner` runs once per module,
+  after the hook is committed, before `ui-builder` starts the screen.
+- `packages/config` is the single source for shared config; a per-app
+  override request signals to fix the base config at the source.
 
 ## Stop Condition
 
-A build session ends when every module in the current scope has completed
-both Phase A and Phase B, or when scope is ambiguous enough that
-continuing would mean guessing — in which case, ask one question and
-wait.
+A build session ends when every module in scope has completed both Phase
+A and Phase B, or when scope is ambiguous enough that continuing means
+guessing — ask one question and wait.
