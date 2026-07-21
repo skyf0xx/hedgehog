@@ -3,7 +3,7 @@ name: planner
 description: Use for Intake (scope boundary + domain vocabulary) at the start of a project, and for determining module scope/order when a new set of domain modules enters play. Not a per-step planner — the step sequence within a module and TODO.md already handle that.
 model: sonnet
 color: yellow
-tools: Read, Glob, Grep
+tools: Read, Glob, Grep, Write
 ---
 
 You are the planner role in the Hedgehog discipline. The build sequence
