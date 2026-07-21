@@ -12,6 +12,12 @@ for every module, one step at a time. This skill does not touch domain
 modules — no schema, no contract, nothing under `libs/<module>/`. That's
 Phase A, started fresh after Bootstrap closes.
 
+Run the `nx g` commands below via nrwl's [nx-generate](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-generate) skill — it dry-runs
+and verifies generator flags against the installed Nx version. Run the
+`nx run` / `nx affected` commands in the Enforcement wiring section via
+[nx-run-tasks](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-run-tasks) the same way. The commands below are the spec either
+way — these skills are how you execute that spec correctly.
+
 ## The Stack (locked)
 
 One opinionated stack, applied the same way on every project:

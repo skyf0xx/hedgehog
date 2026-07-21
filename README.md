@@ -72,6 +72,15 @@ Native Reusables + NativeWind for mobile), BullMQ + Redis, Pino, and
 Conventional Commits enforced by lefthook. The `hedgehog-bootstrap` skill
 carries the full table and the config that enforces it.
 
+Nx itself is operated through nrwl's own agent skills:
+[nx-generate](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-generate)
+for scaffolding steps,
+[nx-workspace](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-workspace)
+for read-only boundary/config checks,
+[nx-run-tasks](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-run-tasks)
+for running build/lint/test targets. Hedgehog's own skills and agents
+defer to these by URL rather than restating Nx usage.
+
 ## What this repo is
 
 This repo is the discipline itself: a package of Claude Code agents and

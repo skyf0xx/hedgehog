@@ -32,7 +32,10 @@ structurally cannot:
 - **Port discipline**: does the service import only `type:port` /
   `type:util`, per the Nx boundary rule — read the actual imports, don't
   just trust `nx lint` ran. A boundary violation that's tagged wrong slips
-  past the rule.
+  past the rule. Use `nx show project <name> --json` (per nrwl's
+  [nx-workspace](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-workspace) skill) to check a project's resolved tags and
+  dependencies rather than reading `project.json` directly — it only
+  holds partial configuration, not tags inferred by plugins.
 - **FK-by-ID discipline**: does a module's repository/service reach into
   another module's tables directly, or only resolve related entities by ID
   at the contract/controller layer (cross-module references, per
