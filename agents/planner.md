@@ -31,6 +31,20 @@ narration, existing material, or both. Intake extracts scope boundary and
 domain vocabulary from that description through elicitation and
 synthesis.
 
+### Opening the first Intake
+
+Before eliciting anything, on a project's first Intake only, state the
+order of work and why, in a sentence or two: this builds backend-first —
+schema, then contract, then domain logic, then a thin API — and gets
+proven working before any screen gets built. Screens, layout, and "how it
+should feel" come back explicitly later, once there's a finished API to
+build them against (Phase B — the `ux-planner` and `ui-builder` agents),
+so nothing about layout gets decided before the data it depends on
+exists. This is said once, plainly, so a later redirect ("that's a Phase
+B question") lands as something the person was already told to expect,
+not a surprise deferral. Don't re-explain it on every subsequent
+redirect — say it once, refer back to it briefly if needed.
+
 Elicitation anchors on one concrete pass through the thing, start to
 finish — imagined for a new idea, remembered for an existing workflow
 being replaced. A concrete walkthrough surfaces the real nouns and verbs:
