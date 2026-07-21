@@ -1,6 +1,24 @@
-# 🦔 Hedgehog
+# The Antidote to AI Spaghetti Code
 
-Hedgehog is a build discipline for AI-guided software. It provides:
+AI can write code faster than humans ever could.
+
+But **speed without discipline creates chaos**.
+
+Hedgehog gives AI the guard-rails it needs to **build software that stays clean.**
+
+A complete development methodology combining:
+
+- structured workflows
+- opinionated architecture
+- composable skills
+- incremental build loops
+- enforced quality gates
+
+**Build faster, Save context**. Stay aligned. Ship software you can still understand six months later.
+
+![Hedgehog — build software the right way, one step at a time](docs/images/hero.png)
+
+## Hedgehog gives AI
 
 1. An opinionated stack
 2. An enforced build order
@@ -41,6 +59,8 @@ Backend comes first. Every module gets a working, typed API before any screen is
 
 The build order is not something you negotiate with the AI. It is encoded into the process.
 
+![Small steps, big leverage: small context loops, continuous verification, traceable evolution, sustainable velocity](docs/images/small-steps.png)
+
 ## The Hedgehog Loop
 
 ``` text
@@ -57,15 +77,8 @@ Phase B, per module — hook → UX rationale → screen
 Repeat for the next module or the next step
 ```
 
-## Comparison
 
-| Traditional AI Workflow | Hedgehog |
-| --- | --- |
-| Large prompts | Small, focused steps |
-| Context-heavy conversations | Self-contained build stages |
-| Big planning sessions | One intake, then continuous refinement |
-| Architecture drifts over time | Structure keeps the build aligned |
-| AI needs to remember decisions | The codebase and commit history preserve decisions |
+![Why Hedgehog works: a different way to build with AI, comparing traditional AI workflow to Hedgehog](docs/images/why.png)
 
 ## For Builders
 
