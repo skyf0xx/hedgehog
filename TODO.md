@@ -37,5 +37,7 @@ that's Phase B, and doesn't start until every module below is checked. -->
 ### <module-name>
  
 - [ ] hooks
+- [ ] ux-planner — writes docs/design/<module-name>.md; ask for a
+      mockup/screenshot/Stitch or Figma export here if one exists
 - [ ] screen-web
 - [ ] screen-mobile (only if building for mobile)
