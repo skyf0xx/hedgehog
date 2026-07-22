@@ -28,7 +28,10 @@ discipline's stance and rationale.
     Correction Protocol cleanups).
 - `src/templates/` — files a consuming project copies (and then edits or
   deletes) rather than running as-is: `TODO.md`, the live build checklist
-  template.
+  template; and `CLAUDE.md`, the project-root guide the installer drops in
+  (project-context placeholders the `planner` fills at Intake, plus the
+  Hedgehog constants — stack, layout, rules, skill/agent pointers, and
+  context-management guidance).
 
 ## Working in this repo
 
