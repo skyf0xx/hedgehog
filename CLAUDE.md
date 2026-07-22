@@ -8,14 +8,14 @@ discipline's stance and rationale.
 
 ## Layout
 
-- `agents/` — the subagent roles a consuming project copies into its own
-  `.claude/agents/`: `planner` (Intake, module scoping), `ui-builder`
+- `src/agents/` — the subagent roles a consuming project copies into its
+  own `.claude/agents/`: `planner` (Intake, module scoping), `ui-builder`
   (frontend build steps), `reviewer` (phase transition checks,
   Correction Protocol review). Scoped to the judgment calls mechanical
   gates can't make on their own — deliberately not a full agent roster,
   since the build loop itself is single-agent by design.
-- `skills/` — the packaged procedures a consuming project copies into its
-  own `.claude/skills/`:
+- `src/skills/` — the packaged procedures a consuming project copies into
+  its own `.claude/skills/`:
   - `hedgehog-bootstrap` — scaffolds a new project once: the locked
     stack, the monorepo shell, and the enforcement config (Nx module
     boundaries, lefthook, commitlint, env validation, phase gate) that
@@ -26,14 +26,15 @@ discipline's stance and rationale.
   - `conventional-commits` — reconstructs step-shaped, conventional
     commit history when work didn't land cleanly as it went (mainly
     Correction Protocol cleanups).
-- `TODO.md` — the template for a consuming project's live build
-  checklist.
+- `src/templates/` — files a consuming project copies (and then edits or
+  deletes) rather than running as-is: `TODO.md`, the live build checklist
+  template.
 
 ## Working in this repo
 
 This repo's own content is the product. Changes here are edits to the
-discipline itself: agent and skill content, `README.md`, `TODO.md`, and
-any shared config or generators the discipline references.
+discipline itself: agent and skill content under `src/`, `README.md`,
+and any shared config or generators the discipline references.
 
 - Every file states current state only — no negation of alternatives, no
   changelog-style narration, no "we used to do X." If a file needs to
