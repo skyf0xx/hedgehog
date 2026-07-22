@@ -29,6 +29,7 @@ One opinionated stack, applied the same way on every project:
 | Backend framework | NestJS |
 | ORM | Drizzle (+ `drizzle-zod`) |
 | Database | PostgreSQL |
+| Local infra | Docker Compose (Postgres + Redis) |
 | Platform | Railway |
 | API contract | ts-rest |
 | Validation | Zod |
@@ -105,6 +106,13 @@ package's postinstall script with a version-mismatch error (e.g.
 project misconfiguration or a corrupted pnpm store — check **Known issue:
 esbuild postinstall version mismatch** below first; this is a known,
 deterministic collision, not something to misdiagnose from scratch.
+
+Confirm Docker is available (`docker --version`) before step 1. Local
+Postgres/Redis run through Docker Compose on every host OS — see **Local
+infra: Docker, always** below. No Docker installed: stop and point the
+user to installing Docker Desktop (macOS/Windows) or Docker
+Engine (Linux) rather than falling back to a natively-installed
+Postgres/Redis.
 
 ## Steps (run in sequence, one commit per step)
 
@@ -195,6 +203,37 @@ graph` or a generator that depends on the project graph fails
 opaquely — Nx surfaces this as "Failed to process project graph" pointing
 at the offending file, not as a module-system explanation.
 
+Add a root `docker-compose.yml` provisioning Postgres and Redis for local
+dev, regardless of host OS (macOS, Windows, Linux) — see **Local infra:
+Docker, always** below for why this isn't optional. `DATABASE_URL` and
+`REDIS_URL` in `.env` point at the compose services from the first
+commit, matching the env schema below.
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+
+volumes:
+  postgres-data:
+  redis-data:
+```
+
 Add an `esbuild` override to root `package.json` in this step, before step
 2 installs `drizzle-kit` — see **Known issue: esbuild postinstall version
 mismatch** below for why.
@@ -281,16 +320,72 @@ Commit: `feat(worker): bullmq seam, no consumers`
 ```bash
 npx nx g @nx/next:app apps/web
 pnpm add @tanstack/react-query
-pnpm dlx shadcn@latest init
 ```
 
-Wire the TanStack Query provider at the root layout. `shadcn init` writes
-`apps/web`'s base theme (CSS variables for color, radius, light/dark
-mode) — set the actual palette here, once, rather than leaving ShadCN's
-placeholder values for `ui-builder` to inherit unnoticed on the first
-screen. Light/dark mode toggle wiring belongs here too, not as a
-per-screen decision later. No screens or hooks yet — Phase B doesn't
+**Do not run `pnpm dlx shadcn@latest init` (or `shadcn add`) against
+`apps/web` directly.** The shadcn CLI hard-requires a `package.json` in
+its target directory to detect the project; an Nx-generated app under
+this stack has no per-app `package.json` (dependencies live at the
+workspace root). Finding none, the CLI's default behavior is to offer —
+and on `--yes`, silently proceed — to scaffold a *brand-new*
+`create-next-app` project **inside** `apps/web`, complete with its own
+nested `.git`, its own lockfile, and its own `package.json`. This doesn't
+error; it succeeds and leaves a corrupted nested project (e.g.
+`apps/web/web/`) that has to be manually detected and deleted. There is
+currently no supported non-interactive flag that makes shadcn's CLI
+target an existing package-json-less directory in place.
+
+Build the base theme by hand instead: write `apps/web/components.json`
+directly (style, aliases, `tailwind.css` path — the `css` field), add
+`class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, and
+`@radix-ui/react-slot` as dependencies, write `apps/web/src/lib/utils.ts`
+(the standard `cn()` helper), and hand-write the CSS variable theme block
+(light/dark, using shadcn's published default token values) into
+`apps/web`'s global stylesheet. Individual components (e.g. `button.tsx`)
+can then be hand-written from shadcn's published source for that
+component — small, stable, well-known files — rather than fetched via the
+CLI. Set the actual palette here, once, rather than leaving placeholder
+values for `ui-builder` to inherit unnoticed on the first screen. Light/
+dark mode toggle wiring belongs here too, not as a per-screen decision
+later.
+
+Wire the TanStack Query provider at the root layout (App Router: a
+`'use client'` `Providers` wrapper component, since the root layout
+itself is a server component). No screens or hooks yet — Phase B doesn't
 start until Phase A closes for at least one module. Tag: `scope:web`.
+
+**Set `NODE_ENV` explicitly on the `build` target, or the production
+build silently runs in dev mode under Nx.** Nx's task runner sets
+`NODE_ENV=development` by default for every task unless a target
+overrides it — including a plain `nx:run-commands` target running `next
+build`. Next.js's production build pipeline assumes `NODE_ENV=production`;
+running it under `development` produces a build that compiles and
+appears to succeed on individual pages but crashes prerendering the
+auto-generated `/_global-error` route with `TypeError: Cannot read
+properties of null (reading 'useContext')` — a React-internals mismatch
+from the dev/prod build split, not an app bug. This only reproduces
+through `nx run web:build`; the identical `next build --webpack` run
+directly from `apps/web` succeeds, because a bare shell has no `NODE_ENV`
+set and Next defaults it correctly itself — which makes the symptom look
+Nx-specific and environment-related rather than what it is (a task-runner
+default silently overriding a value the build assumes). Set it on the
+`build` target only, in `apps/web/project.json`:
+
+```json
+{
+  "targets": {
+    "build": {
+      "options": {
+        "command": "next build --webpack",
+        "env": { "NODE_ENV": "production" }
+      }
+    }
+  }
+}
+```
+
+Leave `dev` alone — it correctly wants `NODE_ENV=development`, which is
+also what Nx already defaults it to.
 
 Commit: `feat(web): next shell + query provider + base theme`
 
@@ -365,6 +460,51 @@ e.g. `libs/orders/port`, `libs/orders/repository`, `libs/orders/service`.
 
 Building out of order (a controller before a service exists, a hook
 reaching into `apps/api` directly) fails `nx lint`.
+
+The rule list above is illustrative, not exhaustive — `@nx/enforce-
+module-boundaries` denies by default for any project whose tag isn't
+named as a `sourceTag` in some `depConstraints` entry ("A project without
+tags matching at least one constraint cannot depend on any libraries").
+`packages/db` (`scope:db`, `type:adapter`) and `apps/api` (`scope:api`)
+both hit this the moment they're generated and tagged in steps 2 and 4,
+because neither `type:adapter` nor `scope:api` has an entry above. Add
+constraints for every tag combination as it's introduced, not only the
+ones in the illustrative list — at minimum `type:adapter` (needs
+`type:util`, for `packages/config`) and `scope:api` (needs `type:port`,
+`type:service`, `type:util` — never `scope:db` directly; `apps/api`
+reaches storage through a module's repository/service, not by importing
+`packages/db` itself).
+
+### Typecheck target (required before the commit gate can work)
+
+`lefthook.yml`'s pre-commit below runs `nx affected -t typecheck`, but
+`@nx/js:lib` and `@nx/nest:app` don't register a `typecheck` target on
+their own — it only exists once the `@nx/js/typescript` plugin is
+registered in `nx.json`, added in step 1 alongside the eslint and
+vitest plugins:
+
+```json
+{
+  "plugin": "@nx/js/typescript",
+  "options": { "typecheck": { "targetName": "typecheck" } }
+}
+```
+
+Registering the plugin isn't sufficient on its own, either: `tsc
+--build`'s composite-project mode (what the inferred `typecheck` target
+actually runs) requires every `tsconfig.lib.json` and `tsconfig.spec.json`
+it touches to set `"composite": true` and `"declaration": true`. The
+generators don't set these — every `@nx/js:lib` and `@nx/nest:app`
+project needs both added by hand to `tsconfig.lib.json` /
+`tsconfig.app.json` and `tsconfig.spec.json` right after generation, or
+`nx run <proj>:typecheck` fails immediately with `TS5069: Option
+'emitDeclarationOnly' cannot be specified without specifying option
+'declaration' or option 'composite'`. If a project's spec file imports
+from its own lib source (the common case), `tsconfig.spec.json` also
+needs an explicit `references` entry pointing at `tsconfig.lib.json`, or
+`tsc` reports `TS6307: File '...' is not listed within the file list of
+project`. Do this for `packages/config` in step 1 so the pattern is
+established before every later step repeats it.
 
 ### Commit gate (lefthook + commitlint)
 
@@ -565,3 +705,7 @@ gated by lefthook, each its own commit.
 - Each of the 7 steps is its own commit, in order — same unit-of-work
   discipline as every other step in the discipline, even though this is
   infra rather than a domain module.
+- Local Postgres/Redis always run through the `docker-compose.yml` from
+  step 1, on every host OS. Never substitute a natively-installed
+  Postgres/Redis, even to match a contributor's existing local setup —
+  see **Local infra: Docker, always**.

@@ -10,7 +10,7 @@ has one, written by planner at Intake. -->
  
 ## Bootstrap
  
-- [ ] Nx workspace + `packages/config`
+- [ ] Nx workspace + `packages/config` (incl. `docker-compose.yml` for local Postgres/Redis)
 - [ ] `packages/db` — Drizzle client
 - [ ] `packages/auth` — Better Auth config
 - [ ] `apps/api` — Nest shell, global guard, Pino

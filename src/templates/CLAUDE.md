@@ -81,11 +81,13 @@ steps from memory:
 ### Stack (locked)
 
 Nx monorepo · pnpm · **NestJS** (all domain logic + DB access) · **Drizzle**
-(+ `drizzle-zod`) · **PostgreSQL** · Railway · **ts-rest** contracts · **Zod**
-validation · **Better Auth** · **TanStack Query** hooks · **Next.js** + ShadCN
-+ Tailwind (web, UI only) · Expo + React Native Reusables + NativeWind
-(mobile, optional) · **BullMQ + Redis** (queues) · Pino logging · Vitest +
-Playwright (tests) · Conventional Commits + commitlint + lefthook · Sentry.
+(+ `drizzle-zod`) · **PostgreSQL** · **Docker Compose** (local Postgres +
+Redis, every host OS) · Railway · **ts-rest** contracts · **Zod**
+validation · **Better Auth** · **TanStack Query** hooks · **Next.js** +
+ShadCN + Tailwind (web, UI only) · Expo + React Native Reusables +
+NativeWind (mobile, optional) · **BullMQ + Redis** (queues) · Pino logging ·
+Vitest + Playwright (tests) · Conventional Commits + commitlint + lefthook ·
+Sentry.
 
 Don't substitute libraries. If a package or generator name changed
 upstream, verify against current docs before running — don't swap in a
@@ -94,6 +96,7 @@ different library.
 ### Layout
 
 ```
+docker-compose.yml   local Postgres + Redis — every host OS, no native install
 apps/
   web        Next.js — UI only
   mobile     Expo — optional
@@ -130,6 +133,9 @@ docs/
   (lefthook gate).
 - **Fix wrong steps at the source** via the Correction Protocol — never a
   downstream workaround.
+- **Local Postgres/Redis always run through `docker-compose.yml`**, on
+  every host OS. Never a natively-installed Postgres/Redis, even to match
+  a contributor's existing local setup.
 - **`packages/config` is the single source** for shared config. A per-app
   override request means fix the base config, not add an override.
 

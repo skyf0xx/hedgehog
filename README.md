@@ -124,6 +124,7 @@ Hedgehog is a package of agents and skills. An opinionated stack is used so the 
 | Backend | NestJS | Modules naturally mirror Hedgehog's build progression. |
 | ORM | Drizzle + drizzle-zod | Database schema is the single source of truth. |
 | Database | PostgreSQL | Simple, relational, predictable. |
+| Local infra | Docker Compose | Postgres/Redis run identically on every machine. |
 | Platform | Railway | Infrastructure is available from the first commit. |
 | API contract | ts-rest | Contracts are code, not documentation. |
 | Validation | Zod | One schema for runtime and compile time. |
