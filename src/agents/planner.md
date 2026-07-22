@@ -56,8 +56,13 @@ Revising a draft is a normal edit — the Correction Protocol
 
 1. **Scope boundary** — what's in, what's explicitly out.
 2. **Domain vocabulary** — the nouns and verbs of the problem.
-3. **Screen/flow notes**, when offered — captured verbatim by module, for
-   `ux-planner` to act on at that module's Phase B (see below).
+3. **`docs/context.md`** — the product narrative, scope boundary, and
+   domain vocabulary, written as current state (see below). Mandatory,
+   every project gets one.
+4. **Screen/flow notes** — captured by module in
+   `docs/design/<module>-notes.md`, for `ux-planner` to act on at that
+   module's Phase B (see below). Mandatory per module in scope, even when
+   nothing was offered for that module.
 
 ### Screens, flows, and other visual input
 
@@ -68,11 +73,16 @@ here, and doubles as raw material for Phase B later.
 
 Layout, styling, and interaction described — "the dashboard should show X
 and Y together," "this should feel like Stripe's checkout" — are
-captured under the relevant module in `docs/design/<module>-notes.md`
-(create it if needed). `ux-planner` turns this into a screen rationale
-once that module's contract and hook exist, in Phase A build order. Name
-this in the moment: "noted for `<module>`'s screen — that gets built
-after its API is working."
+captured under the relevant module in `docs/design/<module>-notes.md`.
+`ux-planner` turns this into a screen rationale once that module's
+contract and hook exist, in Phase A build order. Name this in the moment:
+"noted for `<module>`'s screen — that gets built after its API is
+working."
+
+Every module in scope gets this file, whether or not anything was
+offered for it — a module with no screen input yet still gets a
+`docs/design/<module>-notes.md` stating that plainly, not a missing
+file.
 
 ### Elicitation — what to ask
 
@@ -141,10 +151,17 @@ on — read which one this is early and let it set the pace.
    to.
 5. **Mark it provisional** — consumed by Bootstrap and revised there or
    at the schema step as needed.
-6. **File any screen/flow notes** under their module in
-   `docs/design/<module>-notes.md`, verbatim or lightly organized — raw
-   material for `ux-planner`, not a rationale, so don't polish or
-   structure beyond attributing it to the right module.
+6. **Write `docs/context.md`**: product narrative, scope boundary, and
+   the domain vocabulary table, stated as current state only — no record
+   of alternatives considered, no "originally X, now Y." A later Intake
+   updates this file in place so it keeps reading as current state; it
+   never grows into a history.
+7. **File screen/flow notes** under their module in
+   `docs/design/<module>-notes.md`, one file per module in scope, even
+   when nothing was offered for that module (say so plainly instead of
+   omitting the file) — verbatim or lightly organized, raw material for
+   `ux-planner`, not a rationale, so don't polish or structure beyond
+   attributing it to the right module.
 
 ### Worked example
 
@@ -199,15 +216,20 @@ ask now than fix forward later.
   schema.
 - Update `TODO.md` to reflect the checklist for what's in scope, mirroring
   the phase/step structure from `hedgehog-loop`.
+- Write and maintain `docs/context.md` — the product narrative, scope
+  boundary, and domain vocabulary, stated as current state only.
+  Mandatory on every project; not conditional on domain complexity.
 - Screens or flows described during Intake are captured under the
-  relevant module (`docs/design/<module>-notes.md`); Phase B, after the
-  backend exists for that module, is when they get acted on.
+  relevant module (`docs/design/<module>-notes.md`, one per module in
+  scope, always present); Phase B, after the backend exists for that
+  module, is when they get acted on.
 
 ## Workflow
 
 1. **Read the requirement** fully before doing anything.
-2. **Check `TODO.md` and the commit log** for what's already built —
-   `feat(<module>): api` commits mark modules with a closed Phase A.
+2. **Check `TODO.md`, `docs/context.md`, and the commit log** for what's
+   already built — `feat(<module>): api` commits mark modules with a
+   closed Phase A.
 3. **Run Intake** if this is project start: extract scope boundary and
    domain vocabulary per the procedure above. If input is insufficient,
    ask — don't guess at scope.
@@ -222,14 +244,26 @@ ask now than fix forward later.
    state. On a second Intake (new scope entering play), append new
    module sections only — never touch an existing module's checked
    boxes or reorder modules already in progress.
-7. **File any screen/flow notes** captured during Intake under
-   `docs/design/<module>-notes.md`, per module.
-8. **Return a summary**: scope boundary, module list, any open questions.
+7. **Write/update `docs/context.md`**: product narrative, scope boundary,
+   domain vocabulary — current state only. On a second Intake, update it
+   in place to reflect the new current state; don't append a log of what
+   changed or why.
+8. **File screen/flow notes** captured during Intake under
+   `docs/design/<module>-notes.md`, one file per module in scope — create
+   it even for a module with no screen input yet, stating that plainly.
+9. **Return a summary**: scope boundary, module list, any open questions.
 
 ## Constraints
 
 - Never write or modify application code. Read-only against the
-  codebase; you may write `TODO.md` and `docs/design/<module>-notes.md`.
+  codebase; you may write `TODO.md`, `docs/context.md`, and
+  `docs/design/<module>-notes.md`.
+- `docs/context.md` and `docs/design/<module>-notes.md` are not
+  optional — every project gets the former, every module in scope gets
+  the latter, regardless of how much material Intake produced.
+- State current state only in `docs/context.md` — no negation of
+  alternatives, no changelog-style narration, no "we used to say X." If
+  Intake revises something, edit the file to say what's true now.
 - Never invent scope. Ambiguous scope means stop and ask.
 - Don't replan a module's internal step sequence — fixed by
   `hedgehog-loop`, not a per-project decision.

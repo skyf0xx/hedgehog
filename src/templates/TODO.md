@@ -1,12 +1,12 @@
 # TODO
  
-<!-- 2-3 sentences: what is this project. Link out to a deeper context
-file (e.g. docs/context.md) only if the domain genuinely needs it — most
-projects shouldn't need one. -->
+<!-- 2-3 sentences: what is this project. Full product narrative, scope
+boundary, and domain vocabulary live in docs/context.md — every project
+has one, written by planner at Intake. -->
  
 ## Context
  
-(fill in per project)
+(fill in per project — see docs/context.md for the full picture)
  
 ## Bootstrap
  

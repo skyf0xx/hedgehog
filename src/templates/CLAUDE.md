@@ -13,8 +13,8 @@
 
 {{PROJECT_SUMMARY — 2–4 sentences the `planner` writes at Intake: what
 this project is, who it's for, and what it does. State current intent, not
-history. Keep it tight — deeper domain context lives in the commit log and
-docs/design, not here.}}
+history. Keep it tight — the full product narrative, scope boundary, and
+domain vocabulary live in docs/context.md, not here.}}
 
 This project is built with **Hedgehog**: a backend-first, one-step-at-a-time
 build discipline. The rules below aren't project preferences — they're how
@@ -28,6 +28,10 @@ whole plan in context — the plan lives in the structure:
 - **`TODO.md`** is the live checklist and the source of truth for what's
   next. Read it at the start of every session. Its only state is
   checked/unchecked.
+- **`docs/context.md`** is the product's current-state document — product
+  narrative, scope boundary, domain vocabulary. Every project has one,
+  written by `planner` at Intake and kept current on later Intakes. It
+  states what's true now, never a history of what changed.
 - **The commit log** is the record of what's built and why. Conventional
   commits (`feat(<module>): schema`, `feat(<module>): api`, …) are how
   progress is read, not a conversation summary.
@@ -63,8 +67,8 @@ steps from memory:
 ### The agents — delegate the judgment calls
 
 - **`planner`** — Intake (scope boundary + domain vocabulary) at project
-  start, and module scoping when new scope enters play. Writes `TODO.md`
-  and `docs/design/<module>-notes.md`.
+  start, and module scoping when new scope enters play. Writes `TODO.md`,
+  `docs/context.md`, and `docs/design/<module>-notes.md`.
 - **`ux-planner`** — once per module in Phase B, after the hook exists and
   before the screen: writes `docs/design/<module>.md`.
 - **`ui-builder`** — builds screens from the ux-planner rationale.
@@ -106,6 +110,7 @@ packages/
 libs/
   <module>/port · <module>/repository · <module>/service   (one triplet per table)
 docs/
+  context.md product narrative, scope boundary, domain vocabulary (Intake)
   design     <module>-notes.md (Intake) and <module>.md (ux-planner)
 ```
 
@@ -147,7 +152,8 @@ off. Keep it thin.
 **When the build is done:** once every module in scope has both phases
 checked, the build session is complete. **Delete `TODO.md`** — a finished
 checklist is noise, and the commit log is the durable record of what was
-built.
+built. **`docs/context.md` stays** — it's the product's current-state
+document, not a checklist.
 
 ## Managing context
 
@@ -159,8 +165,9 @@ context small:
   `TODO.md` and continue. Nothing is lost, because the checklist, commits,
   and code hold all the state. Prefer this over letting one session
   accumulate the entire project.
-- **A cleared or new session recovers by reading `TODO.md` + the commit
-  log**, never by needing the prior conversation.
+- **A cleared or new session recovers by reading `TODO.md`,
+  `docs/context.md`, and the commit log**, never by needing the prior
+  conversation.
 - **Delegate heavy work to agents.** Intake elicitation (`planner`),
   screen builds (`ui-builder`), and reviews (`reviewer`) each run in their
   own isolated context — so that work doesn't pile up in the main thread.
