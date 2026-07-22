@@ -99,6 +99,13 @@ Confirm this hasn't already run: check for an existing Nx workspace
 existing workspace is a Correction Protocol case (patch the specific
 config step at its source, per `hedgehog-loop`), not a re-scaffold.
 
+If a fresh `pnpm install` in the generated workspace fails on a binary
+package's postinstall script with a version-mismatch error (e.g.
+"Expected X but got Y" for a native binary like `esbuild`), don't assume
+project misconfiguration or a corrupted pnpm store — check **Known issue:
+esbuild postinstall version mismatch** below first; this is a known,
+deterministic collision, not something to misdiagnose from scratch.
+
 ## Steps (run in sequence, one commit per step)
 
 ### 1. Nx workspace + `packages/config`
@@ -118,6 +125,14 @@ pnpm add -D @nx/js
 `nx init` needs the root `package.json` the installer dropped — without
 one it falls into standalone (`.nx` wrapper) mode instead of a proper
 pnpm workspace.
+
+`nx init` does not reliably respect an existing `packageManager: pnpm@...`
+field — it can run its own install via npm regardless, leaving a
+`package-lock.json` next to the intended `pnpm-lock.yaml`. Immediately
+after `nx init` completes, check for `package-lock.json` at the repo
+root; if present, delete it and run `pnpm install` to regenerate
+`pnpm-lock.yaml` before continuing to step 2. Don't assume `nx init`
+respects the locked package manager — verify.
 
 Then generate the first lib. The **first** `@nx/js:lib` call materializes
 the whole workspace shape (`tsconfig.base.json`, root `eslint.config.mjs`,
@@ -313,19 +328,27 @@ pre-commit:
   commands:
     typecheck:
       glob: "*.{ts,tsx}"
-      run: npx nx affected -t typecheck --files={staged_files}
+      run: npx nx affected -t typecheck --base=HEAD
     lint:
       glob: "*.{ts,tsx}"
-      run: npx nx affected -t lint --files={staged_files}
+      run: npx nx affected -t lint --base=HEAD
     test:
       glob: "*.{ts,tsx}"
-      run: npx nx affected -t test --files={staged_files}
+      run: npx nx affected -t test --base=HEAD
 
 commit-msg:
   commands:
     commitlint:
       run: npx commitlint --edit {1}
 ```
+
+Don't pass `--files={staged_files}` to `nx affected` — `nx affected`
+forwards unrecognized args straight through to the underlying target
+command (e.g. `eslint .`), so `--files={staged_files}` becomes
+`eslint . <path>` and errors on any path that doesn't match eslint's own
+glob expectations. `--base=HEAD` (comparing against the last commit) is
+what makes `nx affected` scope correctly to a pre-commit hook's staged
+changes.
 
 **`commitlint.config.js`:**
 
@@ -346,6 +369,14 @@ exists once it compiles and passes.
 
 Run `pnpm dlx lefthook install` once `lefthook.yml` exists so the gate is
 active from step 2 onward.
+
+A machine with lefthook installed globally (e.g. via Homebrew) on `PATH`
+can have that version picked up by the git hook shim instead of the
+project's pinned local one, silently running different — possibly
+incompatible — behavior. After `lefthook install`, verify the hook is
+invoking the local pinned version (check `lefthook version` output during
+a commit, or that the hook script under `.git/hooks/` resolves to
+`node_modules/.bin/lefthook`) rather than a global shadow.
 
 ### Env validation (fail fast)
 
