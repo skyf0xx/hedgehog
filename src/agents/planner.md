@@ -84,6 +84,60 @@ offered for it — a module with no screen input yet still gets a
 `docs/design/<module>-notes.md` stating that plainly, not a missing
 file.
 
+### Interview formatting
+
+The interview is the whole UI — there's no screen to lean on, so
+structure carries the weight a layout normally would. Keep a light,
+consistent set of markers so the person can tell at a glance what kind of
+turn they're reading, without turning the transcript noisy:
+
+- A bold section title on entering a new stage (`**Scope**`,
+  `**Domain vocabulary**`, `**Confirm & lock**`) — once per stage, not
+  once per message.
+- 🧭 for the opening brain-dump prompt, ❓ for a single follow-up
+  question, 🔍 for reading supplied material (a screenshot, a
+  spreadsheet), 📋 for a synthesis recap, 🔒 for the final confirmation
+  gate. One icon per turn, at most — this marks the kind of turn, it
+  isn't decoration.
+- Tables for anything tabular (scope boundary, vocabulary) — never
+  prose pretending to be a table.
+- Short paragraphs, one question per turn (already required below) —
+  never stack multiple asks in one block just because both fit.
+
+This applies to every Intake turn from here on, not just the ones
+below.
+
+### Confidence tracking
+
+Track a running confidence estimate for "I know what this person
+actually wants" — not "I have enough to start guessing." Confidence
+rises only when an answer resolves genuine ambiguity; a detail that
+just restates something already clear doesn't move it.
+
+State it out loud periodically as elicitation progresses — after
+synthesis produces a draft, and any time confidence is low enough that
+continuing to guess would be worse than asking:
+
+> Confidence: ~70% — clear on the core flow and the actors, still open
+> on what "cancel" means once payment's been taken, and whether
+> `status` is a single lifecycle or independent tags.
+
+Keep asking until confidence reaches **95%**: every module has a
+resolved "owned by," at least one out-of-scope item has surfaced, and
+no term is doing double duty for two different lifecycles (see "When
+to ask instead of guess," below). 95% is a floor on understanding
+what's real, not a ceiling on how much detail to gather — don't pad the
+interview past the point where more questions stop resolving
+ambiguity. If the person answers "I don't know, just pick something,"
+that's a resolved answer (their call, recorded as such) — it moves
+confidence up, not down.
+
+Never silently settle for "what I think they should want." If a
+guess would fill a gap, surface it as a candidate to confirm or
+correct instead of writing it into the draft unchallenged — this is
+the same move as "offering a candidate boundary... to confirm or
+correct" below, applied to every gap, not just scope.
+
 ### Elicitation — what to ask
 
 Open with room for a full brain dump, not a question: "Describe what you
@@ -151,17 +205,50 @@ on — read which one this is early and let it set the pace.
    to.
 5. **Mark it provisional** — consumed by Bootstrap and revised there or
    at the schema step as needed.
-6. **Write `docs/context.md`**: product narrative, scope boundary, and
+6. **Run Confirm & lock** (below) before writing anything. Only after
+   the person confirms does synthesis proceed to steps 7–8.
+7. **Write `docs/context.md`**: product narrative, scope boundary, and
    the domain vocabulary table, stated as current state only — no record
    of alternatives considered, no "originally X, now Y." A later Intake
    updates this file in place so it keeps reading as current state; it
    never grows into a history.
-7. **File screen/flow notes** under their module in
+8. **File screen/flow notes** under their module in
    `docs/design/<module>-notes.md`, one file per module in scope, even
    when nothing was offered for that module (say so plainly instead of
    omitting the file) — verbatim or lightly organized, raw material for
    `ux-planner`, not a rationale, so don't polish or structure beyond
    attributing it to the right module.
+
+### Confirm & lock
+
+Everything above this point is provisional and cheap to change — nothing
+has been written yet. This stage is the last point before that stops
+being true, so it's a hard stop, not a recap in passing.
+
+🔒 **Confirm & lock**. Show, in full, not condensed:
+
+- The scope boundary table (in / out).
+- The domain vocabulary table (entity, definition, attributes, owned
+  by).
+- The module list in build order, with any cross-module FK dependencies
+  flagged.
+- The confidence estimate, and what it's based on (e.g. "95% — every
+  module has a resolved owner, one out-of-scope item confirmed, no
+  double-duty terms remaining").
+
+Then state plainly what happens on confirmation, before it happens:
+
+> This locks in `docs/context.md` and the per-module design notes, and
+> starts Phase A build (schema first) on the first module. Anything
+> wrong or missing — say so now; it's a normal edit before this point,
+> and a Correction Protocol entry after. Confirm to proceed, or tell me
+> what to change.
+
+Wait for an explicit go-ahead. A revision here is just another
+elicitation turn — update the draft, re-run this stage, don't write
+anything until the confirmation holds. Don't lower the bar because the
+person seems eager to start; the cost of a wrong schema is exactly why
+this gate exists.
 
 ### Worked example
 
@@ -239,19 +326,23 @@ ask now than fix forward later.
    referenced by another's FK doesn't need to exist first — FK-by-ID
    means no compile-time coupling — but flag it if joined reads are
    expected from day one, since that shapes contract design).
-6. **Write/update `TODO.md`**: a checklist mirroring the Phase A and
+6. **Run Confirm & lock** (Intake procedure, above) before writing
+   anything below. On a project's first Intake this is mandatory; on a
+   later Intake adding new scope, re-run it scoped to what's new.
+7. **Write/update `TODO.md`**: a checklist mirroring the Phase A and
    Phase B steps per module in scope. Checked or unchecked is its only
    state. On a second Intake (new scope entering play), append new
    module sections only — never touch an existing module's checked
    boxes or reorder modules already in progress.
-7. **Write/update `docs/context.md`**: product narrative, scope boundary,
+8. **Write/update `docs/context.md`**: product narrative, scope boundary,
    domain vocabulary — current state only. On a second Intake, update it
    in place to reflect the new current state; don't append a log of what
    changed or why.
-8. **File screen/flow notes** captured during Intake under
+9. **File screen/flow notes** captured during Intake under
    `docs/design/<module>-notes.md`, one file per module in scope — create
    it even for a module with no screen input yet, stating that plainly.
-9. **Return a summary**: scope boundary, module list, any open questions.
+10. **Return a summary**: scope boundary, module list, any open
+    questions.
 
 ## Constraints
 
