@@ -66,6 +66,8 @@ steps from memory:
 
 ### The agents — delegate the judgment calls
 
+- **`bootstrap`** — runs `hedgehog-bootstrap`'s 7 steps once, at project
+  start, after Intake. Skip if `nx.json` already exists.
 - **`planner`** — Intake (scope boundary + domain vocabulary) at project
   start, and module scoping when new scope enters play. Writes `TODO.md`,
   `docs/context.md`, and `docs/design/<module>-notes.md`.
@@ -174,9 +176,10 @@ context small:
 - **A cleared or new session recovers by reading `TODO.md`,
   `docs/context.md`, and the commit log**, never by needing the prior
   conversation.
-- **Delegate heavy work to agents.** Intake elicitation (`planner`),
-  screen builds (`ui-builder`), and reviews (`reviewer`) each run in their
-  own isolated context — so that work doesn't pile up in the main thread.
+- **Delegate heavy work to agents.** The project scaffold (`bootstrap`),
+  Intake elicitation (`planner`), screen builds (`ui-builder`), and
+  reviews (`reviewer`) each run in their own isolated context — so that
+  work doesn't pile up in the main thread.
 - **Don't paste large context back in.** If you find yourself
   re-explaining the architecture, stop — it's fixed and stated in this
   file, not something to reconstruct. If you need a project specific, read
