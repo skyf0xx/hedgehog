@@ -134,6 +134,18 @@ root; if present, delete it and run `pnpm install` to regenerate
 `pnpm-lock.yaml` before continuing to step 2. Don't assume `nx init`
 respects the locked package manager — verify.
 
+`nx init` also does not create `pnpm-workspace.yaml`. Without it, pnpm
+doesn't recognize `packages/*` or `apps/*` as workspace members —
+`pnpm add -w` fails with `ERR_PNPM_ADDING_TO_ROOT`-adjacent errors, and
+cross-package `pnpm add` for a lib silently installs to the wrong place.
+Create it manually right after `nx init`, before the first `pnpm add`:
+
+```yaml
+packages:
+  - 'packages/*'
+  - 'apps/*'
+```
+
 Then generate the first lib. The **first** `@nx/js:lib` call materializes
 the whole workspace shape (`tsconfig.base.json`, root `eslint.config.mjs`,
 `.prettierrc`, `vitest.workspace.ts`, the `packages/` layout, and the
