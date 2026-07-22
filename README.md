@@ -16,7 +16,7 @@ A complete development methodology combining:
 
 **Build faster, Save context**. Stay aligned. Ship software you can still understand six months later.
 
-![Hedgehog — build software the right way, one step at a time](docs/images/hero.png)
+![Hedgehog — build software the right way, one step at a time](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/hero.png)
 
 ## Hedgehog gives AI
 
@@ -31,7 +31,7 @@ A complete development methodology combining:
 - 🌳 **Self-documenting architecture:** the codebase carries the context, not the AI
 - 🔁 **Traceable evolution:** decisions are preserved through conventional commits
 
-![Just describe what you want](docs/images/curve.png)
+![Just describe what you want](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/curve.png)
 
 ## Why Hedgehog Exists
 
@@ -60,7 +60,7 @@ Backend comes first. Every module gets a working, typed API before any screen is
 
 The build order is not something you negotiate with the AI. It is encoded into the process.
 
-![Small steps, big leverage: small context loops, continuous verification, traceable evolution, sustainable velocity](docs/images/small-steps.png)
+![Small steps, big leverage: small context loops, continuous verification, traceable evolution, sustainable velocity](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/small-steps.png)
 
 ## The Hedgehog Loop
 
@@ -79,7 +79,7 @@ Repeat for the next module or the next step
 ```
 
 
-![Why Hedgehog works: a different way to build with AI, comparing traditional AI workflow to Hedgehog](docs/images/why.png)
+![Why Hedgehog works: a different way to build with AI, comparing traditional AI workflow to Hedgehog](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/why.png)
 
 ## Installation
 

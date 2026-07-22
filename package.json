@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "description": "Install the Hedgehog build discipline (agents + skills) into a repo.",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skyf0xx/hedgehog.git"
+  },
   "publishConfig": {
     "access": "public"
   },
