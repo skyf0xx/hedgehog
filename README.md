@@ -1,20 +1,12 @@
-# The Antidote to AI Spaghetti Code
+# The Antidote to AI Spaghetti Code ⭐
 
-AI can write code faster than humans ever could.
+[![GitHub stars](https://img.shields.io/github/stars/skyf0xx/hedgehog?style=social)](https://github.com/skyf0xx/hedgehog/stargazers)
 
-But **speed without discipline creates chaos**.
+AI writes code faster than humans ever could, but speed without discipline creates chaos.
 
-Hedgehog gives AI the guard-rails it needs to **build software that stays clean.**
+Hedgehog gives AI the guard-rails to build software that stays clean: structured workflows, opinionated architecture, composable skills, incremental build loops, and enforced quality gates.
 
-A complete development methodology combining:
-
-- structured workflows
-- opinionated architecture
-- composable skills
-- incremental build loops
-- enforced quality gates
-
-**Build faster, Save context**. Stay aligned. Ship software you can still understand six months later.
+Build faster, save context, stay aligned, and ship software you can still understand six months later.
 
 ![Hedgehog — build software the right way, one step at a time](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/hero.png)
 
@@ -22,27 +14,22 @@ A complete development methodology combining:
 
 1. An opinionated stack
 2. An enforced build order
-3. Agents and skills that make good engineering the default.
+3. Agents and skills that make good engineering the default
 
-## Hedghog's secret to great outcomes
+## Hedgehog's secret to great outcomes
 
-- 🧩 **Progressive layering:** types → schema → backend → UI, each layer built on a stable one beneath it
-- 🎯 **Small context loops:** decompose work into atomic, verifiable changes
-- 🌳 **Self-documenting architecture:** the codebase carries the context, not the AI
-- 🔁 **Traceable evolution:** decisions are preserved through conventional commits
+- **Progressive layering:** types → schema → backend → UI, each layer built on a stable one beneath it
+- **Small context loops:** decompose work into atomic, verifiable changes
+- **Self-documenting architecture:** the codebase carries the context, not the AI
+- **Traceable evolution:** decisions are preserved through conventional commits
 
 ![Just describe what you want](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/curve.png)
 
 ## Why Hedgehog Exists
 
-AI coding starts fast then breaks down.
+AI coding starts fast, then breaks down. Context accumulates, prompts get longer, architecture drifts. Eventually, adding one more feature feels dangerous.
 
-Context accumulates, prompts get longer, architecture drifts.
-
-Eventually, adding one more feature feels
-dangerous.
-
-**The enemy isn't AI. It's the absence of guardrails.**
+Hedgehog's answer: guardrails, not more discipline from the AI.
 
 ## Plans Expire. Structure Doesn't
 
@@ -115,7 +102,7 @@ AI becomes the builder operating inside those constraints — turning ideas into
 
 ## Architecture
 
-Hedgehog is a package of agents and skills. An opinionated stack is used so the build order above is mechanical and enforced by the tooling itself:
+Hedgehog is a package of agents and skills, built on an opinionated stack so the build order above is mechanical and enforced by the tooling itself:
 
 | Layer | Choice | Why |
 | --- | --- | --- |
@@ -141,11 +128,9 @@ Hedgehog is a package of agents and skills. An opinionated stack is used so the 
 
 ## How Hedgehog Compares
 
-Superpowers and BMAD both improve on raw prompting: one gives the AI good habits, the other gives it a planning process.
+Superpowers and BMAD both improve on raw prompting: one gives the AI good habits, the other gives it a planning process. In both, the order of work is a convention the AI can still break.
 
-But in both, the order of work is a **convention, not a constraint** it's unable to break.
-
-Hedgehog **enforces its build order with tooling** instead: Nx module boundaries, commit hooks, phase gates. The order holds because the tooling holds it, not because the discipline was followed.
+Hedgehog enforces its build order with tooling instead: Nx module boundaries, commit hooks, phase gates. The order holds because the tooling holds it, not because the AI followed the discipline.
 
 | | Superpowers | BMAD | Hedgehog |
 | --- | --- | --- | --- |
@@ -157,3 +142,9 @@ Hedgehog **enforces its build order with tooling** instead: Nx module boundaries
 | **Context per step** | As much as the task pulls in | A full brief, PRD, and architecture doc per story | One module layer at a time (e.g. just the repository, just the controller) |
 | **Finding a bug** | Search wherever the task touched | Search wherever the story touched | Search one layer, in one module, in a fixed order |
 | **Real cost** | No safety net if the model shortcuts its own process | Documentation overhead most solo projects don't need | Less flexibility: the stack and order aren't negotiable |
+
+## Support Hedgehog
+
+If Hedgehog helps you build better AI software, consider giving it a ⭐ on GitHub.
+
+[![GitHub stars](https://img.shields.io/github/stars/skyf0xx/hedgehog?style=social)](https://github.com/skyf0xx/hedgehog/stargazers)
