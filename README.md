@@ -81,6 +81,42 @@ Repeat for the next module or the next step
 
 ![Why Hedgehog works: a different way to build with AI, comparing traditional AI workflow to Hedgehog](docs/images/why.png)
 
+## Installation
+
+Hedgehog installs **into your repo**, not into your editor. The agents and
+skills land in `.claude/` and get committed alongside your code — because
+the discipline is only real if it travels with the project, versioned and
+visible to your team and CI.
+
+From the root of the repo you want to build with Hedgehog:
+
+``` bash
+npx @skyf0xx/hedgehog init
+```
+
+This copies:
+
+- `src/agents/*` → `.claude/agents/` — the `planner`, `ui-builder`, and
+  `reviewer` roles
+- `src/skills/*` → `.claude/skills/` — `hedgehog-bootstrap`,
+  `hedgehog-loop`, and `conventional-commits`
+- `CLAUDE.md` and `TODO.md` templates into the repo root
+
+If a target file already exists, `init` warns and stops without touching
+it. Re-run with `--force` to overwrite:
+
+``` bash
+npx @skyf0xx/hedgehog init --force
+```
+
+Then commit the `.claude/` payload, open Claude Code, and say:
+
+> bootstrap this project
+
+That triggers the `hedgehog-bootstrap` skill, which scaffolds the stack and
+wires the enforcement config (Nx boundaries, lefthook, commitlint, phase
+gate). From there, `hedgehog-loop` takes over one module at a time.
+
 ## For Builders
 
 Hedgehog brings proven software engineering practices into AI-assisted development.
