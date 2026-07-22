@@ -179,6 +179,22 @@ files:
   declares the project tags table below (`scope:*`, `type:*`) as comments
   or a lookup, so every later generator step tags its project correctly.
 
+Root `eslint.config.mjs` is itself ESM (`.mjs`), which surfaces a Node
+warning ("Module type of file... is not specified") unless the root
+`package.json` declares `"type": "module"`. Setting that is correct and
+worth doing — but it changes how Node resolves *every* plain `.js` file
+in the repo from CommonJS to ESM by default. Several files later steps
+generate are CommonJS (`require`/`module.exports`) and will break with
+`ReferenceError: require is not defined` or `module is not defined` the
+moment `"type": "module"` is set: `apps/*/webpack.config.js`,
+`commitlint.config.js`, and any hand-written CommonJS tool script (e.g.
+`tools/phase-gate.js`). Rename each to `.cjs` as it's created (or convert
+its content to ESM, as `next.config.js` supports natively via
+`export default`) rather than discovering the break later when `nx
+graph` or a generator that depends on the project graph fails
+opaquely — Nx surfaces this as "Failed to process project graph" pointing
+at the offending file, not as a module-system explanation.
+
 Add an `esbuild` override to root `package.json` in this step, before step
 2 installs `drizzle-kit` — see **Known issue: esbuild postinstall version
 mismatch** below for why.
