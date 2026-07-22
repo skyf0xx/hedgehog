@@ -1,0 +1,30 @@
+{
+  "name": "@skyf0xx/hedgehog",
+  "version": "0.1.0",
+  "description": "Install the Hedgehog build discipline (agents + skills) into a repo.",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "hedgehog": "bin/cli.mjs"
+  },
+  "files": [
+    "bin",
+    "src/agents",
+    "src/skills",
+    "src/templates"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "agents",
+    "skills",
+    "scaffold",
+    "hedgehog"
+  ],
+  "license": "MIT"
+}
