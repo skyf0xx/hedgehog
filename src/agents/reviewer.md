@@ -52,6 +52,14 @@ gate structurally cannot:
 - **Queue seam**: if the queue step was added, does the operation
   genuinely need async (long-running, retries, fan-out) — or was the seam
   reached for out of habit?
+- **Intra-step conventions**: does the module follow the conventions the
+  gate can't see — domain errors thrown (not `null` returned), repository
+  absence as `undefined` interpreted by the service, validation only at
+  the contract boundary, multi-write operations transactional, services
+  free of logging/HTTP/queue mechanics? These are defined in
+  `hedgehog-loop` (Intra-step conventions); check against that list rather
+  than re-deriving it. A module drifting from them is a Warning unless it
+  breaks Phase B.
 - **Security/correctness**: unvalidated input reaching a Drizzle query
   outside the Zod-validated contract boundary, secrets, obvious logic
   errors — same bar any reviewer would apply, scoped to what's new since

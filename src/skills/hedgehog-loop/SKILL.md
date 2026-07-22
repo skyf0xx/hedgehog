@@ -113,6 +113,38 @@ over. It writes `docs/design/<module>.md`, not its own step commit;
 Each commit batches exactly one step, built right for what's known now; a
 wrong step is fixed forward later via the Correction Protocol.
 
+## Intra-step conventions
+
+The Nx boundaries, phase gate, and lint own the *structural* rules
+(what imports what, what gets built when). These are the conventions
+*inside* a step that those gates can't see — apply them uniformly so a
+fresh-context session builds module N the same way it built module 1. The
+`reviewer` agent checks these at a phase boundary.
+
+- **Errors are thrown, typed, and domain-named.** A service throws a
+  domain error (`OrderNotFoundError`, not a bare `Error` or an HTTP
+  exception) — services don't know they're behind HTTP. The controller is
+  the only layer that maps domain errors to status codes. Never return
+  `null`/`undefined` to signal a failure a caller must branch on.
+- **Repository not-found returns `undefined`; the service decides.** A
+  `findById` that misses returns `undefined` (a plain absence, not an
+  error); the service turns that into a thrown domain error when the
+  operation requires the row. Adapters don't throw domain errors — they
+  report absence, the service interprets it.
+- **Validation lives at the contract boundary, once.** Input is
+  Zod-validated at the controller via the ts-rest contract. Past that
+  boundary, types are trusted — services and repositories don't re-parse.
+  A service-level invariant that isn't expressible in the Zod schema
+  (e.g. "can't cancel after payment") is enforced in the service as a
+  thrown domain error, not a second validation pass.
+- **Multi-write operations are transactional.** A service method that
+  writes more than once wraps the writes in one Drizzle transaction,
+  passed through the port — partial writes never escape a failed
+  operation.
+- **Services are pure domain logic.** No logging, no HTTP, no queue
+  mechanics inside a service method — those live at the controller /
+  adapter edge. A service reads as the business rule and nothing else.
+
 ## Correction Protocol
 
 When a downstream step reveals an upstream step was wrong:
