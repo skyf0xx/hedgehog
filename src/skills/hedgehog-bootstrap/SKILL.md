@@ -103,12 +103,34 @@ config step at its source, per `hedgehog-loop`), not a re-scaffold.
 
 ### 1. Nx workspace + `packages/config`
 
+The installer has already placed files at the repo root (`.claude/`, the
+`CLAUDE.md`/`TODO.md` templates, a minimal root `package.json`, and git).
+`create-nx-workspace` refuses a non-empty directory, so scaffold Nx *in
+place* instead — `nx init` tolerates the existing files and merges into
+them (appends to `.gitignore`, injects an Nx block into `CLAUDE.md` between
+marker comments, adds `nx` to the root `package.json`):
+
 ```bash
-npx create-nx-workspace@latest . --preset=ts --pm=pnpm --nxCloud=skip
+npx nx@latest init
+pnpm add -D @nx/js
 ```
 
-Scaffold `packages/config` as a plain `@nx/js` lib holding the locked,
-shared files:
+`nx init` needs the root `package.json` the installer dropped — without
+one it falls into standalone (`.nx` wrapper) mode instead of a proper
+pnpm workspace.
+
+Then generate the first lib. The **first** `@nx/js:lib` call materializes
+the whole workspace shape (`tsconfig.base.json`, root `eslint.config.mjs`,
+`.prettierrc`, `vitest.workspace.ts`, the `packages/` layout, and the
+tsconfig `paths` mapping) — the same scaffolding the `ts` preset would
+have produced, generated lazily on first use:
+
+```bash
+npx nx g @nx/js:lib packages/config --bundler=none --unitTestRunner=vitest
+```
+
+`packages/config` is a plain `@nx/js` lib holding the locked, shared
+files:
 
 - `packages/config/eslint-base.js` — flat config, extended by every
   app/lib. Include `@nx/enforce-module-boundaries` and `depConstraints`
