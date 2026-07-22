@@ -162,7 +162,16 @@ files:
 - `packages/config/eslint-base.js` — flat config, extended by every
   app/lib. Include `@nx/enforce-module-boundaries` and `depConstraints`
   from Enforcement wiring below, verbatim.
-- `packages/config/prettier.js` — includes `prettier-plugin-tailwindcss`.
+- `packages/config/prettier.js` — **don't** add `prettier-plugin-tailwindcss`
+  here. The plugin parses every file prettier touches (not just files with
+  Tailwind classes) and throws (`TypeError: e.charAt is not a function` /
+  `a.startsWith is not a function`) on any file when no Tailwind config is
+  resolvable yet — which is every project from step 1 through step 5, since
+  Tailwind doesn't arrive until `apps/web` in step 6. Loading it globally
+  here breaks `nx format:write` and any bare `prettier --check` for the
+  first five steps of every project. Add the plugin to `apps/web`'s own
+  prettier setup (extending this base config) once Tailwind exists, not to
+  the shared base.
 - `packages/config/env.schema.ts` — the Zod env schema from Enforcement
   wiring below (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `REDIS_URL`,
   `NODE_ENV`; extend per project as new infra is added later).
@@ -453,9 +462,29 @@ One shared config, extended everywhere:
 
 - `packages/config/eslint-base.js` — flat config, extended by every
   app/lib.
-- `packages/config/prettier.js` — includes `prettier-plugin-tailwindcss`.
+- `packages/config/prettier.js` — the shared base, *without*
+  `prettier-plugin-tailwindcss` (see step 1 — it belongs in `apps/web`'s
+  own config once Tailwind exists, not the shared base).
 
 A per-app override request signals to fix the base config at the source.
+
+## Local infra: Docker, always
+
+Postgres and Redis run through the `docker-compose.yml` from step 1 on
+every project, on every host OS — macOS, Windows, Linux alike. This isn't
+a convenience default; it's what makes "clone the repo, run the stack"
+mechanically true regardless of who's building. A natively-installed
+Postgres or Redis (Homebrew, an existing Windows service, a system
+package) is a per-machine setup step that isn't in the commit history and
+isn't reproducible on the next machine — exactly the kind of
+tribal-knowledge dependency Hedgehog's enforcement exists to remove.
+
+Don't offer a "native install" path as an alternative, even if a
+contributor already has Postgres running locally for another project. One
+mechanism, every machine: `docker compose up -d` before `pnpm install`,
+every time. If Docker genuinely can't run on a target machine, that's a
+platform-support gap to raise, not a reason to quietly fall back to a
+native install for that one contributor.
 
 ## Known issue: esbuild postinstall version mismatch
 
