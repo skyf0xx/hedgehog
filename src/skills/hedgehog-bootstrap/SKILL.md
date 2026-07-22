@@ -470,7 +470,7 @@ esbuild version (drizzle-kit's hard-pinned range, since it's non-optional
 — `@nx/vite`'s peer is optional and simply goes unfilled) removes the
 ambiguity that triggers the bug. If this resurfaces after a stack version
 bump, re-check drizzle-kit's current `esbuild` dependency range
-(`npm view drizzle-kit dependencies.esbuild`) and update the override to
+(`pnpm view drizzle-kit dependencies.esbuild`) and update the override to
 match rather than removing it.
 
 ## After Bootstrap
