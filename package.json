@@ -13,6 +13,9 @@
   "bin": {
     "hedgehog": "bin/cli.mjs"
   },
+  "scripts": {
+    "release": "npm version patch -m \"chore: bump version to %s\""
+  },
   "files": [
     "bin",
     "src/agents",
