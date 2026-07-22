@@ -143,6 +143,18 @@ files:
   declares the project tags table below (`scope:*`, `type:*`) as comments
   or a lookup, so every later generator step tags its project correctly.
 
+Add an `esbuild` override to root `package.json` in this step, before step
+2 installs `drizzle-kit` — see **Known issue: esbuild postinstall version
+mismatch** below for why.
+
+```json
+{
+  "pnpm": {
+    "overrides": { "esbuild": "0.25.12" }
+  }
+}
+```
+
 Commit: `feat(config): workspace + shared config`
 
 ### 2. `packages/db` — Drizzle client + connection
@@ -401,6 +413,34 @@ One shared config, extended everywhere:
 - `packages/config/prettier.js` — includes `prettier-plugin-tailwindcss`.
 
 A per-app override request signals to fix the base config at the source.
+
+## Known issue: esbuild postinstall version mismatch
+
+`@nx/vite` (step 1) declares `esbuild` as an *optional* peer dependency
+(`^0.27.0 || ^0.28.0`), while `drizzle-kit` (step 2) pins a hard dependency
+on `esbuild@^0.25.4`. pnpm's isolated store correctly keeps both esbuild
+majors side by side — but esbuild's own `install.js` resolves its platform
+binary (`@esbuild/<platform>`) via **ambient** Node module resolution
+rather than a path scoped to its own package instance. With multiple
+esbuild majors in the tree, that ambient resolution can walk up and grab a
+sibling major's platform binary, hardlinking the wrong version's binary
+into a package that still claims a different version number. The result
+is a postinstall failure like:
+
+```
+Error: Expected "0.28.1" but got "0.25.12"
+```
+
+This is deterministic (not registry/store corruption) and reproduces even
+from a fully clean pnpm store — it's a real collision in esbuild's install
+script when it meets pnpm's multi-version isolation. The fix is the
+`pnpm.overrides.esbuild` pin added in step 1 above: collapsing to a single
+esbuild version (drizzle-kit's hard-pinned range, since it's non-optional
+— `@nx/vite`'s peer is optional and simply goes unfilled) removes the
+ambiguity that triggers the bug. If this resurfaces after a stack version
+bump, re-check drizzle-kit's current `esbuild` dependency range
+(`npm view drizzle-kit dependencies.esbuild`) and update the override to
+match rather than removing it.
 
 ## After Bootstrap
 
