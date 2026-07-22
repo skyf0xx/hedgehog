@@ -246,6 +246,20 @@ structured logging. Call `loadEnv()` at the top of `apps/api/src/main.ts`.
 Tag: `scope:api`. No controllers beyond a health check — domain
 controllers arrive per module in Phase A.
 
+`@nx/nest:app` also scaffolds a companion `apps/api-e2e` project wired to
+Jest (`jest.config.cts`), not Vitest — inconsistent with the locked stack.
+Convert it: delete the Jest config, add a `vitest.config.mts` (mirroring
+`packages/db`'s), and give `apps/api-e2e`'s `tsconfig.spec.json` the same
+`composite`/`declaration` treatment as above. Rename its target from the
+plugin-inferred `test` to an explicit `e2e` — an HTTP e2e suite needs a
+live server (`dependsOn: ["api:build", "api:serve"]`), and if it keeps the
+default `test` name, `nx affected -t test` (what lefthook's pre-commit
+hook runs on every commit, per the Commit gate below) will try to boot a
+server on every commit. Exclude `apps/api-e2e` from the `@nx/vitest`
+plugin's auto-inference in `nx.json` (`"exclude": ["apps/api-e2e/**"]` on
+that plugin entry) so it stops registering a `test` target for this
+project at all, keeping only the manually-defined `e2e` target.
+
 Commit: `feat(api): nest shell + global guard + pino`
 
 ### 5. `apps/worker` — BullMQ seam (Redis, no consumers yet)
