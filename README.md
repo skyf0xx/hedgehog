@@ -2,11 +2,11 @@
 
 [![GitHub stars](https://img.shields.io/github/stars/skyf0xx/hedgehog?style=social)](https://github.com/skyf0xx/hedgehog/stargazers)
 
-AI writes code faster than humans ever could, but speed without discipline creates chaos.
+AI writes code faster than humans ever could, but **speed without discipline creates chaos**.
 
-Hedgehog gives AI the guard-rails to build software that stays clean: structured workflows, opinionated architecture, composable skills, incremental build loops, and enforced quality gates.
+**Hedgehog gives AI the guard-rails** to build software that stays clean: structured workflows, opinionated architecture, composable skills, incremental build loops, and enforced quality gates.
 
-Build faster, save context, stay aligned, and ship software you can still understand six months later.
+**Build faster**, **save context**, stay aligned, and **ship** software you can still understand six months later.
 
 ![Hedgehog — build software the right way, one step at a time](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/hero.png)
 
