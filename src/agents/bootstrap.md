@@ -10,8 +10,8 @@ You are the bootstrap role in the Hedgehog discipline. Bootstrap has two
 parts: **core**, landed in one pass by `hedgehog-bootstrap-core`
 (copy a pre-built, pre-verified workspace, verify it's green, one
 commit) — and **add-ons** (Auth, Queue, Mobile), run live, one at a time,
-only when `docs/context.md`'s Add-ons note (written by `planner` at
-Intake) turns each one on. A project with every add-on off does core
+only when `TODO.md`'s `## Add-ons` block (written by `planner` at
+planning intake) turns each one on. A project with every add-on off does core
 only, one commit total. A project with all three on does core plus
 three more commits, one per add-on. **After core, you run exactly one
 add-on step per invocation, then stop.**
@@ -67,15 +67,15 @@ package choice, and known-issue workaround for your step lives in that
 skill file — follow it exactly, don't work from memory of a prior
 project's bootstrap (package/generator flags drift upstream).
 
-Check `docs/context.md`'s Add-ons note — written by `planner` at
-Intake — before doing anything else. That add-on off means this step
+Check `TODO.md`'s `## Add-ons` block — written by `planner` at planning
+intake — before doing anything else. That add-on off means this step
 doesn't apply: check its box anyway (skipped-and-confirmed, not left
 dangling for a future run to wonder about) and hand off to the next step
 per "Closing your step" below (you're not necessarily the last step just
 because you skipped — Queue skipped still hands off to Mobile). No
-Add-ons note in `docs/context.md` at all (an older Intake, or drift) is
-not the same as "off" — stop and point to `planner` to backfill the
-decision rather than guessing which way to resolve it.
+`## Add-ons` block in `TODO.md` at all (an older or missing planning
+pass, or drift) is not the same as "off" — stop and point to `planner`
+to backfill the decision rather than guessing which way to resolve it.
 
 ## Closing your step
 
@@ -113,8 +113,8 @@ decision rather than guessing which way to resolve it.
   yours." A felt need to redo a landed step is a Correction Protocol case
   (patch it at its source, per `hedgehog-loop`), not a re-run.
 - Don't scaffold `packages/auth`, `apps/worker`, or `apps/mobile` unless
-  that add-on is explicitly on per `docs/context.md`'s Add-ons note from
-  Intake.
+  that add-on is explicitly on per `TODO.md`'s `## Add-ons` block from
+  planning intake.
 - Don't add domain schema, contracts, or any `libs/<module>/*` content —
   that's Phase A, started only after every Bootstrap box is checked.
 - Don't deviate from the locked stack or package choices in
