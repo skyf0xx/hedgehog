@@ -8,6 +8,12 @@ AI writes code faster than humans ever could, but **speed without discipline cre
 
 **Build faster**, **save context**, stay aligned, and **ship** software you can still understand six months later.
 
+Hedgehog pairs **BMAD's planning** with **disciplined execution**, in one workflow.
+
+- Plan: BMAD workflow
+- Build: Hedgehog execution discipline
+- Ship: Quality gates and incremental loops
+
 ![Hedgehog — build software the right way, one step at a time](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/hero.png)
 
 ## Hedgehog gives AI
@@ -136,28 +142,25 @@ Hedgehog is a package of agents and skills, built on an opinionated stack so the
 
 ## How Hedgehog Compares
 
-Superpowers and BMAD both improve on raw prompting: one gives the AI good habits, the other gives it a planning process. In both, the order of work is a convention the AI can still break.
+Superpowers and BMAD both improve on raw prompting: one gives the AI good habits, the other a planning process. Alone, either can still be broken by convention.
 
-Hedgehog enforces its build order with tooling instead: Nx module boundaries, commit hooks, phase gates. The order holds because the tooling holds it, not because the AI followed the discipline.
+Hedgehog runs BMAD for planning, then enforces the build that follows with tooling, not convention: Nx boundaries, commit hooks, phase gates.
 
-| | Superpowers | BMAD | Hedgehog |
+| | Superpowers | BMAD | Hedgehog + BMAD |
 | --- | --- | --- | --- |
-| **What it is** | A skills library for Claude Code: brainstorm, plan, TDD, debug, review | A multi-agent planning framework: PM, Architect, Dev, QA personas | A build discipline: fixed stack, enforced module order |
-| **Order comes from** | Skill instructions the agent is told to follow | Sequenced documents (brief → PRD → architecture → stories) | Tooling (Nx boundaries, lefthook, phase gate) |
-| **Enforcement mechanism** | None. Prompted convention | None. One optional agent-run checklist between phases | Mechanically enforced by Nx boundaries, commit hooks, and the phase gate |
+| **What it is** | A skills library: brainstorm, plan, TDD, debug, review | A multi-agent planning framework: PM, Architect, Dev, QA personas | BMAD planning (brief → PRD → architecture) feeding a fixed-stack, enforced-order build |
+| **Order comes from** | Skill instructions the agent is told to follow | Sequenced documents (brief → PRD → architecture → stories) | Planning: BMAD documents. Execution: tooling (Nx, lefthook, phase gate) |
+| **Enforcement mechanism** | None. Prompted convention | None. One optional checklist between phases | Planning intake mined by the `planner` agent; execution mechanically enforced |
 | **Unit of work** | A task, planned in worktree-isolated steps | A story, derived from PRD and architecture docs | A module layer (schema → contract → repo → service → controller → UI) |
 | **Stack** | Whatever the project already uses | No stack opinion | One locked stack (Nx, NestJS, Drizzle, ts-rest, Next.js) |
-| **Context per step** | As much as the task pulls in | A full brief, PRD, and architecture doc per story | One module layer at a time (e.g. just the repository, just the controller) |
+| **Context per step** | As much as the task pulls in | A full brief, PRD, and architecture doc per story | One module layer at a time — BMAD's docs are mined once, up front |
 | **Finding a bug** | Search wherever the task touched | Search wherever the story touched | Search one layer, in one module, in a fixed order |
-| **Real cost** | No safety net if the model shortcuts its own process | Documentation overhead most solo projects don't need | Less flexibility: the stack and order aren't negotiable |
+| **Real cost** | No safety net if the model shortcuts its own process | Documentation overhead most solo projects don't need | Stack and order aren't negotiable |
 
 ## Credits
 
 Planning intake runs on [BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD)
-(`bmad-code-org/BMAD-METHOD`), MIT-licensed — vendored in full at
-`skills/BMAD/` in every Hedgehog install. BMAD elicits the brief, PRD,
-and UX spec; Hedgehog's own `planner` agent takes over from there with
-the build discipline above.
+(`bmad-code-org/BMAD-METHOD`) MIT-licensed.
 
 ## Support Hedgehog
 
