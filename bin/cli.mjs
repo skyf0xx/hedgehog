@@ -5,9 +5,10 @@
 // Usage:
 //   npx @skyf0xx/hedgehog init          scaffold into the current directory
 //   npx @skyf0xx/hedgehog init --force  overwrite files that already exist
+//   npx @skyf0xx/hedgehog update        refresh .claude/agents + .claude/skills
 //   npx @skyf0xx/hedgehog --help
 
-import { cp, mkdir, access, readdir, stat } from 'node:fs/promises';
+import { cp, mkdir, access, readdir, stat, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -51,6 +52,19 @@ const PLAN = [
   { type: 'dir', from: 'src/golden-core', to: '.' },
 ];
 
+// The subset of PLAN that's the discipline's payload rather than
+// project-specific or write-once content: `update` re-copies exactly
+// this, always overwriting, since a consuming project's own
+// .claude/agents and .claude/skills are supposed to match upstream
+// verbatim. CLAUDE.md/TODO.md carry project-filled content, golden-core
+// is verified once by hedgehog-bootstrap-core, and skills/BMAD is
+// re-vendored only deliberately (bmad-revendor) — none of those belong
+// in an update.
+const UPDATE_PLAN = [
+  { type: 'dir', from: 'src/agents', to: '.claude/agents' },
+  { type: 'dir', from: 'src/skills', to: '.claude/skills' },
+];
+
 const exists = (p) =>
   access(p, constants.F_OK).then(
     () => true,
@@ -89,10 +103,18 @@ committed alongside your code.
 ${bold('Usage')}
   npx @skyf0xx/hedgehog init            scaffold into the current directory
   npx @skyf0xx/hedgehog init --force    overwrite existing files
+  npx @skyf0xx/hedgehog update          refresh .claude/agents + .claude/skills
   npx @skyf0xx/hedgehog --help
 
 After it runs, commit the .claude/ payload, open Claude Code, and say
 "bootstrap this project" to trigger the hedgehog-bootstrap skill.
+
+${bold('update')} re-copies only .claude/agents and .claude/skills from the
+installed Hedgehog version, so an already-bootstrapped project can pick up
+agent/skill changes from a newer release. It always overwrites those two
+directories and never touches CLAUDE.md, TODO.md, golden-core, or
+skills/BMAD — those are project-specific or updated deliberately, not by
+this command.
 `);
 }
 
@@ -156,6 +178,39 @@ async function init({ force }) {
   );
 }
 
+async function update() {
+  // Full replace, not a merge: clear each destination dir first so a
+  // rename or removal upstream (e.g. an agent renamed between releases)
+  // doesn't leave a stale file sitting alongside the new one.
+  for (const entry of UPDATE_PLAN) {
+    await rm(join(DEST_ROOT, entry.to), { recursive: true, force: true });
+  }
+
+  let written = 0;
+  for (const entry of UPDATE_PLAN) {
+    const files = await plannedFiles(entry);
+    for (const f of files) {
+      await mkdir(dirname(f.dest), { recursive: true });
+      await cp(f.src, f.dest);
+      written++;
+      console.log(`  ${green('update')}  ${relative(DEST_ROOT, f.dest)}`);
+    }
+  }
+
+  console.log(
+    `\n${green(bold('Hedgehog agents/skills updated.'))} ${dim(`${written} files written`)}\n`,
+  );
+  console.log('Next steps:');
+  console.log(`  1. ${bold('git diff .claude/')} to review what changed`);
+  console.log(`  2. ${bold('git add -A && git commit -m "chore: update hedgehog"')}\n`);
+  console.log(
+    dim(
+      'CLAUDE.md, TODO.md, the golden-core workspace, and skills/BMAD are\n' +
+        'untouched — those carry project-specific or write-once content.',
+    ),
+  );
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help') || args.includes('-h') || args.length === 0) {
@@ -167,6 +222,11 @@ async function main() {
 
   if (cmd === 'init') {
     await init({ force });
+    return;
+  }
+
+  if (cmd === 'update') {
+    await update();
     return;
   }
 

@@ -96,6 +96,17 @@ only runs whichever add-ons planning intake determined your project needs.
 
 Or paste the repo URL to your Agent and have it install for you.
 
+On a project that's already installed Hedgehog, pick up agent/skill
+changes from a newer release with:
+
+``` bash
+npx @skyf0xx/hedgehog update
+```
+
+This refreshes `.claude/agents/` and `.claude/skills/` only — it never
+touches `CLAUDE.md`, `TODO.md`, the golden-core workspace, or
+`skills/BMAD`, since those carry project-specific or write-once content.
+
 ## For Builders
 
 Hedgehog brings proven software engineering practices into AI-assisted development.
