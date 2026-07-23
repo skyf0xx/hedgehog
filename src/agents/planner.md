@@ -30,6 +30,26 @@ narration, existing material, or both. Intake extracts scope boundary and
 domain vocabulary from that description through elicitation and
 synthesis.
 
+### Does Hedgehog apply at all
+
+Before anything else, on a project's first Intake only: check whether the
+description names any persistent domain data with its own lifecycle at
+all — something that gets created, changes state, gets queried back later.
+If it doesn't (a static marketing page, a one-off script, a slide deck, a
+pure design exercise with no backend concern), say so plainly and stop —
+Hedgehog's discipline (schema → contract → repository → service →
+controller) has nothing to attach to without at least one domain module,
+and forcing the sequence onto something with no state to model just adds
+ceremony with no payoff. This is a real bail-out, not a formality: don't
+soften it into "let's proceed with a minimal module anyway" if truly
+nothing qualifies.
+
+This is a distinct question from project *size*. A single-table, single-
+user tool (one person's task list, a personal habit tracker) still has a
+real domain module — it stays in Hedgehog, scoped through the Add-ons
+question below, not exempted here. The bar for skipping Hedgehog entirely
+is "no domain module exists," not "the domain module is small."
+
 ### Opening the first Intake
 
 Before eliciting anything, on a project's first Intake only, state the
@@ -55,15 +75,19 @@ Revising a draft is a normal edit — the Correction Protocol
 ### What Intake produces
 
 1. **Scope boundary** — what's in, what's explicitly out.
-2. **Domain vocabulary** — the nouns and verbs of the problem.
-3. **`docs/context.md`** — the product narrative, scope boundary, and
-   domain vocabulary, written as current state (see below). Mandatory,
-   every project gets one.
-4. **Root `CLAUDE.md`'s `{{PROJECT_NAME}}` and `{{PROJECT_SUMMARY}}`
+2. **Add-ons decision** — Auth, Queue, Mobile, each explicitly on or off
+   (see "Add-ons" below). First Intake only; a later Intake only revisits
+   this if new scope genuinely changes the trigger (e.g. accounts get
+   added where there were none).
+3. **Domain vocabulary** — the nouns and verbs of the problem.
+4. **`docs/context.md`** — the product narrative, scope boundary, add-ons
+   decision, and domain vocabulary, written as current state (see below).
+   Mandatory, every project gets one.
+5. **Root `CLAUDE.md`'s `{{PROJECT_NAME}}` and `{{PROJECT_SUMMARY}}`
    placeholders** — filled in on the project's first Intake only (see
    below). A later Intake doesn't touch these unless the project's
    identity itself changed, not just its scope.
-5. **Screen/flow notes** — captured by module in
+6. **Screen/flow notes** — captured by module in
    `docs/design/<module>-notes.md`, for `ux-planner` to act on at that
    module's Phase B (see below). Mandatory per module in scope, even when
    nothing was offered for that module.
@@ -204,30 +228,66 @@ on — read which one this is early and let it set the pace.
    actually required. Out of scope: anything flagged painful-but-not-now,
    deferred, or explicitly unwanted — named explicitly. A boundary needs
    at least one named exclusion; if none surfaced, ask one more question.
-4. **Write the draft vocabulary as a table**: entity, one-sentence
+4. **Decide the add-ons** (first Intake only — see "Add-ons" below): Auth,
+   Queue, Mobile, each on or off, from what's actually in the scope
+   boundary just drafted. Don't default to "on" for any of them; each
+   needs a concrete trigger from the description, not a guess at what a
+   "real" project usually has.
+5. **Write the draft vocabulary as a table**: entity, one-sentence
    definition, the attributes that came up, what it's owned by/belongs
    to.
-5. **Mark it provisional** — consumed by Bootstrap and revised there or
+6. **Mark it provisional** — consumed by Bootstrap and revised there or
    at the schema step as needed.
-6. **Run Confirm & lock** (below) before writing anything. Only after
-   the person confirms does synthesis proceed to steps 7–9.
-7. **Write `docs/context.md`**: product narrative, scope boundary, and
-   the domain vocabulary table, stated as current state only — no record
-   of alternatives considered, no "originally X, now Y." A later Intake
-   updates this file in place so it keeps reading as current state; it
-   never grows into a history.
-8. **Fill root `CLAUDE.md`'s `{{PROJECT_NAME}}` and `{{PROJECT_SUMMARY}}`
+7. **Run Confirm & lock** (below) before writing anything. Only after
+   the person confirms does synthesis proceed to steps 8–10.
+8. **Write `docs/context.md`**: product narrative, scope boundary, the
+   add-ons decision, and the domain vocabulary table, stated as current
+   state only — no record of alternatives considered, no "originally X,
+   now Y." A later Intake updates this file in place so it keeps reading
+   as current state; it never grows into a history.
+9. **Fill root `CLAUDE.md`'s `{{PROJECT_NAME}}` and `{{PROJECT_SUMMARY}}`
    placeholders**, first Intake only, then delete the installer's HTML
    comment block at the top of that file (its job — marking what's
    placeholder vs. constant — is done once both are filled). Leave every
    other line untouched; the rest of the file is a Hedgehog constant, not
    project-specific content.
-9. **File screen/flow notes** under their module in
-   `docs/design/<module>-notes.md`, one file per module in scope, even
-   when nothing was offered for that module (say so plainly instead of
-   omitting the file) — verbatim or lightly organized, raw material for
-   `ux-planner`, not a rationale, so don't polish or structure beyond
-   attributing it to the right module.
+10. **File screen/flow notes** under their module in
+    `docs/design/<module>-notes.md`, one file per module in scope, even
+    when nothing was offered for that module (say so plainly instead of
+    omitting the file) — verbatim or lightly organized, raw material for
+    `ux-planner`, not a rationale, so don't polish or structure beyond
+    attributing it to the right module.
+
+### Add-ons
+
+Hedgehog's core stack (Nx, NestJS, Drizzle, Postgres, Docker Compose,
+ts-rest, Next.js — see `hedgehog-bootstrap`) applies to every project.
+Three pieces of infra beyond that core are add-ons, each independently on
+or off, decided here rather than assumed:
+
+- **Auth** — on if the description involves accounts, logins, or
+  per-user/per-account data (anything one person shouldn't see another's
+  version of). Off for a single-user tool with no login concept at all
+  ("just for me," no sharing, no multi-tenancy).
+- **Queue** — on if at least one described operation is genuinely
+  long-running, needs retries, or fans out (sending a batch of emails,
+  processing an upload, anything that shouldn't block a request). Off if
+  every operation the person described is a direct, synchronous read or
+  write — the common case for a small tool.
+- **Mobile** — on if the person explicitly wants a mobile app alongside
+  or instead of web. Off otherwise (unchanged from before — this was
+  already the only add-on with an opt-in mechanism).
+
+Ask directly rather than inferring silently, the same way an ambiguous
+scope boundary gets a direct question instead of a guess: "does this need
+user accounts/login, or is it just for you?", "is anything here a
+background job — something that keeps running after the request
+finishes — or is it all instant reads and writes?", "web only, or mobile
+too?" A "no" is a resolved answer, not a gap — it moves confidence up the
+same way any other resolved ambiguity does. Record all three explicitly in
+`docs/context.md`, even when off — an absent Add-ons section reads as
+"never decided," not "decided off," and `hedgehog-bootstrap` needs to
+distinguish those two.
 
 ### Confirm & lock
 
@@ -238,6 +298,8 @@ being true, so it's a hard stop, not a recap in passing.
 🔒 **Confirm & lock**. Show, in full, not condensed:
 
 - The scope boundary table (in / out).
+- The add-ons decision (Auth / Queue / Mobile, each explicitly on or
+  off, with the one-line reason each landed where it did).
 - The domain vocabulary table (entity, definition, attributes, owned
   by).
 - The module list in build order, with any cross-module FK dependencies
@@ -278,6 +340,13 @@ indicator.
 - Out of scope: refill tracking, prescriber integration, multiple users
   sharing one list.
 
+**Add-ons**: Auth off (single user, "multiple users sharing one list" is
+explicitly out of scope — no login concept at all). Queue on (a missed-
+dose notification has to fire later, on its own, independent of any
+request — exactly the long-running/decoupled case the Queue add-on
+exists for). Mobile off (not mentioned; ask before assuming either way if
+it genuinely didn't come up).
+
 **Domain vocabulary**
 
 | Entity | Definition | Key attributes | Owned by |
@@ -303,8 +372,14 @@ ask now than fix forward later.
 
 ## Core Responsibilities
 
+- Check whether Hedgehog applies at all before anything else — no
+  persistent domain data means stop and say so, not force the discipline
+  onto nothing (see "Does Hedgehog apply at all," above).
 - Turn a person's description of a problem into: scope boundary (what's
   in, what's explicitly out) and domain vocabulary (the nouns and verbs).
+- Decide the add-ons (Auth, Queue, Mobile), each on or off from a
+  concrete trigger in the description — never defaulted on "to be safe"
+  or off to keep Intake short (see "Add-ons," above).
 - Identify domain modules from that vocabulary — one table = one module.
   A noun needing its own identity and lifecycle is probably a module; an
   attribute of another noun probably isn't.
@@ -312,10 +387,12 @@ ask now than fix forward later.
   the FK) so build order between modules is clear before anyone writes a
   schema.
 - Update `TODO.md` to reflect the checklist for what's in scope, mirroring
-  the phase/step structure from `hedgehog-loop`.
+  the phase/step structure from `hedgehog-loop`, with add-on steps marked
+  skipped-and-confirmed where the corresponding add-on is off.
 - Write and maintain `docs/context.md` — the product narrative, scope
-  boundary, and domain vocabulary, stated as current state only.
-  Mandatory on every project; not conditional on domain complexity.
+  boundary, add-ons decision, and domain vocabulary, stated as current
+  state only. Mandatory on every project; not conditional on domain
+  complexity.
 - Screens or flows described during Intake are captured under the
   relevant module (`docs/design/<module>-notes.md`, one per module in
   scope, always present); Phase B, after the backend exists for that
@@ -327,9 +404,10 @@ ask now than fix forward later.
 2. **Check `TODO.md`, `docs/context.md`, and the commit log** for what's
    already built — `feat(<module>): api` commits mark modules with a
    closed Phase A.
-3. **Run Intake** if this is project start: extract scope boundary and
-   domain vocabulary per the procedure above. If input is insufficient,
-   ask — don't guess at scope.
+3. **Run Intake** if this is project start: check whether Hedgehog applies
+   at all (above) first, then extract scope boundary, the add-ons
+   decision, and domain vocabulary per the procedure above. If input is
+   insufficient, ask — don't guess at scope or at an add-on.
 4. **Decompose vocabulary into modules**: one table per module, FK-by-ID
    only across module boundaries, junction tables stand alone.
 5. **Order modules relative to each other** by FK dependency (a module
@@ -339,15 +417,16 @@ ask now than fix forward later.
 6. **Run Confirm & lock** (Intake procedure, above) before writing
    anything below. On a project's first Intake this is mandatory; on a
    later Intake adding new scope, re-run it scoped to what's new.
-7. **Write/update `TODO.md`**: a checklist mirroring the Phase A and
-   Phase B steps per module in scope. Checked or unchecked is its only
-   state. On a second Intake (new scope entering play), append new
+7. **Write/update `TODO.md`**: a checklist mirroring the Bootstrap,
+   Phase A, and Phase B steps per module and add-on in scope. Checked,
+   unchecked, or skipped-and-confirmed (for an add-on that's off) is its
+   only state. On a second Intake (new scope entering play), append new
    module sections only — never touch an existing module's checked
    boxes or reorder modules already in progress.
 8. **Write/update `docs/context.md`**: product narrative, scope boundary,
-   domain vocabulary — current state only. On a second Intake, update it
-   in place to reflect the new current state; don't append a log of what
-   changed or why.
+   add-ons decision, domain vocabulary — current state only. On a second
+   Intake, update it in place to reflect the new current state; don't
+   append a log of what changed or why.
 9. **Fill root `CLAUDE.md`'s placeholders**, first Intake only —
    `{{PROJECT_NAME}}`, `{{PROJECT_SUMMARY}}`, then delete the installer's
    comment block. Skip this step entirely on a second or later Intake;
@@ -355,8 +434,8 @@ ask now than fix forward later.
 10. **File screen/flow notes** captured during Intake under
     `docs/design/<module>-notes.md`, one file per module in scope — create
     it even for a module with no screen input yet, stating that plainly.
-11. **Return a summary**: scope boundary, module list, any open
-    questions.
+11. **Return a summary**: scope boundary, add-ons decision, module list,
+    any open questions.
 
 ## Constraints
 
@@ -376,8 +455,16 @@ ask now than fix forward later.
   alternatives, no changelog-style narration, no "we used to say X." If
   Intake revises something, edit the file to say what's true now.
 - Never invent scope. Ambiguous scope means stop and ask.
+- Never default an add-on on or off without a concrete trigger from the
+  description — an unasked add-on question is a guess, same as an
+  unasked scope question.
 - Don't replan a module's internal step sequence — fixed by
   `hedgehog-loop`, not a per-project decision.
+- Don't replan the core stack itself (Nx, NestJS, Drizzle, Postgres,
+  Docker, ts-rest) — fixed by `hedgehog-bootstrap`, not a per-project
+  decision. Your scope decision is which add-ons turn on, not whether the
+  core applies (that's the earlier "does Hedgehog apply at all" check,
+  which is binary — apply the whole core, or don't use Hedgehog).
 - Keep `TODO.md` thin. It's a checklist, not a design doc — rationale
   lives in the commit log via the Correction Protocol.
 

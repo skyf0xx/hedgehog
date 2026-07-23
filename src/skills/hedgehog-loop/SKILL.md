@@ -55,8 +55,14 @@ controller  (thin HTTP)
 hook        (TanStack Query)       — Phase B only
 ```
 
-Plus, when an operation needs async: **queue = port + BullMQ adapter**,
-same port/adapter shape as the repository. The service imports only ports.
+Plus, when an operation needs async **and the Queue add-on is on for this
+project** (check `docs/context.md`'s Add-ons note): **queue = port +
+BullMQ adapter**, same port/adapter shape as the repository. The service
+imports only ports. If the Queue add-on is off, there's no `apps/worker`
+and no queue step, full stop — an operation that seems to want async
+processing on a Queue-off project is a signal to revisit that add-on
+decision with `planner`, not to build a one-off queue outside the
+add-on's scaffolding.
 
 Standard Nx generators (`@nx/nest`, `@nx/next`, `@nx/expo`, `@nx/js`)
 scaffold the app/lib shell. Each step's actual content (schema, contract,
@@ -75,7 +81,7 @@ these before any module gets a hook or screen.
 | 3 | Repository | `libs/<module>/repository` (port + Drizzle adapter) | `feat(<module>): repository` |
 | 4 | Service | `libs/<module>/service` (domain logic — imports only ports) | `feat(<module>): service` |
 | 5 | Controller | `apps/api` (thin HTTP, wires contract → service) | `feat(<module>): api` |
-| 5a | Queue *(if needed)* | `apps/worker` (port + BullMQ adapter) | `feat(<module>): queue` |
+| 5a | Queue *(if needed, and only if the Queue add-on is on)* | `apps/worker` (port + BullMQ adapter) | `feat(<module>): queue` |
 
 Repeat 1–5(a) per module in scope. The API is complete, typed, and
 callable (Postman/curl/contract tests) before frontend work starts.
@@ -178,8 +184,10 @@ boundary from Intake (`planner`). If not, stop and ask.
   working, tested API before any hook or screen starts.
 - **Sequential within a phase.** A step starts once the one before it
   compiles and passes tests.
-- **Step 5a is conditional** — only when an operation genuinely needs
-  async (long-running, retries, fan-out); the normal case has no queue.
+- **Step 5a is conditional twice over** — only if the Queue add-on is on
+  for this project at all (per `docs/context.md`), and even then only
+  when a given operation genuinely needs async (long-running, retries,
+  fan-out); the normal case has no queue.
 - **A wrong step gets fixed at its source** — the Correction Protocol, not
   a downstream workaround.
 - **Tests gate every commit** in the sequence.

@@ -9,14 +9,18 @@ has one, written by planner at Intake. -->
 (fill in per project — see docs/context.md for the full picture)
  
 ## Bootstrap
- 
-- [ ] Nx workspace + `packages/config` (incl. `docker-compose.yml` for local Postgres/Redis)
-- [ ] `packages/db` — Drizzle client
-- [ ] `packages/auth` — Better Auth config
-- [ ] `apps/api` — Nest shell, global guard, Pino
-- [ ] `apps/worker` — BullMQ seam (Redis, no consumers yet)
-- [ ] `apps/web` — Next shell, TanStack Query provider
-- [ ] `apps/mobile` — Expo shell (only if building for mobile)
+
+<!-- Core steps (always run) and add-on steps (planner marks each
+on/skipped at Intake, per docs/context.md's Add-ons note) below. A
+skipped add-on gets checked off as skipped, not left unchecked. -->
+
+- [ ] Nx workspace + `packages/config` (incl. `docker-compose.yml` for local Postgres) — core
+- [ ] `packages/db` — Drizzle client — core
+- [ ] `packages/auth` — Better Auth config — Auth add-on (fill in: on / skipped, not in scope)
+- [ ] `apps/api` — Nest shell, Pino (+ global guard if Auth is on) — core
+- [ ] `apps/worker` — BullMQ seam, Redis (no consumers yet) — Queue add-on (fill in: on / skipped, not in scope)
+- [ ] `apps/web` — Next shell, TanStack Query provider — core
+- [ ] `apps/mobile` — Expo shell — Mobile add-on (fill in: on / skipped, not in scope)
 ## Phase A — Backend
  
 <!-- One subsection per module in scope. Do not add hooks/screens here —

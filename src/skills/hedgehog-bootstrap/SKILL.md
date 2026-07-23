@@ -18,9 +18,18 @@ and verifies generator flags against the installed Nx version. Run the
 [nx-run-tasks](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-run-tasks) the same way. The commands below are the spec; those
 skills execute it correctly.
 
-## The Stack (locked)
+## The Stack: core + add-ons
 
-One opinionated stack, applied the same way on every project:
+Hedgehog has one non-negotiable **core** — applied to every project that
+uses Hedgehog at all, regardless of size — plus a small set of named
+**add-ons**, each scaffolded only when Intake's scope boundary (`planner`)
+actually calls for it. The core is not "the small version of the stack";
+it's the fixed floor. Add-ons are not "extra polish"; each is standing
+infra with a real ongoing cost (a service to run, a secret to manage, a
+seam to keep idempotent) that a project without the matching need
+shouldn't carry.
+
+### Core (every project, no exceptions)
 
 | Layer | Choice |
 |---|---|
@@ -29,17 +38,14 @@ One opinionated stack, applied the same way on every project:
 | Backend framework | NestJS |
 | ORM | Drizzle (+ `drizzle-zod`) |
 | Database | PostgreSQL |
-| Local infra | Docker Compose (Postgres + Redis) |
+| Local infra | Docker Compose (Postgres) |
 | Platform | Railway |
 | API contract | ts-rest |
 | Validation | Zod |
-| Auth | Better Auth (+ `@thallesp/nestjs-better-auth`, Drizzle adapter) |
 | Data fetching / hooks | TanStack Query |
 | Web UI | Next.js (frontend only) + ShadCN + Tailwind |
-| Mobile UI (optional) | Expo + React Native Reusables + NativeWind |
-| Queues / jobs | BullMQ + Redis |
 | Logging | Pino (`nestjs-pino`) |
-| Lint / format | ESLint (flat config) + Prettier (+ `prettier-plugin-tailwindcss`) |
+| Lint / format | ESLint (flat config) + Prettier (+ `prettier-plugin-tailwindcss`, scoped to `apps/web`) |
 | Testing | Vitest (unit/integration) + Playwright (web e2e) |
 | Commits | Conventional Commits + commitlint + lefthook |
 | Observability | Sentry |
@@ -49,21 +55,47 @@ isn't SQL-comfortable; cloud + Pulumi/SST for Railway when full
 declarative IaC is a hard requirement; tRPC for ts-rest when the client is
 committed TypeScript-only.
 
+### Add-ons (scaffolded only when Intake calls for them)
+
+Each row is independent — on or off per project, decided at Intake's
+Confirm & Lock (`planner`) and recorded in `docs/context.md`. Turning one
+on inserts its Bootstrap step(s) into the sequence below; turning it off
+means that step is skipped entirely, not stubbed or partially wired.
+
+| Add-on | Trigger (from Intake scope) | Adds |
+|---|---|---|
+| **Auth** | The product has accounts, logins, or per-user data | Better Auth (+ `@thallesp/nestjs-better-auth`, Drizzle adapter), `packages/auth`, a global auth guard on `apps/api`, `BETTER_AUTH_SECRET` in the env schema |
+| **Queue** | At least one operation is genuinely long-running, retried, or fanned out | BullMQ + Redis, `apps/worker`, a `Queue` port/adapter seam, `REDIS_URL` in the env schema, Redis in `docker-compose.yml` |
+| **Mobile** | Mobile is explicitly in scope | Expo + React Native Reusables + NativeWind, `apps/mobile` |
+
+A project with none of these on is still a full Hedgehog project — Nx,
+NestJS, Postgres, Docker, ts-rest, the phase discipline, and every gate
+still apply. What's cut is infra with no consumer, not the discipline
+itself.
+
+If a project's whole description has no persistent domain data and no
+real lifecycle to model at all (a static marketing page, a one-off
+script, a slide deck) — not "small," but literally no state to carry
+across a schema/contract/service — Hedgehog doesn't apply. `planner`
+checks for this before Intake proper starts (see that agent's opening
+check) and says so rather than forcing the discipline onto something with
+no domain module in it.
+
 ### Monorepo layout
 
 ```
 apps/
   web        (Next.js — UI only)
-  mobile     (Expo — optional)
+  mobile     (Expo — only if the Mobile add-on is on)
   api        (NestJS — owns all domain logic + DB access)
-  worker     (BullMQ consumers)
+  worker     (BullMQ consumers — only if the Queue add-on is on)
 
 packages/
   db         (Drizzle schema + client)
   contracts  (ts-rest + Zod contracts)
   hooks      (TanStack Query — shared web + mobile)
-  jobs       (typed job registry / queue definitions)
-  auth       (Better Auth config)
+  jobs       (typed job registry / queue definitions — only if Queue is on)
+  auth       (Better Auth config — only if Auth is on)
   config     (locked ESLint/Prettier/tsconfig/env schema)
   shared     (cross-cutting types + utils)
 
@@ -71,28 +103,31 @@ docs/
   design     (<module>.md per module — `ux-planner` agent output)
 ```
 
-`packages/auth` and `packages/jobs` are infra, built once, here — not
-touched again per module. `docs/design` fills in per module during
-Phase B; nothing to scaffold here beyond the empty directory.
+`packages/auth` and `packages/jobs` are infra, built once, here (when
+their add-on is on) — not touched again per module. `docs/design` fills in
+per module during Phase B; nothing to scaffold here beyond the empty
+directory.
 
-### Queues: seam in, usage deferred
+### Queue add-on: seam in, usage deferred
 
-The queue seam is a day-one standing default: Redis provisioned on
-Railway, a `worker` app in the monorepo, a `Queue` port with a BullMQ
-adapter (same pattern as repositories). Usage stays last-responsible-
-moment: an operation goes async only when it genuinely needs to
-(long-running work, retries, fan-out). Services don't know how their
-results are returned — the enqueue-vs-await decision lives at the
-application/controller layer. Workers are idempotent (at-least-once
-delivery).
+When the Queue add-on is on, it goes in as a day-one standing default:
+Redis provisioned on Railway, a `worker` app in the monorepo, a `Queue`
+port with a BullMQ adapter (same pattern as repositories) — but usage
+stays last-responsible-moment even then: an operation goes async only
+when it genuinely needs to (long-running work, retries, fan-out).
+Services don't know how their results are returned — the enqueue-vs-await
+decision lives at the application/controller layer. Workers are
+idempotent (at-least-once delivery). A project where nothing meets that
+bar doesn't get the seam at all — see the Add-ons table above.
 
 ## Before running
 
 Confirm Intake already happened — a scope boundary and domain vocabulary
-should exist (`planner` produces these). Bootstrap doesn't need the
-vocabulary to scaffold infra, but starting before Intake signals work
-getting ahead of itself. No scope boundary yet: stop and point to
-`planner`.
+should exist (`planner` produces these), **and** it should record which
+add-ons (Auth, Queue, Mobile) are on for this project — check
+`docs/context.md` for an explicit "Add-ons" note. No scope boundary yet,
+or a scope boundary with no recorded add-on decision: stop and point to
+`planner` rather than guessing which add-ons apply.
 
 Confirm this hasn't already run: check for an existing Nx workspace
 (`nx.json` at repo root) or a prior Bootstrap commit
@@ -108,11 +143,12 @@ esbuild postinstall version mismatch** below first; this is a known,
 deterministic collision, not something to misdiagnose from scratch.
 
 Confirm Docker is available (`docker --version`) before step 1. Local
-Postgres/Redis run through Docker Compose on every host OS — see **Local
-infra: Docker, always** below. No Docker installed: stop and point the
-user to installing Docker Desktop (macOS/Windows) or Docker
-Engine (Linux) rather than falling back to a natively-installed
-Postgres/Redis.
+Postgres runs through Docker Compose on every host OS — see **Local
+infra: Docker, always** below — regardless of which add-ons are on. No
+Docker installed: stop and point the user to installing Docker Desktop
+(macOS/Windows) or Docker Engine (Linux) rather than falling back to a
+natively-installed Postgres. (Redis joins the same compose file only if
+the Queue add-on is on — see that step.)
 
 ## Steps (run in sequence, one commit per step)
 
@@ -181,8 +217,11 @@ files:
   prettier setup (extending this base config) once Tailwind exists, not to
   the shared base.
 - `packages/config/env.schema.ts` — the Zod env schema from Enforcement
-  wiring below (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `REDIS_URL`,
-  `NODE_ENV`; extend per project as new infra is added later).
+  wiring below. Core fields only: `DATABASE_URL`, `NODE_ENV`.
+  `BETTER_AUTH_SECRET` is added only if the Auth add-on is on (step 3);
+  `REDIS_URL` only if the Queue add-on is on (step 5). Don't add either
+  speculatively — a required env var with no consumer fails `loadEnv()`
+  at boot for no reason.
 - Root `eslint.config.js` extends `packages/config/eslint-base.js` and
   declares the project tags table below (`scope:*`, `type:*`) as comments
   or a lookup, so every later generator step tags its project correctly.
@@ -203,11 +242,13 @@ graph` or a generator that depends on the project graph fails
 opaquely — Nx surfaces this as "Failed to process project graph" pointing
 at the offending file, not as a module-system explanation.
 
-Add a root `docker-compose.yml` provisioning Postgres and Redis for local
-dev, regardless of host OS (macOS, Windows, Linux) — see **Local infra:
-Docker, always** below for why this isn't optional. `DATABASE_URL` and
-`REDIS_URL` in `.env` point at the compose services from the first
-commit, matching the env schema below.
+Add a root `docker-compose.yml` provisioning Postgres for local dev,
+regardless of host OS (macOS, Windows, Linux) — see **Local infra: Docker,
+always** below for why this isn't optional. `DATABASE_URL` in `.env`
+points at the compose service from the first commit, matching the env
+schema below. (If the Queue add-on is on, step 5 adds a `redis` service
+and `REDIS_URL` to this same file/env — not here, since Postgres is core
+and Redis isn't.)
 
 ```yaml
 services:
@@ -222,16 +263,8 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - '6379:6379'
-    volumes:
-      - redis-data:/data
-
 volumes:
   postgres-data:
-  redis-data:
 ```
 
 Add an `esbuild` override to root `package.json` in this step, before step
@@ -261,29 +294,43 @@ module. Tag: `scope:db`, `type:adapter`.
 
 Commit: `feat(db): drizzle client + connection`
 
-### 3. `packages/auth` — Better Auth config
+### 3. `packages/auth` — Better Auth config *(Auth add-on only)*
+
+Skip this step entirely if Auth isn't on for this project (check
+`docs/context.md`'s Add-ons note from Intake) — don't scaffold a
+credential store with no login anywhere in scope. If skipped, check its
+`TODO.md` line off as skipped-and-confirmed (per the `bootstrap` agent's
+handling of conditional steps), same treatment as an out-of-scope
+`apps/mobile`.
 
 ```bash
 npx nx g @nx/js:lib packages/auth --bundler=none --unitTestRunner=vitest
 pnpm add better-auth @thallesp/nestjs-better-auth
 ```
 
-Configure the Drizzle adapter against `packages/db`. Tag: `scope:auth`,
+Configure the Drizzle adapter against `packages/db`. Add
+`BETTER_AUTH_SECRET: z.string().min(32)` to `packages/config/env.schema.ts`
+now (it doesn't exist in the core schema from step 1). Tag: `scope:auth`,
 `type:adapter`.
 
 Commit: `feat(auth): better auth config`
 
-### 4. `apps/api` — Nest app shell, global guard, Pino
+### 4. `apps/api` — Nest app shell, Pino (+ global auth guard if Auth is on)
 
 ```bash
 npx nx g @nx/nest:app apps/api
-pnpm add nestjs-pino pino-http && pnpm add @thallesp/nestjs-better-auth
+pnpm add nestjs-pino pino-http
 ```
 
-Wire the global auth guard (secure-by-default) and `nestjs-pino` for
-structured logging. Call `loadEnv()` at the top of `apps/api/src/main.ts`.
-Tag: `scope:api`. No controllers beyond a health check — domain
-controllers arrive per module in Phase A.
+Wire `nestjs-pino` for structured logging (always). Call `loadEnv()` at
+the top of `apps/api/src/main.ts`. Tag: `scope:api`. No controllers beyond
+a health check — domain controllers arrive per module in Phase A.
+
+**If the Auth add-on is on** (step 3 ran): also
+`pnpm add @thallesp/nestjs-better-auth` and wire the global auth guard
+(secure-by-default) against `packages/auth`. **If Auth is off**: there's
+no guard to wire — a bare health check with no auth dependency is
+correct, not a gap to fill in later.
 
 `@nx/nest:app` also scaffolds a companion `apps/api-e2e` project wired to
 Jest (`jest.config.cts`), not Vitest — inconsistent with the locked stack.
@@ -299,18 +346,40 @@ plugin's auto-inference in `nx.json` (`"exclude": ["apps/api-e2e/**"]` on
 that plugin entry) so it stops registering a `test` target for this
 project at all, keeping only the manually-defined `e2e` target.
 
-Commit: `feat(api): nest shell + global guard + pino`
+Commit: `feat(api): nest shell + pino` (Auth off) or
+`feat(api): nest shell + global guard + pino` (Auth on).
 
-### 5. `apps/worker` — BullMQ seam (Redis, no consumers yet)
+### 5. `apps/worker` — BullMQ seam (Redis, no consumers yet) *(Queue add-on only)*
+
+Skip this step entirely if Queue isn't on for this project (check
+`docs/context.md`'s Add-ons note) — no operation in scope is
+long-running, retried, or fanned out, so there's nothing for a queue to
+seam in for. If skipped, check its `TODO.md` line off as
+skipped-and-confirmed, same treatment as an out-of-scope `apps/mobile`.
 
 ```bash
 npx nx g @nx/node:app apps/worker
 pnpm add bullmq ioredis
 ```
 
+Add a `redis` service to the root `docker-compose.yml` from step 1
+(Postgres-only until now) and `REDIS_URL: z.string().url()` to
+`packages/config/env.schema.ts` (it doesn't exist in the core schema):
+
+```yaml
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+```
+
+(and add `redis-data:` under the top-level `volumes:` key.)
+
 Provision the Redis connection and a `Queue` port shape (port + BullMQ
 adapter, same pattern repositories use later) with no consumers — usage
-is deferred (see Queues, above). Call `loadEnv()` at the top of
+is deferred (see Queue add-on, above). Call `loadEnv()` at the top of
 `apps/worker/src/main.ts`. Tag: `scope:worker`.
 
 Commit: `feat(worker): bullmq seam, no consumers`
@@ -348,6 +417,27 @@ CLI. Set the actual palette here, once, rather than leaving placeholder
 values for `ui-builder` to inherit unnoticed on the first screen. Light/
 dark mode toggle wiring belongs here too, not as a per-screen decision
 later.
+
+**This is where `prettier-plugin-tailwindcss` finally gets added** — step
+1 deliberately kept it out of the shared `packages/config/prettier.js`
+(it throws on any file when no Tailwind config is resolvable, which was
+true for every step before this one). Now that `apps/web`'s Tailwind
+stylesheet exists, add it scoped to this app only, in a new
+`apps/web/.prettierrc.js` that extends the shared base rather than
+editing the base itself:
+
+```js
+module.exports = {
+  ...require('../../packages/config/prettier.js'),
+  plugins: ['prettier-plugin-tailwindcss'],
+};
+```
+
+Don't add the plugin to the shared base after this point either, even
+though Tailwind now exists somewhere in the repo — `packages/config`
+itself and any non-`apps/web` package still has no Tailwind config to
+resolve against, so the same crash reappears for them. The plugin stays
+a per-app opt-in, permanently, not just until step 6 completes.
 
 Wire the TanStack Query provider at the root layout (App Router: a
 `'use client'` `Providers` wrapper component, since the root layout
@@ -389,10 +479,13 @@ also what Nx already defaults it to.
 
 Commit: `feat(web): next shell + query provider + base theme`
 
-### 7. `apps/mobile` — Expo shell (only if mobile is in scope)
+### 7. `apps/mobile` — Expo shell *(Mobile add-on only)*
 
-Skip entirely if mobile isn't in the scope boundary from Intake — don't
-scaffold speculative infra.
+Skip this step entirely if Mobile isn't on for this project (check
+`docs/context.md`'s Add-ons note) — don't scaffold speculative infra. If
+skipped, check its `TODO.md` line off as skipped-and-confirmed, not left
+dangling for a future run to wonder about — same pattern as Auth (step 3)
+and Queue (step 5) when their add-on is off.
 
 ```bash
 npx nx g @nx/expo:app apps/mobile
@@ -425,15 +518,15 @@ libs. This makes cross-module isolation (FK-by-ID only, per
 **Tags:**
 
 ```
-apps/api          → scope:api
-apps/worker        → scope:worker
-apps/web            → scope:web
-apps/mobile         → scope:mobile
-packages/db          → scope:db,        type:adapter
-packages/contracts   → scope:contracts, type:contract
-packages/hooks       → scope:hooks,     type:hook
-packages/auth        → scope:auth,      type:adapter
-packages/shared      → scope:shared,    type:util
+apps/api          → scope:api                        (core)
+apps/worker        → scope:worker                     (Queue add-on only)
+apps/web            → scope:web                       (core)
+apps/mobile         → scope:mobile                    (Mobile add-on only)
+packages/db          → scope:db,        type:adapter  (core)
+packages/contracts   → scope:contracts, type:contract (core)
+packages/hooks       → scope:hooks,     type:hook     (core)
+packages/auth        → scope:auth,      type:adapter  (Auth add-on only)
+packages/shared      → scope:shared,    type:util     (core)
 libs/<module>/port      → scope:<module>, type:port
 libs/<module>/repository → scope:<module>, type:adapter
 libs/<module>/service    → scope:<module>, type:service
@@ -441,17 +534,24 @@ libs/<module>/service    → scope:<module>, type:service
 
 One `libs/<module>/` triplet per domain module (one table = one module) —
 e.g. `libs/orders/port`, `libs/orders/repository`, `libs/orders/service`.
+Only add `scope:auth`/`scope:worker`/`scope:mobile` tags, and their
+`depConstraints` entries below, if the matching add-on is actually on —
+an unused tag with a dangling constraint is exactly the kind of
+speculative config this discipline exists to avoid.
 
-**Root `eslint.config.js` rule:**
+**Root `eslint.config.js` rule** (core entries always; add the
+Auth/Queue/Mobile lines only if that add-on is on):
 
 ```js
 '@nx/enforce-module-boundaries': ['error', {
   depConstraints: [
     // domain services never import adapters directly — only ports
     { sourceTag: 'type:service', onlyDependOnLibsWithTags: ['type:port', 'type:util'] },
-    // web/mobile never import db or api internals — only contracts + hooks
+    // web never imports db or api internals — only contracts + hooks
     { sourceTag: 'scope:web',    onlyDependOnLibsWithTags: ['scope:contracts', 'scope:hooks', 'scope:shared'] },
+    // --- Mobile add-on only ---
     { sourceTag: 'scope:mobile', onlyDependOnLibsWithTags: ['scope:contracts', 'scope:hooks', 'scope:shared'] },
+    // --- Queue add-on only ---
     // worker only reaches domain logic through ports, same as api
     { sourceTag: 'scope:worker', onlyDependOnLibsWithTags: ['type:port', 'type:util', 'scope:shared'] },
   ],
@@ -473,7 +573,11 @@ ones in the illustrative list — at minimum `type:adapter` (needs
 `type:util`, for `packages/config`) and `scope:api` (needs `type:port`,
 `type:service`, `type:util` — never `scope:db` directly; `apps/api`
 reaches storage through a module's repository/service, not by importing
-`packages/db` itself).
+`packages/db` itself). If Auth is on, `scope:api` also needs
+`scope:auth` added to its allowed dependencies (the global guard imports
+`packages/auth` directly — the one deliberate exception to "api reaches
+things only through ports," since auth is cross-cutting infra, not a
+domain module).
 
 ### Typecheck target (required before the commit gate can work)
 
@@ -574,15 +678,13 @@ a commit, or that the hook script under `.git/hooks/` resolves to
 Types-first extended to config. Boot fails immediately on a missing or
 malformed env var.
 
-**`packages/config/env.schema.ts`:**
+**`packages/config/env.schema.ts`** — core fields only, written in step 1:
 
 ```ts
 import { z } from 'zod';
 
 export const envSchema = z.object({
   DATABASE_URL: z.string().url(),
-  BETTER_AUTH_SECRET: z.string().min(32),
-  REDIS_URL: z.string().url(),
   NODE_ENV: z.enum(['development', 'test', 'production']),
 });
 
@@ -598,8 +700,13 @@ export function loadEnv(): Env {
 }
 ```
 
-Called once, at the top of `apps/api/src/main.ts` and
-`apps/worker/src/main.ts`.
+Step 3 (Auth, if on) adds `BETTER_AUTH_SECRET: z.string().min(32)`. Step 5
+(Queue, if on) adds `REDIS_URL: z.string().url()`. Neither field belongs
+in the core schema — a required var with no consumer fails `loadEnv()` at
+boot on a project that never needed it.
+
+Called once, at the top of `apps/api/src/main.ts` and, if the Queue
+add-on is on, `apps/worker/src/main.ts`.
 
 ### Phase gate (CI)
 
@@ -640,14 +747,16 @@ A per-app override request signals to fix the base config at the source.
 
 ## Local infra: Docker, always
 
-Postgres and Redis run through the `docker-compose.yml` from step 1 on
-every project, on every host OS — macOS, Windows, Linux alike. This isn't
-a convenience default; it's what makes "clone the repo, run the stack"
-mechanically true regardless of who's building. A natively-installed
-Postgres or Redis (Homebrew, an existing Windows service, a system
-package) is a per-machine setup step that isn't in the commit history and
-isn't reproducible on the next machine — exactly the kind of
-tribal-knowledge dependency Hedgehog's enforcement exists to remove.
+Postgres (core) runs through the `docker-compose.yml` from step 1 on
+every project, on every host OS — macOS, Windows, Linux alike, regardless
+of which add-ons are on. Redis joins the same file, step 5, only if the
+Queue add-on is on. This isn't a convenience default; it's what makes
+"clone the repo, run the stack" mechanically true regardless of who's
+building. A natively-installed Postgres or Redis (Homebrew, an existing
+Windows service, a system package) is a per-machine setup step that isn't
+in the commit history and isn't reproducible on the next machine —
+exactly the kind of tribal-knowledge dependency Hedgehog's enforcement
+exists to remove.
 
 Don't offer a "native install" path as an alternative, even if a
 contributor already has Postgres running locally for another project. One
@@ -686,26 +795,36 @@ match rather than removing it.
 
 ## After Bootstrap
 
-Update `TODO.md`: check off every Bootstrap line now built, leave Phase
-A/B sections as-is (per-module, filled in by `planner` during Intake or
-when new scope enters play). Hand off to `hedgehog-loop` — from here,
-every domain module goes through Phase A steps 1–5(a) one at a time,
-gated by lefthook, each its own commit.
+Update `TODO.md`: check off every Bootstrap line now built or explicitly
+skipped (Auth/Queue/Mobile steps whose add-on is off get checked as
+skipped-and-confirmed, not left unchecked or deleted — a future session
+should be able to read `TODO.md` alone and know a step was a deliberate
+no rather than unfinished work). Leave Phase A/B sections as-is
+(per-module, filled in by `planner` during Intake or when new scope
+enters play). Hand off to `hedgehog-loop` — from here, every domain
+module goes through Phase A steps 1–5(a) one at a time, gated by
+lefthook, each its own commit.
 
 ## Constraints
 
 - Run once per project. Not a per-module or per-feature tool.
-- Don't scaffold `apps/mobile` unless mobile is explicitly in scope.
+- Core steps (1, 2, 4, 6) always run. Add-on steps (3 Auth, 5 Queue, 7
+  Mobile) run only if `docs/context.md`'s Add-ons note (written by
+  `planner` at Intake) turns that add-on on — check off its `TODO.md` line
+  as skipped-and-confirmed otherwise, don't leave it dangling.
 - Don't add domain schema, contracts, or any `libs/<module>/*` content —
   that's Phase A, started after Bootstrap, one module at a time.
-- Don't deviate from the package/library choices above. If a generator or
-  package name changed upstream since this was written, verify against
-  current docs before running the command — don't substitute a different
-  library.
-- Each of the 7 steps is its own commit, in order — same unit-of-work
+- Don't deviate from the package/library choices above, for whichever
+  steps actually run. If a generator or package name changed upstream
+  since this was written, verify against current docs before running the
+  command — don't substitute a different library. Skipping an add-on
+  step whose trigger genuinely isn't in scope is not a deviation; adding
+  a library the stack doesn't call for, or dropping one it does, is.
+- Each step that runs is its own commit, in order — same unit-of-work
   discipline as every other step in the discipline, even though this is
   infra rather than a domain module.
-- Local Postgres/Redis always run through the `docker-compose.yml` from
-  step 1, on every host OS. Never substitute a natively-installed
-  Postgres/Redis, even to match a contributor's existing local setup —
-  see **Local infra: Docker, always**.
+- Local Postgres always runs through the `docker-compose.yml` from step
+  1, on every host OS, regardless of add-ons. Redis joins it only if the
+  Queue add-on is on. Never substitute a natively-installed Postgres or
+  Redis, even to match a contributor's existing local setup — see
+  **Local infra: Docker, always**.

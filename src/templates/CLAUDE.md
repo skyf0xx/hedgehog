@@ -59,16 +59,19 @@ steps from memory:
   it off. Also holds the Correction Protocol for fixing a wrong upstream
   step. Invoke it at the start of any build session and for "what's next".
 - **`hedgehog-bootstrap`** — run **once**, at project start, to scaffold
-  the stack and the enforcement config. Skip if `nx.json` already exists.
+  the core stack, the enforcement config, and whichever add-ons (Auth,
+  Queue, Mobile) Intake turned on. Skip if `nx.json` already exists.
 - **`conventional-commits`** — when a change spans several steps in one
   working-tree pass and needs splitting back into per-step commits (mainly
   Correction Protocol cleanups).
 
 ### The agents — delegate the judgment calls
 
-- **`bootstrap`** — runs `hedgehog-bootstrap`'s 7 steps once, at project
-  start, after Intake. Skip if `nx.json` already exists.
-- **`planner`** — Intake (scope boundary + domain vocabulary) at project
+- **`bootstrap`** — runs `hedgehog-bootstrap`'s core steps (always) plus
+  whichever add-on steps Intake turned on, once, at project start, after
+  Intake. Skip if `nx.json` already exists.
+- **`planner`** — Intake (whether Hedgehog applies at all, scope
+  boundary, the add-ons decision, and domain vocabulary) at project
   start, and module scoping when new scope enters play. Writes `TODO.md`,
   `docs/context.md`, and `docs/design/<module>-notes.md`.
 - **`ux-planner`** — once per module in Phase B, after the hook exists and
@@ -80,44 +83,61 @@ steps from memory:
 
 ## The constants (do not deviate)
 
-### Stack (locked)
+### Stack: core (locked, every project) + add-ons (this project's picks below)
 
+**Core** — applies regardless of project size or which add-ons are on:
 Nx monorepo · pnpm · **NestJS** (all domain logic + DB access) · **Drizzle**
-(+ `drizzle-zod`) · **PostgreSQL** · **Docker Compose** (local Postgres +
-Redis, every host OS) · Railway · **ts-rest** contracts · **Zod**
-validation · **Better Auth** · **TanStack Query** hooks · **Next.js** +
-ShadCN + Tailwind (web, UI only) · Expo + React Native Reusables +
-NativeWind (mobile, optional) · **BullMQ + Redis** (queues) · Pino logging ·
-Vitest + Playwright (tests) · Conventional Commits + commitlint + lefthook ·
-Sentry.
+(+ `drizzle-zod`) · **PostgreSQL** · **Docker Compose** (local Postgres,
+every host OS) · Railway · **ts-rest** contracts · **Zod** validation ·
+**TanStack Query** hooks · **Next.js** + ShadCN + Tailwind (web, UI only) ·
+Pino logging · Vitest + Playwright (tests) · Conventional Commits +
+commitlint + lefthook · Sentry.
 
-Don't substitute libraries. If a package or generator name changed
-upstream, verify against current docs before running — don't swap in a
-different library.
+**Add-ons** — each on or off per project, decided at Intake and recorded
+in `docs/context.md`'s Add-ons note; check that file for this project's
+actual picks rather than assuming any of these are present:
+
+| Add-on | Adds |
+| --- | --- |
+| Auth | Better Auth, `packages/auth`, a global auth guard on `apps/api` |
+| Queue | BullMQ + Redis, `apps/worker`, a `Queue` port/adapter seam |
+| Mobile | Expo + React Native Reusables + NativeWind, `apps/mobile` |
+
+An add-on that's off means the corresponding piece of infra genuinely
+isn't in this codebase — don't write code assuming `packages/auth`,
+`apps/worker`, or `apps/mobile` exist without checking `docs/context.md`
+first.
+
+Don't substitute libraries, in core or in whichever add-ons are on. If a
+package or generator name changed upstream, verify against current docs
+before running — don't swap in a different library.
 
 ### Layout
 
 ```
-docker-compose.yml   local Postgres + Redis — every host OS, no native install
+docker-compose.yml   local Postgres (+ Redis if Queue add-on is on) — every host OS, no native install
 apps/
   web        Next.js — UI only
-  mobile     Expo — optional
+  mobile     Expo — only if Mobile add-on is on
   api        NestJS — owns all domain logic + DB access
-  worker     BullMQ consumers
+  worker     BullMQ consumers — only if Queue add-on is on
 packages/
   db         Drizzle schema + client
   contracts  ts-rest + Zod contracts
   hooks      TanStack Query — shared web + mobile
-  jobs       typed job registry / queue definitions
-  auth       Better Auth config
+  jobs       typed job registry / queue definitions — only if Queue add-on is on
+  auth       Better Auth config — only if Auth add-on is on
   config     locked ESLint/Prettier/tsconfig/env schema
   shared     cross-cutting types + utils
 libs/
   <module>/port · <module>/repository · <module>/service   (one triplet per table)
 docs/
-  context.md product narrative, scope boundary, domain vocabulary (Intake)
+  context.md product narrative, scope boundary, add-ons decision, domain vocabulary (Intake)
   design     <module>-notes.md (Intake) and <module>.md (ux-planner)
 ```
+
+Check `docs/context.md`'s Add-ons note before assuming any "only if"
+line above is actually present in this codebase.
 
 ### Core rules
 
@@ -135,9 +155,10 @@ docs/
   (lefthook gate).
 - **Fix wrong steps at the source** via the Correction Protocol — never a
   downstream workaround.
-- **Local Postgres/Redis always run through `docker-compose.yml`**, on
-  every host OS. Never a natively-installed Postgres/Redis, even to match
-  a contributor's existing local setup.
+- **Local Postgres always runs through `docker-compose.yml`**, on every
+  host OS, regardless of add-ons; Redis joins it only if the Queue add-on
+  is on. Never a natively-installed Postgres or Redis, even to match a
+  contributor's existing local setup.
 - **`packages/config` is the single source** for shared config. A per-app
   override request means fix the base config, not add an override.
 
