@@ -64,6 +64,9 @@ steps from memory:
 - **`conventional-commits`** — when a change spans several steps in one
   working-tree pass and needs splitting back into per-step commits (mainly
   Correction Protocol cleanups).
+- **`hedgehog-intake`** — the Intake elicitation/synthesis procedure
+  (scope boundary, add-ons decision, domain vocabulary). Invoked by the
+  `planner` agent; don't run it standalone.
 
 ### The agents — delegate the judgment calls
 
