@@ -149,8 +149,8 @@ Hedgehog runs BMAD for planning, then enforces the build that follows with tooli
 | | Superpowers | BMAD | Hedgehog + BMAD |
 | --- | --- | --- | --- |
 | **What it is** | A skills library: brainstorm, plan, TDD, debug, review | A multi-agent planning framework: PM, Architect, Dev, QA personas | BMAD planning (brief → PRD → architecture) feeding a fixed-stack, enforced-order build |
-| **Order comes from** | Skill instructions the agent is told to follow | Sequenced documents (brief → PRD → architecture → stories) | Planning: BMAD documents. Execution: tooling (Nx, lefthook, phase gate) |
-| **Enforcement mechanism** | None. Prompted convention | None. One optional checklist between phases | Planning intake mined by the `planner` agent; execution mechanically enforced |
+| **Order comes from** | Skill instructions the agent is told to follow | Sequenced documents (brief → PRD → architecture → stories) | Tooling (Nx, lefthook, phase gate) |
+| **Enforcement mechanism** | None. Prompted convention | None. One optional checklist between phases | Execution mechanically enforced |
 | **Unit of work** | A task, planned in worktree-isolated steps | A story, derived from PRD and architecture docs | A module layer (schema → contract → repo → service → controller → UI) |
 | **Stack** | Whatever the project already uses | No stack opinion | One locked stack (Nx, NestJS, Drizzle, ts-rest, Next.js) |
 | **Context per step** | As much as the task pulls in | A full brief, PRD, and architecture doc per story | One module layer at a time — BMAD's docs are mined once, up front |
