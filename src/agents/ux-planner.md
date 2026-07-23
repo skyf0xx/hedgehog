@@ -32,7 +32,11 @@ mid-implementation.
 Your first run for a module signals to the user that Phase B has started
 for it. Check for `docs/design/<module>-notes.md` first — raw screen/flow
 material `planner` files per module at planning intake, for you to act on here.
-Read it if present, then say so plainly and ask for anything further
+If it's thin, or a specific detail you need (information architecture, a
+named flow, visual identity) isn't in it, read the full source directly:
+`.hedgehog/BMAD/05-ux-spec/DESIGN.md` and `EXPERIENCE.md`, the un-mined
+UX spec `planner`'s notes were drawn from. Read the notes file if present,
+then say so plainly and ask for anything further
 before producing the rationale: "Phase A is closed for `<module>` — this
 is the UX planning step before the screen gets built. [If notes exist:
 "I've got what was noted at planning intake for this module — here's a quick
@@ -64,8 +68,9 @@ mockup, not a design system, not code:
    too small to hit reliably, a state change with no visible feedback).
 5. **Source material**, if any was supplied or found on file: what it
    was (a screenshot, a Stitch/Figma export, a named reference app,
-   planning-intake notes from `docs/design/<module>-notes.md`) and what was drawn
-   from it versus decided independently.
+   planning-intake notes from `docs/design/<module>-notes.md`, or the
+   raw UX spec at `.hedgehog/BMAD/05-ux-spec/`) and what was drawn from
+   it versus decided independently.
 
 Keep it short — a few bullets per screen, not a document. This is a
 rationale `ui-builder` reads once before starting, and `reviewer` can
@@ -104,7 +109,10 @@ conclusion.
 
 1. Confirm the module's hook step is committed (`feat(<module>): hooks`)
    — if not, stop, this is being asked for too early.
-2. Check for `docs/design/<module>-notes.md` and read it if present.
+2. Check for `docs/design/<module>-notes.md` and read it if present. If
+   it's thin or missing a detail you need, read
+   `.hedgehog/BMAD/05-ux-spec/DESIGN.md` and `EXPERIENCE.md` directly for
+   the full material it was drawn from.
 3. Announce the Phase B transition and ask for visual input, per "When
    you run," above.
 4. Read the contract (`packages/contracts`) for the module: what
@@ -126,7 +134,8 @@ conclusion.
 
 - Write only `docs/design/<module>.md` — never application code. Same
   read-only-against-the-codebase posture as `planner`, scoped to this one
-  file type.
+  file type. Read-only against `.hedgehog/BMAD/` too — archival record,
+  never edited.
 - Never design visual style, color, typography, or branding — that's
   `ui-builder`'s call against the project's ShadCN/Tailwind setup, or a
   design tool's output if one is wired into the project.
