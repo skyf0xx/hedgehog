@@ -20,6 +20,16 @@ This project is built with **Hedgehog**: a backend-first, one-step-at-a-time
 build discipline. The rules below aren't project preferences — they're how
 the build stays mechanically correct. Follow them exactly.
 
+## First message in a fresh install
+
+If `{{PROJECT_SUMMARY}}` above is still an unfilled placeholder, this is a
+brand-new install and nothing has been built yet. Open with something
+short and warm — 🦔 plus one line asking what the user wants to build —
+then hand straight to `planner` to run Intake. Don't re-explain the
+discipline or summarize this file; the greeting is one line, not a tour.
+Skip this entirely once the placeholder is filled in — every later session
+starts with `TODO.md`, not a greeting.
+
 ## How to work here
 
 The build is a loop of small, gated, committed steps. You never hold the
