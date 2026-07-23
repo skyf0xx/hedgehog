@@ -98,7 +98,7 @@ Phase B starts once Phase A is done for the scope. The frontend is a pure
 consumer of an already-finished API. Step 6a is where "how it should feel"
 gets decided — once per module, after the hook exists and before
 `ui-builder` starts the screen — via `ux-planner`, starting from whatever
-`planner` filed in `docs/design/<module>-notes.md` at Intake. Its first run
+`planner` filed in `docs/design/<module>-notes.md` at planning intake. Its first run
 for a module also signals to the user that Phase B has started, and is the
 point a mockup, screenshot, or export (Google Stitch, Figma) can be handed
 over. It writes `docs/design/<module>.md`, not its own step commit;
@@ -176,7 +176,7 @@ Use the `reviewer` agent for this — it checks what the mechanical gate
 can't (port discipline, FK-by-ID discipline, contract shape).
 
 Before starting Phase A for a module, confirm it's inside the stated scope
-boundary from Intake (`planner`). If not, stop and ask.
+boundary from planning intake (`planner`). If not, stop and ask.
 
 ## Rules
 

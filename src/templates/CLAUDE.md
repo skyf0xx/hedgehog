@@ -2,9 +2,10 @@
   Hedgehog project CLAUDE.md template.
 
   This file is copied into a consuming project's repo root at install
-  time. Placeholders wrapped in {{ }} are filled in once, at Intake, by
-  the `planner` agent (or by hand). Everything outside the placeholders is
-  a constant of the Hedgehog discipline and should be left as-is.
+  time. Placeholders wrapped in {{ }} are filled in once, at planning
+  intake, by the `planner` agent (or by hand). Everything outside the
+  placeholders is a constant of the Hedgehog discipline and should be
+  left as-is.
 
   Delete this comment block after the placeholders are filled in.
 -->
@@ -75,7 +76,8 @@ steps from memory:
   step. Invoke it at the start of any build session and for "what's next".
 - **`hedgehog-bootstrap`** — run **once**, at project start, to scaffold
   the core stack, the enforcement config, and whichever add-ons (Auth,
-  Queue, Mobile) Intake turned on. Skip if `nx.json` already exists.
+  Queue, Mobile) planning intake turned on. Skip if `nx.json` already
+  exists.
 - **`conventional-commits`** — when a change spans several steps in one
   working-tree pass and needs splitting back into per-step commits (mainly
   Correction Protocol cleanups).
@@ -83,12 +85,12 @@ steps from memory:
 ### The agents — delegate the judgment calls
 
 - **`planner`** — planning intake (whether Hedgehog applies at all, then
-  BMAD-METHOD's brainstorming/brief/PRD/UX-spec shelf, mined into scope
-  boundary, the Add-ons decision, and domain vocabulary) at project
-  start, and module scoping when new scope enters play. Writes `TODO.md`
-  (including its `## Add-ons` block), `.hedgehog/BMAD/`, and
-  `docs/design/<module>-notes.md`. On first run, hands off to the
-  `bootstrap` agent once Confirm & Lock holds.
+  `hedgehog-planning-intake`'s BMAD-METHOD brainstorming/brief/PRD/UX-spec
+  shelf, mined into scope boundary, the Add-ons decision, and domain
+  vocabulary) at project start, and module scoping when new scope enters
+  play. Writes `TODO.md` (including its `## Add-ons` block),
+  `.hedgehog/BMAD/`, and `docs/design/<module>-notes.md`. On first run,
+  hands off to the `bootstrap` agent once Confirm & Lock holds.
 - **`bootstrap`** — runs `hedgehog-bootstrap`'s core steps (always) plus
   whichever add-on steps planning intake turned on. Triggered
   automatically by `planner` after its first run; skip if `nx.json`

@@ -34,7 +34,7 @@ skills execute it correctly.
 
 Hedgehog has one non-negotiable **core** — applied to every project that
 uses Hedgehog at all, regardless of size — plus a small set of named
-**add-ons**, each scaffolded only when Intake's scope boundary
+**add-ons**, each scaffolded only when planning intake's scope boundary
 (`planner`) actually calls for it. The core is not "the small version of
 the stack"; it's the fixed floor, landed by `hedgehog-bootstrap-core`.
 Add-ons are not "extra polish"; each is standing infra with a real
@@ -69,7 +69,7 @@ committed TypeScript-only. A substitution here means `src/golden-core`
 itself needs regenerating against the substitute before this project's
 Bootstrap runs — not a per-project hand-edit after landing core.
 
-### Add-ons (scaffolded only when Intake calls for them)
+### Add-ons (scaffolded only when planning intake calls for them)
 
 Each row is independent — on or off per project, decided at planning
 intake's Confirm & Lock (`planner`) and recorded in `TODO.md`'s
@@ -77,7 +77,7 @@ intake's Confirm & Lock (`planner`) and recorded in `TODO.md`'s
 sequence below; turning it off means that step is skipped entirely, not
 stubbed or partially wired.
 
-| Add-on | Trigger (from Intake scope) | Adds |
+| Add-on | Trigger (from planning intake scope) | Adds |
 |---|---|---|
 | **Auth** | The product has accounts, logins, or per-user data | Better Auth (+ `@thallesp/nestjs-better-auth`, Drizzle adapter), `packages/auth`, a global auth guard on `apps/api`, `BETTER_AUTH_SECRET` in the env schema |
 | **Queue** | At least one operation is genuinely long-running, retried, or fanned out | BullMQ + Redis, `apps/worker`, a `Queue` port/adapter seam, `REDIS_URL` in the env schema, Redis in `docker-compose.yml` |
@@ -272,7 +272,7 @@ A per-app override request signals to fix the base config at the source.
 Update `TODO.md`: check off every add-on line now built or explicitly
 skipped (core's four lines are already checked by
 `hedgehog-bootstrap-core`). Leave Phase A/B sections as-is (per-module,
-filled in by `planner` during Intake or when new scope enters play).
+filled in by `planner` during planning intake or when new scope enters play).
 Hand off to `hedgehog-loop` — from here, every domain module goes
 through Phase A steps 1–5(a) one at a time, gated by lefthook, each its
 own commit.
