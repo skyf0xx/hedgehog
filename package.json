@@ -1,6 +1,6 @@
 {
   "name": "@skyf0xx/hedgehog",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Install the Hedgehog build discipline (agents + skills) into a repo.",
   "type": "module",
   "repository": {
