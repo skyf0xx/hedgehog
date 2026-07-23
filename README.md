@@ -52,7 +52,7 @@ The build order is not something you negotiate with the AI. It is encoded into t
 ## The Hedgehog Loop
 
 ``` text
-Planning intake — [BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD)'s brief/PRD/UX spec, mined into scope
+Planning intake — BMAD-METHOD's brief/PRD/UX spec, mined into scope
 boundary + domain vocabulary (planner agent)
   ↓
 Bootstrap (once per project)
