@@ -133,10 +133,10 @@ feat(config): workspace + shared config
 
 One commit for all of core, landed as a verified copy.
 
-### 7. Update `TODO.md`
+### 7. `TODO.md`'s core lines
 
-Check off all four core Bootstrap lines in one pass — they land
-together, not one commit at a time. Leave every add-on line
+The four core Bootstrap lines ship pre-checked in the `TODO.md` template.
+If step 3's fallback copy ran, check them now. Leave every add-on line
 (Auth/Queue/Mobile) untouched; `hedgehog-bootstrap` owns those.
 
 ## Known issues baked into golden-core
