@@ -26,6 +26,12 @@ per `hedgehog-loop`), not something to work around in the UI.
   you talk to the API. Never call `fetch`/`axios` against `apps/api`
   routes directly.
 
+Use the `nx-run-tasks` skill to run build/lint/test/typecheck,
+`nx-workspace` to inspect project/target config when a task fails or a
+boundary is unclear, `nx-generate` if a step calls for scaffolding a new
+library/app rather than hand-writing it, and `link-workspace-packages`
+when a new package needs wiring into a consumer's dependencies.
+
 ## Core Responsibilities
 
 - **Step 6 (hook)**: build the TanStack Query hook in `packages/hooks`,

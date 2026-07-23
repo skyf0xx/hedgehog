@@ -31,6 +31,12 @@ discipline's stance and rationale.
   - `conventional-commits` — reconstructs step-shaped, conventional
     commit history when work didn't land cleanly as it went (mainly
     Correction Protocol cleanups).
+  - `nx-generate`, `nx-run-tasks`, `nx-workspace`,
+    `link-workspace-packages` — Nx tooling procedures (scaffolding,
+    running tasks, read-only workspace exploration, wiring workspace
+    package dependencies) used by `backend-eng` and `front-end-eng`.
+    Adapted from `nrwl/nx-ai-agents-config` (MIT-licensed, see
+    `README.md`'s Credits section) for Hedgehog's pnpm-only convention.
 - `skills/BMAD/` — BMAD-METHOD (`bmad-code-org/BMAD-METHOD`,
   MIT-licensed), vendored in full: the planning shelf
   `hedgehog-planning-intake` runs. See `skills/BMAD/ATTRIBUTION.md` for

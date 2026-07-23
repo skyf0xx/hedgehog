@@ -5,6 +5,12 @@
 # (Nx, NestJS, Next, Drizzle, ...) needs bumping. Not run automatically,
 # not part of the installer's runtime path.
 #
+# This script bumps Nx itself (`nx@latest` below) — that's also the moment
+# to check whether the vendored Nx skills (src/skills/nx-generate,
+# nx-run-tasks, nx-workspace, link-workspace-packages, adapted from
+# nrwl/nx-ai-agents-config — see README.md Credits) have drifted from
+# upstream and are worth re-pulling. Not automatic; check by hand.
+#
 # What this does, in order: scaffold the Nx workspace + packages/config
 # (with the full enforcement config baked in), packages/db, apps/api,
 # apps/web. Every hand-edit below exists because a real run hit it; see
@@ -46,6 +52,10 @@ EOF
 
 npx nx@latest init
 pnpm add -D @nx/js
+
+# Nx just bumped — check github.com/nrwl/nx-ai-agents-config/tree/main/skills
+# for drift against src/skills/{nx-generate,nx-run-tasks,nx-workspace,
+# link-workspace-packages} before continuing (see header comment above).
 
 # nx init doesn't reliably respect the locked package manager — verify.
 if [ -f package-lock.json ]; then

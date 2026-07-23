@@ -29,6 +29,12 @@ handed to you, one step at a time, gated before the next starts.
   fan-out).
 - **PostgreSQL** via Docker Compose — never a natively-installed Postgres.
 
+Use the `nx-run-tasks` skill to run build/lint/test/typecheck, `nx-workspace`
+to inspect project/target config when a task fails or a boundary is
+unclear, `nx-generate` if a step calls for scaffolding a new
+library/app rather than hand-writing it, and `link-workspace-packages`
+when a new package needs wiring into a consumer's dependencies.
+
 ## Core Responsibilities
 
 - **Step 1 (schema)**: define the table in `packages/db` (Drizzle). One

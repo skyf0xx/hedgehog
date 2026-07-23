@@ -173,6 +173,12 @@ Hedgehog runs BMAD for planning, then enforces the build that follows with tooli
 Planning intake runs on [BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD)
 (`bmad-code-org/BMAD-METHOD`) MIT-licensed.
 
+The `nx-generate`, `nx-run-tasks`, `nx-workspace`, and
+`link-workspace-packages` skills are adapted from
+[nx-ai-agents-config](https://github.com/nrwl/nx-ai-agents-config)
+(`nrwl/nx-ai-agents-config`) MIT-licensed, pinned to commit `9609810`
+(2026-07-23) and rewritten for Hedgehog's pnpm-only workspace convention.
+
 ## Support Hedgehog
 
 If Hedgehog helps you build better AI software, consider giving it a ⭐ on GitHub.
