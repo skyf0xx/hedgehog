@@ -14,7 +14,7 @@ Hedgehog pairs **BMAD's planning** with **disciplined execution**, in one workfl
 - Build: Hedgehog execution discipline
 - Ship: Quality gates and incremental loops
 
-![Hedgehog — build software the right way, one step at a time](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/hero.png)
+![Hedgehog - build software the right way, one step at a time](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/hero.png)
 
 ## Hedgehog gives AI
 
@@ -58,16 +58,16 @@ The build order is not something you negotiate with the AI. It is encoded into t
 ## The Hedgehog Loop
 
 ``` text
-Planning intake — BMAD-METHOD's brief/PRD/UX spec, mined into scope
+Planning intake - BMAD-METHOD's brief/PRD/UX spec, mined into scope
 boundary + domain vocabulary (planner agent)
   ↓
 Bootstrap (once per project)
   ↓
-Phase A, per module — schema → contract → repository → service → controller
+Phase A, per module - schema → contract → repository → service → controller
   ↓
 Phase A closes for the module (gated: typecheck, lint, test)
   ↓
-Phase B, per module — hook → UX rationale → screen
+Phase B, per module - hook → UX rationale → screen
   ↓
 Repeat for the next module or the next step
 ```
@@ -84,13 +84,13 @@ npx @skyf0xx/hedgehog init
 ```
 
 Then open Claude Code and describe what you want to build. The
-`planner` agent runs planning intake first — BMAD-METHOD's brainstorming,
-brief, PRD, and UX spec — then mines that into what's in scope and which
+`planner` agent runs planning intake first - BMAD-METHOD's brainstorming,
+brief, PRD, and UX spec - then mines that into what's in scope and which
 add-ons (Auth, Queue, Mobile) you need; once you confirm, it scaffolds
 the project itself.
 
-The core workspace — Nx, `packages/config`, `packages/db`, `apps/api`,
-`apps/web`, and every enforcement file — lands instantly from a
+The core workspace - Nx, `packages/config`, `packages/db`, `apps/api`,
+`apps/web`, and every enforcement file - lands instantly from a
 pre-verified template rather than being generated live; bootstrap then
 only runs whichever add-ons planning intake determined your project needs.
 
@@ -112,7 +112,7 @@ Under the hood, it applies the practices experienced engineers rely on:
 - continuous verification
 - conventional commits
 
-AI becomes the builder operating inside those constraints — turning ideas into software without requiring you to manage every implementation detail.
+AI becomes the builder operating inside those constraints - turning ideas into software without requiring you to manage every implementation detail.
 
 ## Architecture
 
@@ -153,7 +153,7 @@ Hedgehog runs BMAD for planning, then enforces the build that follows with tooli
 | **Enforcement mechanism** | None. Prompted convention | None. One optional checklist between phases | Execution mechanically enforced |
 | **Unit of work** | A task, planned in worktree-isolated steps | A story, derived from PRD and architecture docs | A module layer (schema → contract → repo → service → controller → UI) |
 | **Stack** | Whatever the project already uses | No stack opinion | One locked stack (Nx, NestJS, Drizzle, ts-rest, Next.js) |
-| **Context per step** | As much as the task pulls in | A full brief, PRD, and architecture doc per story | One module layer at a time — BMAD's docs are mined once, up front |
+| **Context per step** | As much as the task pulls in | A full brief, PRD, and architecture doc per story | One module layer at a time - BMAD's docs are mined once, up front |
 | **Finding a bug** | Search wherever the task touched | Search wherever the story touched | Search one layer, in one module, in a fixed order |
 | **Real cost** | No safety net if the model shortcuts its own process | Documentation overhead most solo projects don't need | Stack and order aren't negotiable |
 
