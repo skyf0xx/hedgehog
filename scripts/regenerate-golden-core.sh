@@ -129,6 +129,13 @@ read -r -p "Press enter once packages/db is wired: " _
 npx nx g @nx/nest:app apps/api
 pnpm add nestjs-pino pino-http
 
+# @ts-rest/nest wires the ts-rest contract (packages/config's @ts-rest/core)
+# into NestJS controllers — backend-eng's Step 5. @ts-rest/core is added
+# here too, pinned to the same version as packages/config, so pnpm dedupes
+# to one copy instead of resolving @ts-rest/nest's own semver range to a
+# second, mismatched @ts-rest/core (breaks its peer dependency check).
+pnpm --filter api add @ts-rest/core@3.53.0-rc.1 @ts-rest/nest@3.53.0-rc.1
+
 echo "Manual: wire nestjs-pino, call loadEnv() in main.ts, add a health check."
 echo "Manual: convert apps/api-e2e from Jest to Vitest, rename its target to"
 echo "  an explicit 'e2e' (not the inferred 'test'), exclude it from @nx/vitest's"

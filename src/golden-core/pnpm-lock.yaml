@@ -212,6 +212,12 @@ importers:
       '@nestjs/platform-express':
         specifier: ^11.0.0
         version: 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.28)
+      '@ts-rest/core':
+        specifier: 3.53.0-rc.1
+        version: 3.53.0-rc.1(@types/node@22.20.1)
+      '@ts-rest/nest':
+        specifier: 3.53.0-rc.1
+        version: 3.53.0-rc.1(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@ts-rest/core@3.53.0-rc.1(@types/node@22.20.1))(rxjs@7.8.1)
       config:
         specifier: workspace:*
         version: link:../../packages/config
@@ -284,6 +290,9 @@ importers:
 
   packages/config:
     dependencies:
+      '@ts-rest/core':
+        specifier: 3.53.0-rc.1
+        version: 3.53.0-rc.1(@types/node@22.20.1)
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -4514,6 +4523,28 @@ packages:
       {
         integrity: sha512-OvjF+z51L3ov0OyAU0duzsYuvO01PH7x4t6DJx+guahgTnBHkhJdG7soQeTSFLWN3efnHyibZ4Z8l2EuWwJN3A==,
       }
+
+  '@ts-rest/core@3.53.0-rc.1':
+    resolution:
+      {
+        integrity: sha512-hDMXqKHSys6w+kXFW1Q6EvN8QgRvtXKXJ2TpYByKI4TquaPjiTOv99aLD26X4LNRzdna8Ci1PVyzr0jYZv0oNQ==,
+      }
+    peerDependencies:
+      '@types/node': ^18.18.7 || >=20.8.4
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
+  '@ts-rest/nest@3.53.0-rc.1':
+    resolution:
+      {
+        integrity: sha512-tiuxTwXElFrAGFiUpqn78HmGgVY848D5s+uz/wCQwzRgPsfEneeZwOnEtxvXyrAp6tS5VtbVIxrI/kD+yR2zjw==,
+      }
+    peerDependencies:
+      '@nestjs/common': ^9.0.0 || ^10.0.0 || ^11.0.0
+      '@nestjs/core': ^9.0.0 || ^10.0.0 || ^11.0.0
+      '@ts-rest/core': 3.53.0-rc.1
+      rxjs: ^7.1.0
 
   '@tybys/wasm-util@0.10.3':
     resolution:
@@ -16813,6 +16844,17 @@ snapshots:
       - supports-color
 
   '@tokenizer/token@0.3.0': {}
+
+  '@ts-rest/core@3.53.0-rc.1(@types/node@22.20.1)':
+    optionalDependencies:
+      '@types/node': 22.20.1
+
+  '@ts-rest/nest@3.53.0-rc.1(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@ts-rest/core@3.53.0-rc.1(@types/node@22.20.1))(rxjs@7.8.1)':
+    dependencies:
+      '@nestjs/common': 11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.1)
+      '@nestjs/core': 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.1)
+      '@ts-rest/core': 3.53.0-rc.1(@types/node@22.20.1)
+      rxjs: 7.8.1
 
   '@tybys/wasm-util@0.10.3':
     dependencies:

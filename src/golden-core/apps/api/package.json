@@ -84,6 +84,8 @@
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
+    "@ts-rest/core": "3.53.0-rc.1",
+    "@ts-rest/nest": "3.53.0-rc.1",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.0",
     "tslib": "^2.3.0",
