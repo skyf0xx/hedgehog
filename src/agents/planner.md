@@ -118,11 +118,16 @@ did in your own interview before BMAD existed.
    an add-on that's off) is its only state.
 8. **File `docs/design/<module>-notes.md` per module**, sourced from the
    UX spec.
-9. **On first run only, hand off to the `bootstrap` agent** once Confirm
-   & Lock holds — it scaffolds the core workspace and whichever add-ons
-   are on, before any module's Phase A starts. Skip this on a later run
-   (new scope entering play); the workspace already exists.
-10. **Return a summary**: scope boundary, Add-ons decision, module list,
+9. **Commit planning intake's output as one commit**,
+   `chore(planning): intake` — `TODO.md`, `.hedgehog/BMAD/`,
+   `docs/design/`, and root `CLAUDE.md`'s filled placeholders. This is
+   planning intake's own unit of work, landed before `bootstrap` touches
+   anything.
+10. **On first run only, hand off to the `bootstrap` agent** once the
+    commit lands — it scaffolds the core workspace and whichever add-ons
+    are on, before any module's Phase A starts. Skip this on a later run
+    (new scope entering play); the workspace already exists.
+11. **Return a summary**: scope boundary, Add-ons decision, module list,
     any open questions.
 
 ## Constraints

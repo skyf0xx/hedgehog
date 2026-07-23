@@ -160,12 +160,13 @@ stops being true, so it's a hard stop, not a recap in passing.
 Then state plainly what happens on confirmation, before it happens:
 
 > This locks in `TODO.md` (with the `## Add-ons` block) and
-> `docs/design/<module>-notes.md` per module, and hands off to the
-> `bootstrap` agent to scaffold the workspace and whichever add-ons are
-> on. Phase A build (schema first) starts on the first module once that
-> closes. Anything wrong or missing — say so now; it's a normal edit
-> before this point, and a Correction Protocol entry after. Confirm to
-> proceed, or tell me what to change.
+> `docs/design/<module>-notes.md` per module, commits them in one pass
+> (`chore(planning): intake`), and hands off to the `bootstrap` agent to
+> scaffold the workspace and whichever add-ons are on. Phase A build
+> (schema first) starts on the first module once that closes. Anything
+> wrong or missing — say so now; it's a normal edit before this point,
+> and a Correction Protocol entry after. Confirm to proceed, or tell me
+> what to change.
 
 Wait for an explicit go-ahead. A revision here is just another mining
 pass — update the draft, re-run this stage, don't write anything until
