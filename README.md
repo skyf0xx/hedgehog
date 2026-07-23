@@ -29,7 +29,7 @@ Hedgehog pairs **BMAD's planning** with **disciplined execution**, in one workfl
 - **Self-documenting architecture:** the codebase carries the context, not the AI
 - **Traceable evolution:** decisions are preserved through conventional commits
 
-![Just describe what you want](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/curve.png)
+![Just describe what you want](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/handoff.jpg)
 
 ## Why Hedgehog Exists
 
