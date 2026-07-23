@@ -10,12 +10,10 @@ discipline's stance and rationale.
 
 - `src/agents/` — the subagent roles a consuming project copies into its
   own `.claude/agents/`: `planner` (planning intake, module scoping),
-  `bootstrap` (Bootstrap step sequencing), `ux-planner` (Phase B UX
-  rationale), `ui-builder` (frontend build steps), `reviewer` (phase
-  transition checks, Correction Protocol review). Scoped to the judgment
-  calls mechanical gates can't make on their own — deliberately not a
-  full agent roster, since the build loop itself is single-agent by
-  design.
+  `bootstrap` (Bootstrap step sequencing), `backend-eng` (Phase A build
+  steps), `ux-planner` (Phase B UX rationale), `front-end-eng` (Phase B
+  build steps), `reviewer` (phase transition checks, Correction Protocol
+  review).
 - `src/skills/` — the packaged procedures a consuming project copies into
   its own `.claude/skills/`:
   - `hedgehog-bootstrap-core` — lands the always-on core workspace (Nx,

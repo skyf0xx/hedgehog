@@ -72,7 +72,9 @@ sequence.
 ## Domain Module — Backend Steps (Phase A, every module in scope)
 
 A horizontal pass across the whole backend — every module goes through
-these before any module gets a hook or screen.
+these before any module gets a hook or screen. Delegate each module's
+Phase A steps to the `backend-eng` agent — it builds one step, gates it,
+commits it, and reports back.
 
 | # | Step | Lives in | Commit |
 |---|---|---|---|
@@ -95,9 +97,11 @@ callable (Postman/curl/contract tests) before frontend work starts.
 | 7 | Screen | `apps/web` and/or `apps/mobile` | `feat(<module>): screen-web` / `feat(<module>): screen-mobile` |
 
 Phase B starts once Phase A is done for the scope. The frontend is a pure
-consumer of an already-finished API. Step 6a is where "how it should feel"
-gets decided — once per module, after the hook exists and before
-`ui-builder` starts the screen — via `ux-planner`, starting from whatever
+consumer of an already-finished API. Delegate each module's Phase B steps
+to the `front-end-eng` agent, same reasoning as `backend-eng` for Phase A
+— one step at a time, in its own context. Step 6a is where "how it should
+feel" gets decided — once per module, after the hook exists and before
+`front-end-eng` starts the screen — via `ux-planner`, starting from whatever
 `planner` filed in `docs/design/<module>-notes.md` at planning intake. Its first run
 for a module also signals to the user that Phase B has started, and is the
 point a mockup, screenshot, or export (Google Stitch, Figma) can be handed
@@ -109,12 +113,14 @@ over. It writes `docs/design/<module>.md`, not its own step commit;
 1. **Pick the next step** per the tables above, from `TODO.md`. One step
    at a time, in order.
 2. **Check the gate.** The prior step compiles and passes tests first.
-3. **Build exactly one step.** One schema, one contract, one repository.
-4. **Run the gate on your own work**: typecheck, lint, test (mirrors
-   lefthook, wired at bootstrap).
-5. **Commit** using the exact Conventional Commit format above.
-6. **Check off the line in `TODO.md`.**
-7. **Repeat.**
+3. **Delegate exactly one step** to `backend-eng` (Phase A) or
+   `front-end-eng` (Phase B) — one schema, one contract, one repository.
+4. The agent **runs the gate on its own work**: typecheck, lint, test
+   (mirrors lefthook, wired at bootstrap).
+5. The agent **commits** using the exact Conventional Commit format above.
+6. **Check off the line in `TODO.md`** once the agent reports the commit
+   landed.
+7. **Repeat**, one delegated step at a time.
 
 Each commit batches exactly one step, built right for what's known now; a
 wrong step is fixed forward later via the Correction Protocol.
@@ -194,7 +200,7 @@ boundary from planning intake (`planner`). If not, stop and ask.
 - A module's frontend code (hook, screen) is built after its API is
   committed.
 - The screen step doesn't start blank — `ux-planner` runs once per module,
-  after the hook is committed, before `ui-builder` starts the screen.
+  after the hook is committed, before `front-end-eng` starts the screen.
 - `packages/config` is the single source for shared config; a per-app
   override request signals to fix the base config at the source.
 

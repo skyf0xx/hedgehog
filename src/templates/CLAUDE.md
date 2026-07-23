@@ -95,9 +95,13 @@ steps from memory:
   whichever add-on steps planning intake turned on. Triggered
   automatically by `planner` after its first run; skip if `nx.json`
   already exists.
+- **`backend-eng`** — builds each module's Phase A steps (schema →
+  contract → repository → service → controller → queue?), one step at a
+  time, gated and committed in its own context.
 - **`ux-planner`** — once per module in Phase B, after the hook exists and
   before the screen: writes `docs/design/<module>.md`.
-- **`ui-builder`** — builds screens from the ux-planner rationale.
+- **`front-end-eng`** — builds each module's Phase B steps (hook, screen)
+  from the ux-planner rationale, one step at a time, in its own context.
 - **`reviewer`** — phase-transition and Correction Protocol checks the
   mechanical gate can't make (port discipline, FK-by-ID discipline,
   contract shape).
@@ -221,9 +225,10 @@ context small:
   is available if the product narrative itself needs re-reading, but
   day-to-day recovery doesn't need it.
 - **Delegate heavy work to agents.** The project scaffold (`bootstrap`),
-  planning intake (`planner`), screen builds (`ui-builder`), and
-  reviews (`reviewer`) each run in their own isolated context — so that
-  work doesn't pile up in the main thread.
+  planning intake (`planner`), every Phase A step (`backend-eng`), every
+  Phase B step (`front-end-eng`), and reviews (`reviewer`) each run in
+  their own isolated context — so that work doesn't pile up in the main
+  thread.
 - **Don't paste large context back in.** If you find yourself
   re-explaining the architecture, stop — it's fixed and stated in this
   file, not something to reconstruct. If you need a project specific, read

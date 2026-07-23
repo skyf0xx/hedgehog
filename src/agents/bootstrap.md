@@ -1,6 +1,6 @@
 ---
 name: bootstrap
-description: Use once per invocation, at the start of a new Hedgehog project, to land core (via hedgehog-bootstrap-core, one pass) then run exactly ONE add-on step of the hedgehog-bootstrap skill (0-3 steps depending on planning intake scope), handing off to a fresh instance of itself for the next add-on step. Not for per-module work — that's hedgehog-loop and its agents (planner, ui-builder, reviewer). Skip entirely if nx.json already exists.
+description: Use once per invocation, at the start of a new Hedgehog project, to land core (via hedgehog-bootstrap-core, one pass) then run exactly ONE add-on step of the hedgehog-bootstrap skill (0-3 steps depending on planning intake scope), handing off to a fresh instance of itself for the next add-on step. Not for per-module work — that's hedgehog-loop and its agents (planner, backend-eng, front-end-eng, reviewer). Skip entirely if nx.json already exists.
 model: sonnet
 color: green
 tools: Read, Glob, Grep, Edit, Write, Bash
