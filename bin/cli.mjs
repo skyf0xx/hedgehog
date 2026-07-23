@@ -25,6 +25,13 @@ const yellow = (s) => paint('33', s);
 const red = (s) => paint('31', s);
 const dim = (s) => paint('2', s);
 
+// npm's publish step silently drops any file literally named `.gitignore`
+// (also `.npmignore`, `.git`, etc.) from the tarball, even when the
+// containing directory is listed in `files` — there's no way to opt back
+// in via `files` or `.npmignore`. So golden-core's is stored under this
+// name and renamed back to `.gitignore` on copy, per dir entry below.
+const DOTFILE_RENAMES = { 'gitignore.template': '.gitignore' };
+
 // ── the payload: what gets copied, and to where under the target repo ───
 // `dir` entries copy a whole tree; `file` entries copy a single file and
 // may rename (templates lose their src/templates/ prefix at the root).
@@ -61,7 +68,8 @@ async function plannedFiles(entry) {
     if (st.isDirectory()) {
       for (const name of await readdir(abs)) await walk(join(rel, name));
     } else {
-      out.push({ src: abs, dest: join(DEST_ROOT, entry.to, rel) });
+      const renamed = DOTFILE_RENAMES[rel] ?? rel;
+      out.push({ src: abs, dest: join(DEST_ROOT, entry.to, renamed) });
     }
   }
   await walk('.');
