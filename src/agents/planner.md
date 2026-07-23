@@ -18,7 +18,7 @@ any schema gets written.
 
 - **Intake** (once per project, before step 1 of anything): run the
   `hedgehog-intake` skill to capture scope boundary and domain
-  vocabulary.
+  vocabulary. On confirmation, hand off to the `bootstrap` agent.
 - **New scope entering play**: modules added to scope need placing in
   build order (dependency order between modules, not within one). Run
   `hedgehog-intake` again, scoped to what's new, before decomposing.
@@ -84,7 +84,11 @@ modules and ordering them — is this agent's job, below.
    only state. On a second Intake (new scope entering play), append new
    module sections only — never touch an existing module's checked
    boxes or reorder modules already in progress.
-7. **Return a summary**: scope boundary, add-ons decision, module list,
+7. **On first Intake only, hand off to the `bootstrap` agent** once
+   Confirm & Lock holds — it scaffolds the core workspace and whichever
+   add-ons are on, before any module's Phase A starts. Skip this on a
+   later Intake (new scope entering play); the workspace already exists.
+8. **Return a summary**: scope boundary, add-ons decision, module list,
    any open questions.
 
 ## Constraints

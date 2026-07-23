@@ -292,10 +292,11 @@ being true, so it's a hard stop, not a recap in passing.
 Then state plainly what happens on confirmation, before it happens:
 
 > This locks in `docs/context.md` and the per-module design notes, and
-> starts Phase A build (schema first) on the first module. Anything
-> wrong or missing — say so now; it's a normal edit before this point,
-> and a Correction Protocol entry after. Confirm to proceed, or tell me
-> what to change.
+> hands off to the `bootstrap` agent to scaffold the workspace and
+> whichever add-ons are on. Phase A build (schema first) starts on the
+> first module once that closes. Anything wrong or missing — say so
+> now; it's a normal edit before this point, and a Correction Protocol
+> entry after. Confirm to proceed, or tell me what to change.
 
 Wait for an explicit go-ahead. A revision here is just another
 elicitation turn — update the draft, re-run this stage, don't write

@@ -70,13 +70,14 @@ steps from memory:
 
 ### The agents — delegate the judgment calls
 
-- **`bootstrap`** — runs `hedgehog-bootstrap`'s core steps (always) plus
-  whichever add-on steps Intake turned on, once, at project start, after
-  Intake. Skip if `nx.json` already exists.
 - **`planner`** — Intake (whether Hedgehog applies at all, scope
   boundary, the add-ons decision, and domain vocabulary) at project
   start, and module scoping when new scope enters play. Writes `TODO.md`,
-  `docs/context.md`, and `docs/design/<module>-notes.md`.
+  `docs/context.md`, and `docs/design/<module>-notes.md`. On first
+  Intake, hands off to the `bootstrap` agent once Confirm & Lock holds.
+- **`bootstrap`** — runs `hedgehog-bootstrap`'s core steps (always) plus
+  whichever add-on steps Intake turned on. Triggered automatically by
+  `planner` after first Intake; skip if `nx.json` already exists.
 - **`ux-planner`** — once per module in Phase B, after the hook exists and
   before the screen: writes `docs/design/<module>.md`.
 - **`ui-builder`** — builds screens from the ux-planner rationale.

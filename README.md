@@ -52,9 +52,9 @@ The build order is not something you negotiate with the AI. It is encoded into t
 ## The Hedgehog Loop
 
 ``` text
-Bootstrap (once per project)
-  ↓
 Intake — scope boundary + domain vocabulary (planner agent)
+  ↓
+Bootstrap (once per project)
   ↓
 Phase A, per module — schema → contract → repository → service → controller
   ↓
@@ -76,15 +76,15 @@ From an empty project folder:
 npx @skyf0xx/hedgehog init
 ```
 
-Then open Claude Code and say:
-
-> bootstrap this project
+Then open Claude Code and describe what you want to build. The
+`planner` agent runs Intake first, asking what's in scope and which
+add-ons (Auth, Queue, Mobile) you need; once you confirm, it scaffolds
+the project itself.
 
 The core workspace — Nx, `packages/config`, `packages/db`, `apps/api`,
 `apps/web`, and every enforcement file — lands instantly from a
 pre-verified template rather than being generated live; bootstrap then
-only runs whichever add-ons (Auth, Queue, Mobile) your project actually
-needs.
+only runs whichever add-ons Intake determined your project needs.
 
 Or paste the repo URL to your Agent and have it install for you.
 
