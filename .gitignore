@@ -1,2 +1,4 @@
 .claude/settings.json
 .serena
+__pycache__/
+.pytest_cache/

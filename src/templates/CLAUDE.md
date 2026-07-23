@@ -2,19 +2,21 @@
   Hedgehog project CLAUDE.md template.
 
   This file is copied into a consuming project's repo root at install
-  time. Placeholders wrapped in {{ }} are filled in once, at Intake, by
-  the `planner` agent (or by hand). Everything outside the placeholders is
-  a constant of the Hedgehog discipline and should be left as-is.
+  time. Placeholders wrapped in {{ }} are filled in once, at planning
+  intake, by the `planner` agent (or by hand). Everything outside the
+  placeholders is a constant of the Hedgehog discipline and should be
+  left as-is.
 
   Delete this comment block after the placeholders are filled in.
 -->
 
 # {{PROJECT_NAME}}
 
-{{PROJECT_SUMMARY — 2–4 sentences the `planner` writes at Intake: what
-this project is, who it's for, and what it does. State current intent, not
-history. Keep it tight — the full product narrative, scope boundary, and
-domain vocabulary live in docs/context.md, not here.}}
+{{PROJECT_SUMMARY — 2–4 sentences the `planner` writes at planning
+intake: what this project is, who it's for, and what it does. State
+current intent, not history. Keep it tight — the full product narrative,
+scope boundary, and domain vocabulary live in `.hedgehog/BMAD/` (the
+planning documents) and `TODO.md`, not here.}}
 
 This project is built with **Hedgehog**: a backend-first, one-step-at-a-time
 build discipline. The rules below aren't project preferences — they're how
@@ -25,10 +27,12 @@ the build stays mechanically correct. Follow them exactly.
 If `{{PROJECT_SUMMARY}}` above is still an unfilled placeholder, this is a
 brand-new install and nothing has been built yet. Open with something
 short and warm — 🦔 plus one line asking what the user wants to build —
-then hand straight to `planner` to run Intake. Don't re-explain the
-discipline or summarize this file; the greeting is one line, not a tour.
-Skip this entirely once the placeholder is filled in — every later session
-starts with `TODO.md`, not a greeting.
+then hand straight to `planner`, which runs planning intake on
+BMAD-METHOD (brainstorming → brief → PRD → UX spec), then mines that
+output into Hedgehog's own scope boundary and `## Add-ons` decision.
+Don't re-explain the discipline or summarize this file; the greeting is
+one line, not a tour. Skip this entirely once the placeholder is filled
+in — every later session starts with `TODO.md`, not a greeting.
 
 ## How to work here
 
@@ -36,12 +40,14 @@ The build is a loop of small, gated, committed steps. You never hold the
 whole plan in context — the plan lives in the structure:
 
 - **`TODO.md`** is the live checklist and the source of truth for what's
-  next. Read it at the start of every session. Its only state is
+  next, including the `## Add-ons` block (Auth/Queue/Mobile, each on or
+  off). Read it at the start of every session. Its only state is
   checked/unchecked.
-- **`docs/context.md`** is the product's current-state document — product
-  narrative, scope boundary, domain vocabulary. Every project has one,
-  written by `planner` at Intake and kept current on later Intakes. It
-  states what's true now, never a history of what changed.
+- **`.hedgehog/BMAD/`** is the archival record of planning intake —
+  BMAD-METHOD's brainstorming, brief, PRD, and UX spec output, written
+  once by `planner` and never edited after. It's historical record, the
+  same relationship the commit log has to a merged PR — nothing in the
+  day-to-day build reads it live.
 - **The commit log** is the record of what's built and why. Conventional
   commits (`feat(<module>): schema`, `feat(<module>): api`, …) are how
   progress is read, not a conversation summary.
@@ -70,24 +76,25 @@ steps from memory:
   step. Invoke it at the start of any build session and for "what's next".
 - **`hedgehog-bootstrap`** — run **once**, at project start, to scaffold
   the core stack, the enforcement config, and whichever add-ons (Auth,
-  Queue, Mobile) Intake turned on. Skip if `nx.json` already exists.
+  Queue, Mobile) planning intake turned on. Skip if `nx.json` already
+  exists.
 - **`conventional-commits`** — when a change spans several steps in one
   working-tree pass and needs splitting back into per-step commits (mainly
   Correction Protocol cleanups).
-- **`hedgehog-intake`** — the Intake elicitation/synthesis procedure
-  (scope boundary, add-ons decision, domain vocabulary). Invoked by the
-  `planner` agent; don't run it standalone.
 
 ### The agents — delegate the judgment calls
 
-- **`planner`** — Intake (whether Hedgehog applies at all, scope
-  boundary, the add-ons decision, and domain vocabulary) at project
-  start, and module scoping when new scope enters play. Writes `TODO.md`,
-  `docs/context.md`, and `docs/design/<module>-notes.md`. On first
-  Intake, hands off to the `bootstrap` agent once Confirm & Lock holds.
+- **`planner`** — planning intake (whether Hedgehog applies at all, then
+  `hedgehog-planning-intake`'s BMAD-METHOD brainstorming/brief/PRD/UX-spec
+  shelf, mined into scope boundary, the Add-ons decision, and domain
+  vocabulary) at project start, and module scoping when new scope enters
+  play. Writes `TODO.md` (including its `## Add-ons` block),
+  `.hedgehog/BMAD/`, and `docs/design/<module>-notes.md`. On first run,
+  hands off to the `bootstrap` agent once Confirm & Lock holds.
 - **`bootstrap`** — runs `hedgehog-bootstrap`'s core steps (always) plus
-  whichever add-on steps Intake turned on. Triggered automatically by
-  `planner` after first Intake; skip if `nx.json` already exists.
+  whichever add-on steps planning intake turned on. Triggered
+  automatically by `planner` after its first run; skip if `nx.json`
+  already exists.
 - **`ux-planner`** — once per module in Phase B, after the hook exists and
   before the screen: writes `docs/design/<module>.md`.
 - **`ui-builder`** — builds screens from the ux-planner rationale.
@@ -107,9 +114,9 @@ every host OS) · Railway · **ts-rest** contracts · **Zod** validation ·
 Pino logging · Vitest + Playwright (tests) · Conventional Commits +
 commitlint + lefthook · Sentry.
 
-**Add-ons** — each on or off per project, decided at Intake and recorded
-in `docs/context.md`'s Add-ons note; check that file for this project's
-actual picks rather than assuming any of these are present:
+**Add-ons** — each on or off per project, decided at planning intake and
+recorded in `TODO.md`'s `## Add-ons` block; check that block for this
+project's actual picks rather than assuming any of these are present:
 
 | Add-on | Adds |
 | --- | --- |
@@ -119,8 +126,8 @@ actual picks rather than assuming any of these are present:
 
 An add-on that's off means the corresponding piece of infra genuinely
 isn't in this codebase — don't write code assuming `packages/auth`,
-`apps/worker`, or `apps/mobile` exist without checking `docs/context.md`
-first.
+`apps/worker`, or `apps/mobile` exist without checking `TODO.md`'s
+`## Add-ons` block first.
 
 Don't substitute libraries, in core or in whichever add-ons are on. If a
 package or generator name changed upstream, verify against current docs
@@ -145,13 +152,14 @@ packages/
   shared     cross-cutting types + utils
 libs/
   <module>/port · <module>/repository · <module>/service   (one triplet per table)
+.hedgehog/
+  BMAD/      archival planning intake output (brief, PRD, UX spec, research) — write-once, from planner
 docs/
-  context.md product narrative, scope boundary, add-ons decision, domain vocabulary (Intake)
-  design     <module>-notes.md (Intake) and <module>.md (ux-planner)
+  design     <module>-notes.md (planner, sourced from BMAD's UX spec) and <module>.md (ux-planner)
 ```
 
-Check `docs/context.md`'s Add-ons note before assuming any "only if"
-line above is actually present in this codebase.
+Check `TODO.md`'s `## Add-ons` block before assuming any "only if" line
+above is actually present in this codebase.
 
 ### Core rules
 
@@ -195,8 +203,8 @@ off. Keep it thin.
 **When the build is done:** once every module in scope has both phases
 checked, the build session is complete. **Delete `TODO.md`** — a finished
 checklist is noise, and the commit log is the durable record of what was
-built. **`docs/context.md` stays** — it's the product's current-state
-document, not a checklist.
+built. **`.hedgehog/BMAD/` stays** — it's the archival planning record,
+not a checklist.
 
 ## Managing context
 
@@ -208,11 +216,12 @@ context small:
   `TODO.md` and continue. Nothing is lost, because the checklist, commits,
   and code hold all the state. Prefer this over letting one session
   accumulate the entire project.
-- **A cleared or new session recovers by reading `TODO.md`,
-  `docs/context.md`, and the commit log**, never by needing the prior
-  conversation.
+- **A cleared or new session recovers by reading `TODO.md` and the
+  commit log**, never by needing the prior conversation. `.hedgehog/BMAD/`
+  is available if the product narrative itself needs re-reading, but
+  day-to-day recovery doesn't need it.
 - **Delegate heavy work to agents.** The project scaffold (`bootstrap`),
-  Intake elicitation (`planner`), screen builds (`ui-builder`), and
+  planning intake (`planner`), screen builds (`ui-builder`), and
   reviews (`reviewer`) each run in their own isolated context — so that
   work doesn't pile up in the main thread.
 - **Don't paste large context back in.** If you find yourself

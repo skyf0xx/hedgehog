@@ -1,17 +1,26 @@
 # TODO
  
 <!-- 2-3 sentences: what is this project. Full product narrative, scope
-boundary, and domain vocabulary live in docs/context.md — every project
-has one, written by planner at Intake. -->
+boundary, and domain vocabulary live in .hedgehog/BMAD/04-prd.md — every
+project has one, written by planner from BMAD-METHOD's planning shelf. -->
  
 ## Context
  
-(fill in per project — see docs/context.md for the full picture)
+(fill in per project — see .hedgehog/BMAD/04-prd.md for the full picture)
+
+## Add-ons
+
+<!-- Written by planner at planning intake. Each line: on/off + the
+one-line reason. An absent block reads as "never decided," not "off". -->
+
+- Auth: (fill in: on/off — reason)
+- Queue: (fill in: on/off — reason)
+- Mobile: (fill in: on/off — reason)
  
 ## Bootstrap
 
-<!-- Add-on steps (planner marks each on/skipped at Intake, per
-docs/context.md's Add-ons note) run live, one at a time, after core. A
+<!-- Add-on steps (planner marks each on/skipped at planning intake, per
+the ## Add-ons block above) run live, one at a time, after core. A
 skipped add-on gets checked off as skipped, not left unchecked. -->
 
 - [x] Nx workspace + `packages/config` (incl. `docker-compose.yml` for local Postgres) — core, landed via `hedgehog init`, verified via `hedgehog-bootstrap-core`

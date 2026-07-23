@@ -52,7 +52,7 @@ gate structurally cannot:
 - **Queue seam**: if the Queue add-on is on and the queue step was added,
   does the operation genuinely need async (long-running, retries,
   fan-out) — or was the seam reached for out of habit? If the Queue
-  add-on is off (check `docs/context.md`'s Add-ons note), there should be
+  add-on is off (check `TODO.md`'s `## Add-ons` block), there should be
   no `apps/worker` and no queue step at all for this module — a queue
   step appearing anyway is itself a finding, not something to review the
   contents of.

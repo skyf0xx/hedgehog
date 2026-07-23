@@ -56,7 +56,7 @@ hook        (TanStack Query)       — Phase B only
 ```
 
 Plus, when an operation needs async **and the Queue add-on is on for this
-project** (check `docs/context.md`'s Add-ons note): **queue = port +
+project** (check `TODO.md`'s `## Add-ons` block): **queue = port +
 BullMQ adapter**, same port/adapter shape as the repository. The service
 imports only ports. If the Queue add-on is off, there's no `apps/worker`
 and no queue step, full stop — an operation that seems to want async
@@ -98,7 +98,7 @@ Phase B starts once Phase A is done for the scope. The frontend is a pure
 consumer of an already-finished API. Step 6a is where "how it should feel"
 gets decided — once per module, after the hook exists and before
 `ui-builder` starts the screen — via `ux-planner`, starting from whatever
-`planner` filed in `docs/design/<module>-notes.md` at Intake. Its first run
+`planner` filed in `docs/design/<module>-notes.md` at planning intake. Its first run
 for a module also signals to the user that Phase B has started, and is the
 point a mockup, screenshot, or export (Google Stitch, Figma) can be handed
 over. It writes `docs/design/<module>.md`, not its own step commit;
@@ -176,7 +176,7 @@ Use the `reviewer` agent for this — it checks what the mechanical gate
 can't (port discipline, FK-by-ID discipline, contract shape).
 
 Before starting Phase A for a module, confirm it's inside the stated scope
-boundary from Intake (`planner`). If not, stop and ask.
+boundary from planning intake (`planner`). If not, stop and ask.
 
 ## Rules
 
@@ -185,9 +185,9 @@ boundary from Intake (`planner`). If not, stop and ask.
 - **Sequential within a phase.** A step starts once the one before it
   compiles and passes tests.
 - **Step 5a is conditional twice over** — only if the Queue add-on is on
-  for this project at all (per `docs/context.md`), and even then only
-  when a given operation genuinely needs async (long-running, retries,
-  fan-out); the normal case has no queue.
+  for this project at all (per `TODO.md`'s `## Add-ons` block), and even
+  then only when a given operation genuinely needs async (long-running,
+  retries, fan-out); the normal case has no queue.
 - **A wrong step gets fixed at its source** — the Correction Protocol, not
   a downstream workaround.
 - **Tests gate every commit** in the sequence.
