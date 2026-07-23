@@ -1,6 +1,6 @@
 ---
 name: hedgehog-bootstrap
-description: Use once, at the start of a new Hedgehog project, to land the core workspace and scaffold whichever add-ons (Auth, Queue, Mobile) planning intake turned on (TODO.md's Add-ons block). Triggers on "bootstrap this project", "set up the hedgehog stack", "scaffold the workspace". Not for per-module work — that's the `hedgehog-loop` skill, one step at a time.
+description: Use once, at the start of a new Hedgehog project, to land the core workspace and scaffold whichever add-ons (Auth, Queue, Mobile) planning intake turned on (TODO.md's Add-ons block). Runs when the `bootstrap` agent runs, which `planner` invokes automatically after Confirm & Lock. Scoped to project scaffolding; per-module work runs through the `hedgehog-loop` skill, one step at a time.
 ---
 
 # Hedgehog Bootstrap

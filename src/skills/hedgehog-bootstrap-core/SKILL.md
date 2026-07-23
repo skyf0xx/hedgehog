@@ -1,6 +1,6 @@
 ---
 name: hedgehog-bootstrap-core
-description: Use once, at the start of a new Hedgehog project, before hedgehog-bootstrap's add-on steps, to land the golden-core workspace (Nx, packages/config, packages/db, apps/api, apps/web, and every enforcement file) and verify it's green. Triggers as the first move of "bootstrap this project" — not invoked directly by name. No per-project decisions, no add-on awareness.
+description: Use once, at the start of a new Hedgehog project, before hedgehog-bootstrap's add-on steps, to land the golden-core workspace (Nx, packages/config, packages/db, apps/api, apps/web, and every enforcement file) and verify it's green. Runs as the first move of the `bootstrap` agent, which `planner` invokes automatically after Confirm & Lock. No per-project decisions, no add-on awareness.
 ---
 
 # Hedgehog Bootstrap — Core
