@@ -17,7 +17,7 @@ calls this skill first, unconditionally, then continues with its own
 add-on steps (Auth, Queue, Mobile) — those genuinely vary per project
 and stay live.
 
-This skill has no per-project decisions to make: no `docs/context.md`
+This skill has no per-project decisions to make: no `TODO.md` Add-ons
 dependency, no Add-ons check, nothing to ask. Core is identical on every
 Hedgehog project.
 
@@ -226,8 +226,8 @@ not here.
 
 - Run once per project, always as `hedgehog-bootstrap`'s first move —
   never invoked on its own by a user.
-- No add-on awareness. If a check here ever seems to need
-  `docs/context.md`, that check belongs in `hedgehog-bootstrap`
+- No add-on awareness. If a check here ever seems to need `TODO.md`'s
+  `## Add-ons` block, that check belongs in `hedgehog-bootstrap`
   instead — this skill's whole point is being identical across every
   project.
 - Don't hand-edit any file this step lands to work around a verification

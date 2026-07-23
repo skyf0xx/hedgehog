@@ -1,16 +1,20 @@
 ---
 name: hedgehog-bootstrap
-description: Use once, at the start of a new Hedgehog project, to land the core workspace and scaffold whichever add-ons (Auth, Queue, Mobile) Intake turned on. Triggers on "bootstrap this project", "set up the hedgehog stack", "scaffold the workspace". Not for per-module work — that's the `hedgehog-loop` skill, one step at a time.
+description: Use once, at the start of a new Hedgehog project, to land the core workspace and scaffold whichever add-ons (Auth, Queue, Mobile) planning intake turned on (TODO.md's Add-ons block). Triggers on "bootstrap this project", "set up the hedgehog stack", "scaffold the workspace". Not for per-module work — that's the `hedgehog-loop` skill, one step at a time.
 ---
 
 # Hedgehog Bootstrap
 
 Scaffolds a Hedgehog project's Bootstrap phase: the always-on core, plus
-whichever named add-ons (Auth, Queue, Mobile) Intake's scope boundary
-(`planner`) actually calls for. After this closes, `hedgehog-loop` takes
-over per module, one step at a time. This skill touches no domain
-modules — no schema, no contract, nothing under `libs/<module>/`. That's
-Phase A, started fresh after Bootstrap closes.
+whichever named add-ons (Auth, Queue, Mobile) planning intake's scope
+boundary (`planner`, running BMAD-METHOD's planning shelf then mining it
+— see that agent) actually calls for. This is Phase 2 (Scaffold) of the
+overall bootstrap sequence — Phase 0 (BMAD elicitation) and Phase 1
+(mining into `TODO.md`) already closed by the time this skill runs. After
+this closes, `hedgehog-loop` takes over per module, one step at a time.
+This skill touches no domain modules — no schema, no contract, nothing
+under `libs/<module>/`. That's Phase A, started fresh after Bootstrap
+closes.
 
 **Core lands via `hedgehog-bootstrap-core`, run first, unconditionally.**
 That skill copies a pre-built, pre-verified workspace (Nx, enforcement
@@ -67,10 +71,11 @@ Bootstrap runs — not a per-project hand-edit after landing core.
 
 ### Add-ons (scaffolded only when Intake calls for them)
 
-Each row is independent — on or off per project, decided at Intake's
-Confirm & Lock (`planner`) and recorded in `docs/context.md`. Turning one
-on inserts its Bootstrap step(s) into the sequence below; turning it off
-means that step is skipped entirely, not stubbed or partially wired.
+Each row is independent — on or off per project, decided at planning
+intake's Confirm & Lock (`planner`) and recorded in `TODO.md`'s
+`## Add-ons` block. Turning one on inserts its Bootstrap step(s) into the
+sequence below; turning it off means that step is skipped entirely, not
+stubbed or partially wired.
 
 | Add-on | Trigger (from Intake scope) | Adds |
 |---|---|---|
@@ -87,9 +92,9 @@ If a project's whole description has no persistent domain data and no
 real lifecycle to model at all (a static marketing page, a one-off
 script, a slide deck) — not "small," but literally no state to carry
 across a schema/contract/service — Hedgehog doesn't apply. `planner`
-checks for this before Intake proper starts (see that agent's opening
-check) and says so rather than forcing the discipline onto something with
-no domain module in it.
+checks for this before running BMAD's planning shelf (see that agent's
+opening check) and says so rather than forcing the discipline onto
+something with no domain module in it.
 
 ### Monorepo layout
 
@@ -132,12 +137,12 @@ bar doesn't get the seam at all — see the Add-ons table above.
 
 ## Before running
 
-Confirm Intake already happened — a scope boundary and domain vocabulary
-should exist (`planner` produces these), **and** it should record which
-add-ons (Auth, Queue, Mobile) are on for this project — check
-`docs/context.md` for an explicit "Add-ons" note. No scope boundary yet,
-or a scope boundary with no recorded add-on decision: stop and point to
-`planner` rather than guessing which add-ons apply.
+Confirm planning intake already happened — a scope boundary and domain
+vocabulary should exist (`planner` produces these from BMAD's planning
+shelf), **and** `TODO.md` should carry an explicit `## Add-ons` block
+recording which add-ons (Auth, Queue, Mobile) are on for this project. No
+scope boundary yet, or a `TODO.md` with no `## Add-ons` block: stop and
+point to `planner` rather than guessing which add-ons apply.
 
 Run `hedgehog-bootstrap-core` first, unconditionally, if it hasn't
 already landed core (check `TODO.md`'s Bootstrap section, or `nx.json`
@@ -149,8 +154,8 @@ at the repo root). That skill has its own re-run guard and Docker check
 ### 1. `packages/auth` — Better Auth config *(Auth add-on only)*
 
 Skip this step entirely if Auth isn't on for this project (check
-`docs/context.md`'s Add-ons note from Intake) — don't scaffold a
-credential store with no login anywhere in scope. If skipped, check its
+`TODO.md`'s `## Add-ons` block) — don't scaffold a credential store with
+no login anywhere in scope. If skipped, check its
 `TODO.md` line off as skipped-and-confirmed (per the `bootstrap` agent's
 handling of conditional steps), same treatment as an out-of-scope
 `apps/mobile`.
@@ -178,9 +183,9 @@ Commit: `feat(auth): better auth config + global guard`
 ### 2. `apps/worker` — BullMQ seam (Redis, no consumers yet) *(Queue add-on only)*
 
 Skip this step entirely if Queue isn't on for this project (check
-`docs/context.md`'s Add-ons note) — no operation in scope is
-long-running, retried, or fanned out, so there's nothing for a queue to
-seam in for. If skipped, check its `TODO.md` line off as
+`TODO.md`'s `## Add-ons` block) — no operation in scope is long-running,
+retried, or fanned out, so there's nothing for a queue to seam in for. If
+skipped, check its `TODO.md` line off as
 skipped-and-confirmed, same treatment as an out-of-scope `apps/mobile`.
 
 ```bash
@@ -218,7 +223,7 @@ Commit: `feat(worker): bullmq seam, no consumers`
 ### 3. `apps/mobile` — Expo shell *(Mobile add-on only)*
 
 Skip this step entirely if Mobile isn't on for this project (check
-`docs/context.md`'s Add-ons note) — don't scaffold speculative infra. If
+`TODO.md`'s `## Add-ons` block) — don't scaffold speculative infra. If
 skipped, check its `TODO.md` line off as skipped-and-confirmed, not left
 dangling for a future run to wonder about — same pattern as Auth (step 1)
 and Queue (step 2) when their add-on is off.
@@ -277,8 +282,8 @@ own commit.
 - Run `hedgehog-bootstrap-core` first, unconditionally, before any step
   in this file — never scaffold an add-on against a core that hasn't
   landed and verified clean.
-- Add-on steps (Auth, Queue, Mobile) run only if `docs/context.md`'s
-  Add-ons note (written by `planner` at Intake) turns that add-on on —
+- Add-on steps (Auth, Queue, Mobile) run only if `TODO.md`'s `## Add-ons`
+  block (written by `planner` at planning intake) turns that add-on on —
   check off its `TODO.md` line as skipped-and-confirmed otherwise, don't
   leave it dangling.
 - Don't add domain schema, contracts, or any `libs/<module>/*` content —

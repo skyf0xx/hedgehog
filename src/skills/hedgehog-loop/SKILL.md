@@ -56,7 +56,7 @@ hook        (TanStack Query)       — Phase B only
 ```
 
 Plus, when an operation needs async **and the Queue add-on is on for this
-project** (check `docs/context.md`'s Add-ons note): **queue = port +
+project** (check `TODO.md`'s `## Add-ons` block): **queue = port +
 BullMQ adapter**, same port/adapter shape as the repository. The service
 imports only ports. If the Queue add-on is off, there's no `apps/worker`
 and no queue step, full stop — an operation that seems to want async
@@ -185,9 +185,9 @@ boundary from Intake (`planner`). If not, stop and ask.
 - **Sequential within a phase.** A step starts once the one before it
   compiles and passes tests.
 - **Step 5a is conditional twice over** — only if the Queue add-on is on
-  for this project at all (per `docs/context.md`), and even then only
-  when a given operation genuinely needs async (long-running, retries,
-  fan-out); the normal case has no queue.
+  for this project at all (per `TODO.md`'s `## Add-ons` block), and even
+  then only when a given operation genuinely needs async (long-running,
+  retries, fan-out); the normal case has no queue.
 - **A wrong step gets fixed at its source** — the Correction Protocol, not
   a downstream workaround.
 - **Tests gate every commit** in the sequence.
