@@ -52,7 +52,8 @@ The build order is not something you negotiate with the AI. It is encoded into t
 ## The Hedgehog Loop
 
 ``` text
-Intake — scope boundary + domain vocabulary (planner agent)
+Planning intake — [BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD)'s brief/PRD/UX spec, mined into scope
+boundary + domain vocabulary (planner agent)
   ↓
 Bootstrap (once per project)
   ↓
@@ -77,14 +78,15 @@ npx @skyf0xx/hedgehog init
 ```
 
 Then open Claude Code and describe what you want to build. The
-`planner` agent runs Intake first, asking what's in scope and which
+`planner` agent runs planning intake first — BMAD-METHOD's brainstorming,
+brief, PRD, and UX spec — then mines that into what's in scope and which
 add-ons (Auth, Queue, Mobile) you need; once you confirm, it scaffolds
 the project itself.
 
 The core workspace — Nx, `packages/config`, `packages/db`, `apps/api`,
 `apps/web`, and every enforcement file — lands instantly from a
 pre-verified template rather than being generated live; bootstrap then
-only runs whichever add-ons Intake determined your project needs.
+only runs whichever add-ons planning intake determined your project needs.
 
 Or paste the repo URL to your Agent and have it install for you.
 
@@ -148,6 +150,14 @@ Hedgehog enforces its build order with tooling instead: Nx module boundaries, co
 | **Context per step** | As much as the task pulls in | A full brief, PRD, and architecture doc per story | One module layer at a time (e.g. just the repository, just the controller) |
 | **Finding a bug** | Search wherever the task touched | Search wherever the story touched | Search one layer, in one module, in a fixed order |
 | **Real cost** | No safety net if the model shortcuts its own process | Documentation overhead most solo projects don't need | Less flexibility: the stack and order aren't negotiable |
+
+## Credits
+
+Planning intake runs on [BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD)
+(`bmad-code-org/BMAD-METHOD`), MIT-licensed — vendored in full at
+`skills/BMAD/` in every Hedgehog install. BMAD elicits the brief, PRD,
+and UX spec; Hedgehog's own `planner` agent takes over from there with
+the build discipline above.
 
 ## Support Hedgehog
 
