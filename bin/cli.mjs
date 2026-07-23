@@ -36,6 +36,10 @@ const DOTFILE_RENAMES = { 'gitignore.template': '.gitignore' };
 const PLAN = [
   { type: 'dir', from: 'src/agents', to: '.claude/agents' },
   { type: 'dir', from: 'src/skills', to: '.claude/skills' },
+  // The vendored BMAD-METHOD planning shelf that hedgehog-planning-intake
+  // runs — referenced by repo-root-relative path (skills/BMAD/...), so it
+  // lands there rather than under .claude/.
+  { type: 'dir', from: 'skills/BMAD', to: 'skills/BMAD' },
   { type: 'file', from: 'src/templates/CLAUDE.md', to: 'CLAUDE.md' },
   { type: 'file', from: 'src/templates/TODO.md', to: 'TODO.md' },
   // The pre-built, pre-verified core Nx workspace — packages/config,

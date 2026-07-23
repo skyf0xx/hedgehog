@@ -21,7 +21,8 @@
     "src/agents",
     "src/skills",
     "src/templates",
-    "src/golden-core"
+    "src/golden-core",
+    "skills/BMAD"
   ],
   "engines": {
     "node": ">=18"
