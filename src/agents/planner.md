@@ -275,8 +275,7 @@ or off, decided here rather than assumed:
   every operation the person described is a direct, synchronous read or
   write — the common case for a small tool.
 - **Mobile** — on if the person explicitly wants a mobile app alongside
-  or instead of web. Off otherwise (unchanged from before — this was
-  already the only add-on with an opt-in mechanism).
+  or instead of web. Off otherwise.
 
 Ask directly rather than inferring silently, the same way an ambiguous
 scope boundary gets a direct question instead of a guess: "does this need

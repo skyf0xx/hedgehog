@@ -1,0 +1,17 @@
+name: Phase gate
+
+on:
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  phase-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce Phase A before Phase B
+        run: node tools/phase-gate.cjs

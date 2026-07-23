@@ -1,0 +1,20 @@
+node_modules
+dist
+tmp
+out-tsc
+.env
+.env.local
+*.log
+.DS_Store
+
+.nx/cache
+.nx/workspace-data
+.nx/polygraph
+.claude/worktrees
+.claude/settings.local.json
+vitest.config.*.timestamp*
+
+# Next.js
+.next
+out
+test-output

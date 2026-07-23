@@ -20,7 +20,8 @@
     "bin",
     "src/agents",
     "src/skills",
-    "src/templates"
+    "src/templates",
+    "src/golden-core"
   ],
   "engines": {
     "node": ">=18"

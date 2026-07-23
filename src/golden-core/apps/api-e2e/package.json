@@ -1,0 +1,28 @@
+{
+  "name": "api-e2e",
+  "version": "0.0.1",
+  "private": true,
+  "nx": {
+    "implicitDependencies": [
+      "api"
+    ],
+    "targets": {
+      "e2e": {
+        "executor": "nx:run-commands",
+        "outputs": [
+          "{projectRoot}/test-output/vitest/coverage"
+        ],
+        "dependsOn": [
+          "api:build",
+          "api:serve"
+        ],
+        "options": {
+          "command": "vitest run --config apps/api-e2e/vitest.config.mts"
+        }
+      }
+    },
+    "tags": [
+      "scope:api"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "db",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.22.0",
+    "config": "workspace:*"
+  },
+  "nx": {
+    "tags": [
+      "scope:db",
+      "type:adapter"
+    ]
+  }
+}

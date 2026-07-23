@@ -10,16 +10,19 @@ has one, written by planner at Intake. -->
  
 ## Bootstrap
 
-<!-- Core steps (always run) and add-on steps (planner marks each
-on/skipped at Intake, per docs/context.md's Add-ons note) below. A
-skipped add-on gets checked off as skipped, not left unchecked. -->
+<!-- Core lands in one pass via hedgehog-bootstrap-core (copied from a
+pre-verified template, not generated live) — its four boxes get checked
+together, one commit. Add-on steps (planner marks each on/skipped at
+Intake, per docs/context.md's Add-ons note) run live, one at a time,
+after core. A skipped add-on gets checked off as skipped, not left
+unchecked. -->
 
-- [ ] Nx workspace + `packages/config` (incl. `docker-compose.yml` for local Postgres) — core
-- [ ] `packages/db` — Drizzle client — core
-- [ ] `packages/auth` — Better Auth config — Auth add-on (fill in: on / skipped, not in scope)
-- [ ] `apps/api` — Nest shell, Pino (+ global guard if Auth is on) — core
+- [ ] Nx workspace + `packages/config` (incl. `docker-compose.yml` for local Postgres) — core, landed + verified via `hedgehog-bootstrap-core`
+- [ ] `packages/db` — Drizzle client — core, landed + verified via `hedgehog-bootstrap-core`
+- [ ] `apps/api` — Nest shell, Pino — core, landed + verified via `hedgehog-bootstrap-core`
+- [ ] `apps/web` — Next shell, TanStack Query provider — core, landed + verified via `hedgehog-bootstrap-core`
+- [ ] `packages/auth` — Better Auth config + global guard on `apps/api` — Auth add-on (fill in: on / skipped, not in scope)
 - [ ] `apps/worker` — BullMQ seam, Redis (no consumers yet) — Queue add-on (fill in: on / skipped, not in scope)
-- [ ] `apps/web` — Next shell, TanStack Query provider — core
 - [ ] `apps/mobile` — Expo shell — Mobile add-on (fill in: on / skipped, not in scope)
 ## Phase A — Backend
  

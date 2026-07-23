@@ -33,9 +33,13 @@ const PLAN = [
   { type: 'dir', from: 'src/skills', to: '.claude/skills' },
   { type: 'file', from: 'src/templates/CLAUDE.md', to: 'CLAUDE.md' },
   { type: 'file', from: 'src/templates/TODO.md', to: 'TODO.md' },
-  // A minimal root package.json so bootstrap's `nx init` scaffolds a real
-  // pnpm workspace rather than falling into standalone (.nx wrapper) mode.
-  { type: 'file', from: 'src/templates/package.json', to: 'package.json' },
+  // The pre-built, pre-verified core Nx workspace — packages/config,
+  // packages/db, apps/api, apps/web, and every enforcement file
+  // (lefthook, commitlint, phase gate, module boundaries). Lands the
+  // root package.json too, so there's no separate placeholder for it.
+  // `hedgehog-bootstrap-core` verifies this on first run rather than
+  // generating it live — see that skill for what's in here and why.
+  { type: 'dir', from: 'src/golden-core', to: '.' },
 ];
 
 const exists = (p) =>
@@ -130,8 +134,16 @@ async function init({ force }) {
     )}\n`,
   );
   console.log('Next steps:');
-  console.log(`  1. ${bold('git add .claude CLAUDE.md TODO.md package.json && git commit')}`);
-  console.log(`  2. Open Claude Code and say: ${bold('"bootstrap this project"')}\n`);
+  console.log(`  1. ${bold('git add -A && git commit -m "chore: install Hedgehog"')}`);
+  console.log(`  2. ${bold('pnpm install')}`);
+  console.log(`  3. Open Claude Code and say: ${bold('"bootstrap this project"')}\n`);
+  console.log(
+    dim(
+      'The core workspace (Nx, packages/config, packages/db, apps/api,\n' +
+        'apps/web) is already scaffolded and verified — bootstrap now only\n' +
+        'runs whichever add-ons (Auth, Queue, Mobile) Intake calls for.',
+    ),
+  );
 }
 
 async function main() {

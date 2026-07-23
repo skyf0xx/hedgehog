@@ -1,0 +1,17 @@
+pre-commit:
+  parallel: true
+  commands:
+    typecheck:
+      glob: '*.{ts,tsx}'
+      run: npx nx affected -t typecheck --base=HEAD
+    lint:
+      glob: '*.{ts,tsx}'
+      run: npx nx affected -t lint --base=HEAD
+    test:
+      glob: '*.{ts,tsx}'
+      run: npx nx affected -t test --base=HEAD
+
+commit-msg:
+  commands:
+    commitlint:
+      run: npx commitlint --edit {1}

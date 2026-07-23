@@ -80,6 +80,12 @@ Then open Claude Code and say:
 
 > bootstrap this project
 
+The core workspace — Nx, `packages/config`, `packages/db`, `apps/api`,
+`apps/web`, and every enforcement file — lands instantly from a
+pre-verified template rather than being generated live; bootstrap then
+only runs whichever add-ons (Auth, Queue, Mobile) your project actually
+needs.
+
 Or paste the repo URL to your Agent and have it install for you.
 
 ## For Builders
