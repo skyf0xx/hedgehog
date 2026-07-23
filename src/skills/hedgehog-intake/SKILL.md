@@ -70,9 +70,11 @@ Revising a draft is a normal edit — the Correction Protocol
    below). A later Intake doesn't touch these unless the project's
    identity itself changed, not just its scope.
 6. **Screen/flow notes** — captured by module in
-   `docs/design/<module>-notes.md`, for `ux-planner` to act on at that
-   module's Phase B (see below). Mandatory per module in scope, even when
-   nothing was offered for that module.
+   `docs/design/<module>-notes.md`, a fixed filename pattern (`-notes` is
+   the literal suffix, applied to every module regardless of its name),
+   for `ux-planner` to act on at that module's Phase B (see below).
+   Mandatory per module in scope, even when nothing was offered for that
+   module.
 
 ## Screens, flows, and other visual input
 
@@ -234,7 +236,8 @@ on — read which one this is early and let it set the pace.
    other line untouched; the rest of the file is a Hedgehog constant, not
    project-specific content.
 10. **File screen/flow notes** under their module in
-    `docs/design/<module>-notes.md`, one file per module in scope, even
+    `docs/design/<module>-notes.md`, the fixed filename pattern from
+    "What Intake produces" above, one file per module in scope, even
     when nothing was offered for that module (say so plainly instead of
     omitting the file) — verbatim or lightly organized, raw material for
     `ux-planner`, not a rationale, so don't polish or structure beyond
