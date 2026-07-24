@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "docker compose up -d && nx run-many --target=serve,dev --projects=api,web --parallel"
+  },
   "devDependencies": {
     "@commitlint/cli": "^21.2.1",
     "@commitlint/config-conventional": "^21.2.0",
