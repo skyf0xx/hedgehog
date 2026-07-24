@@ -36,7 +36,15 @@ when a new package needs wiring into a consumer's dependencies.
 
 - **Step 6 (hook)**: build the TanStack Query hook in `packages/hooks`,
   wrapping the ts-rest contract client. One hook per contract operation,
-  typed end to end from the Zod contract.
+  typed end to end from the Zod contract. The client's base URL comes
+  from a `NEXT_PUBLIC_`-prefixed env var (added to
+  `packages/config/env.schema.ts` if it isn't there yet) — never a
+  hardcoded `http://localhost:<port>` literal, even as a "temporary"
+  fallback. `apps/api`'s dev port is `3333` (see `hedgehog-bootstrap-core`
+  — chosen specifically to not collide with `apps/web`'s `next dev`
+  default of `3000`); a literal fallback drifts out of sync with that the
+  moment either port changes and produces a silent 404 that looks like a
+  routing bug, not a config bug.
 - **Step 7 (screen)**: build the screen/component in `apps/web` and/or
   `apps/mobile`, consuming the hook and `ux-planner`'s rationale for that
   module (screen inventory, interaction pattern, information hierarchy).
@@ -77,3 +85,10 @@ when a new package needs wiring into a consumer's dependencies.
 - No inline styles, no CSS modules — Tailwind utilities only.
 - If the contract doesn't cover what the screen needs, stop and flag it
   as a Correction Protocol case rather than reaching past the contract.
+- After editing anything under `packages/hooks/src` (or any other
+  workspace package a running dev server consumes), run
+  `nx run hooks:build` before checking the change in a browser. Next/Expo
+  resolve workspace packages through `package.json`'s `main`/`exports`
+  fields, which point at `dist/`, not live `src/` — a stale `dist/` means
+  the dev server keeps serving the pre-edit code with no error, no
+  warning, and no indication the fix didn't take.

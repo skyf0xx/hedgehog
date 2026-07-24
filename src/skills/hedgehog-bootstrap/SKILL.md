@@ -168,7 +168,11 @@ pnpm add better-auth @thallesp/nestjs-better-auth
 Configure the Drizzle adapter against `packages/db`. Add
 `BETTER_AUTH_SECRET: z.string().min(32)` to `packages/config/env.schema.ts`
 now (it doesn't exist in the core schema `hedgehog-bootstrap-core`
-landed). Tag: `scope:auth`, `type:adapter`.
+landed), and add a matching `BETTER_AUTH_SECRET=` line with a generated
+value to the root `.env.example` — a schema entry with no `.env.example`
+line reproduces the exact `loadEnv()` crash-on-boot that
+`hedgehog-bootstrap-core`'s `DATABASE_URL` entry exists to prevent, just
+for this var instead. Tag: `scope:auth`, `type:adapter`.
 
 Also wire the global auth guard on `apps/api`: `pnpm add
 @thallesp/nestjs-better-auth` there too and register the guard
@@ -196,7 +200,12 @@ pnpm add bullmq ioredis
 Add a `redis` service to the root `docker-compose.yml`
 `hedgehog-bootstrap-core` landed (Postgres-only until now) and
 `REDIS_URL: z.string().url()` to `packages/config/env.schema.ts` (it
-doesn't exist in the core schema):
+doesn't exist in the core schema), plus a matching `REDIS_URL=` line in
+the root `.env.example` pointing at that same `docker-compose.yml`
+service (e.g. `redis://localhost:6379`) — same reasoning as
+`BETTER_AUTH_SECRET` above, a schema entry without a `.env.example` line
+just moves the `loadEnv()` crash-on-boot to this var instead of fixing
+the class of bug:
 
 ```yaml
   redis:

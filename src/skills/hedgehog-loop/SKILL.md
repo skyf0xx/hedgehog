@@ -164,7 +164,12 @@ When a downstream step reveals an upstream step was wrong:
 1. Stop.
 2. Patch the upstream step directly, in place.
 3. Fast-forward every dependent step that breaks, each its own small
-   commit.
+   commit. If the patched step lives in a workspace package (e.g.
+   `packages/hooks`, `packages/contracts`) that a running `web`/`mobile`
+   dev server consumes, run that package's `nx run <pkg>:build` before
+   re-verifying — the dev server resolves the package's built `dist/`,
+   not its `src/`, so an unbuilt patch looks unchanged to anything
+   downstream even though the source is fixed.
 4. The commit messages are the explanation.
 5. Resume the loop.
 

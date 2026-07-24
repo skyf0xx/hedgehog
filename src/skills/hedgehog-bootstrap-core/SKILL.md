@@ -27,12 +27,15 @@ Everything under `src/golden-core/` in the installed Hedgehog package,
 copied to the repo root:
 
 - Root: `nx.json`, `pnpm-workspace.yaml`, `package.json` (with the
-  `pnpm.overrides.esbuild` pin and `packageManager` field),
-  `eslint.config.mjs`, `docker-compose.yml` (Postgres only — Redis joins
-  later, only if the Queue add-on turns on), `lefthook.yml`,
-  `commitlint.config.cjs`, `tools/phase-gate.cjs`,
-  `.github/workflows/phase-gate.yml`, `tsconfig.base.json`,
-  `pnpm-lock.yaml`.
+  `pnpm.overrides.esbuild` pin, `packageManager` field, and a `dev`
+  script — `docker compose up -d && nx run-many --target=serve,dev
+  --projects=api,web --parallel` — so a fresh clone has one command that
+  brings up Postgres and both apps together), `eslint.config.mjs`,
+  `docker-compose.yml` (Postgres only — Redis joins later, only if the
+  Queue add-on turns on), `.env.example` (`DATABASE_URL`/`NODE_ENV`,
+  copied to `.env` in step 4), `lefthook.yml`, `commitlint.config.cjs`,
+  `tools/phase-gate.cjs`, `.github/workflows/phase-gate.yml`,
+  `tsconfig.base.json`, `pnpm-lock.yaml`.
 - `packages/config/` — `eslint-base.js`, `prettier.js` (no
   `prettier-plugin-tailwindcss` — that's `apps/web`'s own config, already
   wired), `env.schema.ts` (core fields only: `DATABASE_URL`, `NODE_ENV`).
@@ -96,8 +99,16 @@ lands" above should be on disk.
 
 ```bash
 pnpm install
+cp .env.example .env
 docker compose up -d
 ```
+
+`.env` is gitignored and never shipped — `.env.example` is the committed
+template (`DATABASE_URL` matching `docker-compose.yml`'s Postgres
+credentials, `NODE_ENV=development`). Skipping the copy means
+`packages/config`'s `loadEnv()` fails its Zod check the moment `apps/api`
+boots (`DATABASE_URL` missing) — a confusing crash to debug live instead
+of one line here.
 
 `pnpm install` resolves against the committed `pnpm-lock.yaml` — this
 should be fast and produce no lockfile changes. A lockfile diff here
@@ -191,6 +202,17 @@ bug by "cleaning up" what looks like an unnecessary pin or directive.
   is ESM (`export default`), and without a matching `"type": "module"`
   Node emits a `MODULE_TYPELESS_PACKAGE_JSON` warning on every prettier
   invocation touching that directory.
+- **`apps/api`'s dev port defaults to 3333, not 3000.** `apps/web`'s
+  `next dev` also defaults to port 3000, and the root `dev` script runs
+  both side by side (`nx run-many --target=serve,dev
+  --projects=api,web`). If `apps/api/src/main.ts` ever falls back to
+  `process.env.PORT || 3000`, whichever process binds the port second
+  either crashes or is silently unreachable, and every API call from the
+  web client 404s against Next's own dev server instead (Next has no
+  matching route, so it serves its catch-all 404 page rather than a
+  connection error — easy to mistake for a routing bug in the api
+  itself). Keep `apps/api`'s fallback at `3333` and don't let it drift
+  back to matching Next's default.
 - **No `NODE_ENV=production` build-target override needed** (Nx
   23.1.0, Next 16.1.7). Targets are inferred from
   `package.json`/`next.config.js` via the `@nx/next` plugin, with no

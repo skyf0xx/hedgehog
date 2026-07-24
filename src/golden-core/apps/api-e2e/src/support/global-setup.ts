@@ -7,7 +7,7 @@ export default async function setup() {
   console.log('\nSetting up...\n');
 
   const host = process.env.HOST ?? 'localhost';
-  const port = process.env.PORT ? Number(process.env.PORT) : 3000;
+  const port = process.env.PORT ? Number(process.env.PORT) : 3333;
   await waitForPortOpen(port, { host });
 
   return async function teardown() {
