@@ -28,7 +28,7 @@ Hedgehog combines:
 
 Software that stays structured as it grows.
 
-![Just describe what you want](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/handoff.jpg)
+![Just describe what you want](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/handoff.png)
 
 ## The Hedgehog Loop
 
@@ -109,7 +109,9 @@ then generates that workspace and builds it one verified layer at a time.
 The enforcement remains the same: ordered steps,
 scoped file access and a verification command per layer.
 
-![Why Hedgehog works: a different way to build with AI, comparing traditional AI workflow to Hedgehog](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/why.png)
+## Why Hedgehog Works
+
+![Why Hedgehog works](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/why.png)
 
 ## Install
 
