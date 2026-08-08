@@ -14,6 +14,7 @@ import { applySchema } from './schema.mjs';
 import { addIntent, INTENTS_DIR } from './intent.mjs';
 import { planTasks } from './plan.mjs';
 import { loadCore } from './core.mjs';
+import { detectDrift } from './drift.mjs';
 
 // Alphabetical by filename so replay order is deterministic across
 // machines and runs — intents have no other natural ordering (priority
@@ -85,6 +86,18 @@ function markCompletedTasks(db, commitSubjects) {
 // replayed through addIntent, then planTasks to re-derive tasks +
 // dependencies, then git history to reconcile which tasks already
 // completed. Returns a summary for the CLI to print.
+//
+// `drift` in the return is the honest disclosure this rebuild owes its
+// caller. A rebuild re-derives every task's layer-derived fields from
+// the *current* core.yaml, and the intent files it replays carry no
+// task-level detail at all — so any hand-edit made directly to a task
+// row (the widened scope glob, the patched verify command) has no
+// committed source to replay from and does not survive. Rows that
+// predate this rebuild are left as they are, which is the other half of
+// the same problem: they can be stale against core.yaml and nothing
+// would otherwise say so. Reporting the divergence is what turns both
+// into something the operator sees instead of something they discover
+// three layers later.
 export async function rebuildDb(db, { corePath, intentsDir = INTENTS_DIR } = {}) {
   applySchema(db);
 
@@ -96,5 +109,7 @@ export async function rebuildDb(db, { corePath, intentsDir = INTENTS_DIR } = {})
   const commitSubjects = loadCommitSubjects();
   const tasksMarkedComplete = markCompletedTasks(db, commitSubjects);
 
-  return { intentsReplayed, tasksMarkedComplete };
+  const drift = detectDrift(db, core);
+
+  return { intentsReplayed, tasksMarkedComplete, drift };
 }
