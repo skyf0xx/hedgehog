@@ -26,6 +26,7 @@ import { verifyTask } from '../src/db/verify.mjs';
 import { claimTasks, releaseTask, renewLease } from '../src/db/claim.mjs';
 import { readyTasks, formatReady } from '../src/db/ready.mjs';
 import { graphStatus, formatStatus } from '../src/db/status.mjs';
+import { commitGateStatus, formatCommitGate } from '../src/db/gate.mjs';
 import { whyPath, formatWhy } from '../src/db/why.mjs';
 import { addFriction, listFriction } from '../src/db/friction.mjs';
 import { rebuildDb } from '../src/db/rebuild.mjs';
@@ -974,6 +975,18 @@ async function statusCommand() {
   }
 
   console.log(formatStatus(result));
+
+  // Whether the commit gate is actually enforcing. This is reported at
+  // the start of every session because a gate that isn't running looks
+  // exactly like one that is — `.git/hooks` exists, `lefthook.yml` is
+  // committed, and a passing commit prints nothing to tell the two
+  // apart. Nothing else in the discipline would notice.
+  const gate = await commitGateStatus(DEST_ROOT);
+  const gateText = formatCommitGate(gate);
+  if (gateText) {
+    console.log('');
+    console.log(gate.state === 'active' ? dim(gateText) : yellow(gateText));
+  }
 }
 
 // `hedgehog ready` — read-only preview of what a `hedgehog claim` call

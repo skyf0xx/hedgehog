@@ -133,12 +133,28 @@ four separate live generate-and-verify passes — core isn't proven
 correct by trusting the copy, it's proven correct by actually running
 the same gate every other step in this discipline runs.
 
-Run `pnpm dlx lefthook install` once `lefthook.yml` is in place (it
-already is, from the copy) so the commit gate is active before the next
-commit. Verify the hook resolves to the project's pinned local lefthook
-(check `lefthook version` during a commit, or that `.git/hooks/`
-resolves into `node_modules/.bin/lefthook`) rather than a global
-Homebrew-installed shadow.
+The commit gate is already active by this point: `lefthook.yml` came
+with the copy, and lefthook's own postinstall ran `lefthook install -f`
+during step 4's `pnpm install`. Run `pnpm dlx lefthook install` only if
+`.git/hooks/pre-commit` is somehow absent.
+
+Confirm the gate is real rather than assuming it, with:
+
+```bash
+hedgehog status
+```
+
+Its `COMMIT GATE` line reads `active` only when the hooks exist, were
+generated with `lefthook.yml`'s `assert_lefthook_installed: true`, and
+the lefthook binary actually resolves. Anything else is a gate that
+isn't enforcing, and the line names the repair. Two failure modes it
+catches that nothing else does: hooks generated before that flag
+existed (they fail open — regenerate with `pnpm dlx lefthook install`),
+and a `node_modules` that has since been cleared (`pnpm install`).
+
+Also check the hook resolves to the project's pinned local lefthook
+(`lefthook version` during a commit, or that `.git/hooks/` resolves
+into `node_modules/`) rather than a global Homebrew-installed shadow.
 
 ### 6. Commit
 
