@@ -44,10 +44,17 @@
 // it.
 //
 // No subprocess (git, verify_command) ever runs while a sqlite
-// transaction is open: every execSync call in this file happens before
-// BEGIN or after COMMIT, never between them.
+// transaction is open: every execSync/execFileSync call in this file
+// happens before BEGIN or after COMMIT, never between them.
+//
+// Every git invocation here goes through execFileSync with an argv array
+// — no shell, so nothing that reaches these commands (a layer's scope
+// globs, its commit message, or a file name read back out of the working
+// tree) can be interpreted as shell syntax. The one deliberate exception
+// is runVerifyCommand, whose verify_command is a shell command line by
+// definition.
 
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { DB_PATH } from './init.mjs';
 import { withCommitLock, LOCK_PATH } from './commitLock.mjs';
 import { reapExpiredLeases } from './claim.mjs';
@@ -62,11 +69,14 @@ function isEngineStatePath(path) {
   return path === DB_PATH || path.startsWith(`${DB_PATH}-`) || path === LOCK_PATH;
 }
 
-// Shell-safe quoting for paths interpolated into a git command line,
-// matching the JSON.stringify(path) convention used elsewhere in this
-// file for the same purpose.
-function quotePathspec(path) {
-  return JSON.stringify(path);
+// The `-- <pathspec>...` tail shared by the two diff commands below, as
+// argv entries rather than a command-line fragment. `pathspecs` present
+// but empty still emits a bare `--` (git reads that as "no restriction",
+// which is what an empty scope list has always meant here); absent emits
+// nothing at all. Pathspec magic (`:(glob)…`) reaches git untouched
+// precisely because nothing tokenizes these strings on the way.
+function pathspecArgs(pathspecs) {
+  return pathspecs ? ['--', ...pathspecs] : [];
 }
 
 // Working-tree diff (relative paths), optionally restricted to `pathspecs`
@@ -74,10 +84,13 @@ function quotePathspec(path) {
 // — covers modified, added, deleted, and untracked files, everything the
 // agent could have touched.
 function changedPaths(pathspecs) {
-  const scopeArgs = pathspecs ? ` -- ${pathspecs.map(quotePathspec).join(' ')}` : '';
-  const tracked = execSync(`git diff --name-only HEAD${scopeArgs}`, { encoding: 'utf8' });
-  const untracked = execSync(
-    `git ls-files --others --exclude-standard${scopeArgs}`,
+  const scopeArgs = pathspecArgs(pathspecs);
+  const tracked = execFileSync('git', ['diff', '--name-only', 'HEAD', ...scopeArgs], {
+    encoding: 'utf8',
+  });
+  const untracked = execFileSync(
+    'git',
+    ['ls-files', '--others', '--exclude-standard', ...scopeArgs],
     { encoding: 'utf8' },
   );
   const paths = new Set(
@@ -246,8 +259,7 @@ function runVerifyCommand(command) {
 // per path: anything ls-tree reports already existed in HEAD.
 function classifyArtifacts(paths) {
   if (paths.length === 0) return new Map();
-  const quoted = paths.map(quotePathspec).join(' ');
-  const output = execSync(`git ls-tree -r --name-only HEAD -- ${quoted}`, {
+  const output = execFileSync('git', ['ls-tree', '-r', '--name-only', 'HEAD', '--', ...paths], {
     encoding: 'utf8',
   });
   const existing = new Set(output.split('\n').map((p) => p.trim()).filter(Boolean));
@@ -266,10 +278,9 @@ function classifyArtifacts(paths) {
 // this function makes is the task's final commit; nothing amends it
 // afterward.
 function commitTouchedPaths(paths, commitMessage) {
-  const quoted = paths.map(quotePathspec).join(' ');
-  execSync(`git add -- ${quoted}`, { stdio: 'pipe' });
-  execSync(`git commit -m ${JSON.stringify(commitMessage)}`, { stdio: 'pipe' });
-  return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+  execFileSync('git', ['add', '--', ...paths], { stdio: 'pipe' });
+  execFileSync('git', ['commit', '-m', commitMessage], { stdio: 'pipe' });
+  return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 }
 
 // Phase 0: reap expired leases, load `taskId`, assert it's `building` and
