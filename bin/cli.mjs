@@ -26,6 +26,7 @@ import { verifyTask } from '../src/db/verify.mjs';
 import { claimTasks, releaseTask, renewLease } from '../src/db/claim.mjs';
 import { readyTasks, formatReady } from '../src/db/ready.mjs';
 import { graphStatus, formatStatus } from '../src/db/status.mjs';
+import { detectDrift, recompileTasks, formatRecompile } from '../src/db/drift.mjs';
 import { whyPath, formatWhy } from '../src/db/why.mjs';
 import { addFriction, listFriction } from '../src/db/friction.mjs';
 import { rebuildDb } from '../src/db/rebuild.mjs';
@@ -221,6 +222,22 @@ async function ensureDb() {
   console.log(
     `${dim('DB missing — rebuilt from')} ${bold(INTENTS_DIR)}${dim(':')} ${dim(`${result.intentsReplayed} intent(s) replayed, ${result.tasksMarkedComplete} task(s) marked complete`)}\n`,
   );
+  warnRebuildDrift(result, corePath);
+}
+
+// A rebuild re-derives every task from the current core.yaml and the
+// committed intents. Nothing else is committed — a task row someone
+// patched by hand has no source to replay from — so say plainly what a
+// rebuild can and cannot carry, and surface any task that ends up
+// disagreeing with core.yaml.
+function warnRebuildDrift({ drift }, corePath) {
+  if (!drift || drift.length === 0) return;
+  console.log(
+    `${yellow(bold('Core drift after rebuild.'))} ${drift.length} task(s) do not match ${bold(corePath)}.\n` +
+      `A rebuild replays ${bold(INTENTS_DIR)} and re-derives tasks from core.yaml; task rows\n` +
+      'edited by hand have no committed source and are not replayed. Run\n' +
+      `${bold('hedgehog status')} for the divergence, ${bold('hedgehog plan --recompile')} to reconcile.\n`,
+  );
 }
 
 // Writes one planned file to disk — a straight copy, or for a `merge`
@@ -307,6 +324,8 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog db rebuild                re-derive the build graph from committed intents + git history
   npx @skyf0xx/hedgehog plan                      compile pending intents into tasks + dependencies,
                                                    then open the build graph if anything compiled
+  npx @skyf0xx/hedgehog plan --recompile          rewrite core.yaml-derived fields on not-started tasks
+                                                   [--dry-run] [--include-blocked] [--strict]
   npx @skyf0xx/hedgehog intent add [flags]        add an intent (rules/requirements/dependencies)
   npx @skyf0xx/hedgehog intent add --file <path>  add an intent from a JSON file
   npx @skyf0xx/hedgehog next                      print the task packet for one ready task
@@ -314,7 +333,8 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog release <task-id> --owner <owner>   hand a claimed task back to ready
   npx @skyf0xx/hedgehog renew <task-id> --owner <owner> [--minutes <n>]   extend a held lease
   npx @skyf0xx/hedgehog verify <task-id> --owner <owner>   run scope + verify checks, commit on pass
-  npx @skyf0xx/hedgehog status                    graph overview: counts by status, ready list, in flight
+  npx @skyf0xx/hedgehog status                    graph overview: counts by status, ready list, in flight,
+                                                   and any drift from core.yaml
   npx @skyf0xx/hedgehog ready                     preview which ready tasks are claimable now vs held back
   npx @skyf0xx/hedgehog quiesce                   report whether anything is still in flight
   npx @skyf0xx/hedgehog graph                     start (or reuse) the live graph server and open it
@@ -532,6 +552,7 @@ async function dbRebuildCommand() {
   console.log(
     `${green('rebuilt')}  ${dim(`${result.intentsReplayed} intent(s) replayed, ${result.tasksMarkedComplete} task(s) marked complete`)}\n`,
   );
+  warnRebuildDrift(result, corePath);
 }
 
 async function dbCommand(args) {
@@ -570,7 +591,56 @@ async function resolveCorePath() {
   return null;
 }
 
-async function planCommand() {
+// `hedgehog plan --recompile` — the reconciliation path for a core.yaml
+// edited after `plan` already compiled it.
+//
+// `plan` copies each layer's scope globs, verify command, commit message,
+// exclusivity and verify radius onto every task row, and from then on the
+// row is what `next`/`claim`/`verify` read. A plain re-run can't fix a
+// later core.yaml correction — compiling an intent flips it to `active`,
+// and `plan` only ever looks at `proposed`/`planned` ones — so before this
+// existed the only remedy was an UPDATE in SQLite by hand.
+//
+// Deliberately not a fresh compile: it rewrites fields on tasks nothing
+// has acted on yet and refuses the rest, so ids, dependencies, statuses
+// and history are untouched.
+async function planRecompileCommand(args, { core, corePath }) {
+  const includeBlocked = args.includes('--include-blocked');
+  const dryRun = args.includes('--dry-run');
+  const strict = args.includes('--strict');
+
+  const db = openDb();
+  let result;
+  try {
+    result = recompileTasks(db, core, { includeBlocked, dryRun });
+  } finally {
+    db.close();
+  }
+
+  if (dryRun) console.log(dim('  (--dry-run — nothing was written)'));
+  console.log(formatRecompile(result));
+
+  if (result.updated.length === 0 && result.skipped.length === 0) {
+    console.log(`\n${green(bold('In sync.'))} Every task matches ${bold(corePath)}.\n`);
+    return;
+  }
+
+  if (result.skipped.length > 0) {
+    console.log(
+      `\n${yellow(bold('Some drift remains.'))} Each skipped task above names why it kept its compiled\n` +
+        'fields. A task already built, leased, or committed is a Correction Protocol\n' +
+        'case (fix the layer at its source, re-run that layer), not a field rewrite;\n' +
+        'a changed depends_on or a layer dropped from core.yaml is a graph-shape\n' +
+        'change, which --recompile deliberately does not make.\n',
+    );
+  } else {
+    console.log(`\n${green(bold('Recompiled.'))}\n`);
+  }
+
+  if (strict && result.skipped.length > 0) process.exitCode = 1;
+}
+
+async function planCommand(args = []) {
   await ensureDb();
 
   const corePath = await resolveCorePath();
@@ -589,6 +659,12 @@ async function planCommand() {
   }
 
   const core = await loadCore(corePath);
+
+  if (args.includes('--recompile')) {
+    await planRecompileCommand(args, { core, corePath });
+    return;
+  }
+
   const db = openDb();
   let result;
   try {
@@ -602,6 +678,25 @@ async function planCommand() {
   console.log(
     `\n${green(bold('Plan complete.'))} ${dim(`${result.compiled.length} intent(s) compiled, ${result.skipped.length} skipped`)}\n`,
   );
+
+  // A plain `plan` is where someone lands after editing core.yaml,
+  // expecting the edit to take. It won't — already-compiled tasks carry
+  // their own copy of the layer's fields — so say so here rather than
+  // letting the run report "0 compiled" and look like a no-op.
+  const driftDb = openDb({ readOnly: true });
+  let drifted;
+  try {
+    drifted = detectDrift(driftDb, core);
+  } finally {
+    driftDb.close();
+  }
+  if (drifted.length > 0) {
+    console.log(
+      `${yellow(bold('Core drift.'))} ${drifted.length} already-compiled task(s) no longer match ${bold(corePath)}.\n` +
+        `Compiling does not revisit them. Run ${bold('hedgehog status')} to see the divergence,\n` +
+        `or ${bold('hedgehog plan --recompile')} to rewrite the not-started ones.\n`,
+    );
+  }
 
   // Only worth opening when this run actually changed the graph's shape
   // — a plan run that compiled nothing (every intent already had tasks)
@@ -956,10 +1051,27 @@ async function statusCommand() {
     return;
   }
 
+  // Drift needs the core definition to compare against. A project
+  // without one yet (deferred install, pre-bootstrap) simply gets the
+  // status it always got; an unparseable one is reported but never
+  // allowed to take `status` down — it's the command every session
+  // starts with.
+  let core = null;
+  const corePath = await resolveCorePath();
+  if (corePath) {
+    try {
+      core = await loadCore(corePath);
+    } catch (err) {
+      console.error(
+        `${yellow('Core definition unreadable:')} ${corePath} — ${err.message}\n${dim('Drift against core.yaml cannot be checked.')}\n`,
+      );
+    }
+  }
+
   const db = openDb();
   let result;
   try {
-    result = graphStatus(db);
+    result = graphStatus(db, { core });
   } finally {
     db.close();
   }
@@ -1322,7 +1434,7 @@ async function main() {
   }
 
   if (cmd === 'plan') {
-    await planCommand();
+    await planCommand(args.slice(1));
     return;
   }
 

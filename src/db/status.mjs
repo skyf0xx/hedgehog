@@ -11,6 +11,8 @@
 // every task meeting that condition, not just the one `hedgehog next`
 // would pick.
 
+import { detectDrift, formatDrift } from './drift.mjs';
+
 // The task lifecycle in order, matching the tasks CHECK constraint in
 // schema.mjs exactly — every status the engine can write, and no others.
 const TASK_STATUSES = [
@@ -75,18 +77,25 @@ function loadAttentionTasks(db) {
   return db.prepare(ATTENTION_TASKS_SQL).all();
 }
 
-// Returns { counts, ready, inFlight, attention, total } — counts keyed by
-// every status in the tasks CHECK constraint (present even at zero),
-// ready the full list of currently-pickable tasks, inFlight the tasks
-// currently leased (building or verifying), attention the stalled tasks
-// needing a fix, total the sum across all statuses.
-export function graphStatus(db) {
+// Returns { counts, ready, inFlight, attention, drift, total } — counts
+// keyed by every status in the tasks CHECK constraint (present even at
+// zero), ready the full list of currently-pickable tasks, inFlight the
+// tasks currently leased (building or verifying), attention the stalled
+// tasks needing a fix, total the sum across all statuses.
+//
+// `core` is optional and, when given, adds `drift`: the tasks whose
+// layer-derived fields no longer match core.yaml (drift.mjs). It's a
+// parameter rather than a lookup because status.mjs has no business
+// resolving the project's core path — the CLI already does that, and
+// a project mid-install may not have a core definition at all.
+export function graphStatus(db, { core = null } = {}) {
   const counts = countTasksByStatus(db);
   const ready = loadReadyTasks(db);
   const inFlight = loadInFlightTasks(db);
   const attention = loadAttentionTasks(db);
+  const drift = core ? detectDrift(db, core) : [];
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  return { counts, ready, inFlight, attention, total };
+  return { counts, ready, inFlight, attention, drift, total };
 }
 
 const BLOCKED_REASON_LABELS = {
@@ -98,7 +107,7 @@ const BLOCKED_REASON_LABELS = {
 // Renders a graphStatus() result into a plain-text overview: counts by
 // status (only non-zero ones, in lifecycle order), the ready list, tasks
 // currently in flight, and anything needing attention.
-export function formatStatus({ counts, ready, inFlight, attention, total }) {
+export function formatStatus({ counts, ready, inFlight, attention, drift, total }) {
   const lines = [];
   lines.push(`TASKS  ${total}`);
   lines.push('');
@@ -133,6 +142,14 @@ export function formatStatus({ counts, ready, inFlight, attention, total }) {
     }
     lines.push('');
     lines.push('  Fix the work, then re-run: hedgehog verify <task-id>');
+  }
+
+  // Last, because it's a condition of the graph as a whole rather than
+  // of any one task, and because an operator reading top-down should
+  // reach it after knowing what's ready and what's stuck.
+  if (drift && drift.length > 0) {
+    lines.push('');
+    lines.push(formatDrift(drift));
   }
 
   return lines.join('\n');
