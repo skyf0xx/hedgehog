@@ -254,6 +254,55 @@ files. Its true verify radius is the whole package —
 modules' schema tasks correctly serialize against each other on that
 radius even though their scopes don't overlap.
 
+## Step 4c — say where the push happens
+
+Skip this if no layer in the sequence deploys, publishes, or otherwise
+acts on a system outside the working tree. For every layer that does,
+answer one question before Step 5 and record the answer in
+`core-design.md`: **where does the push happen, relative to this layer's
+commit?**
+
+The gate's own ordering forces the question. `hedgehog verify` runs the
+layer's verify command and writes the commit only if it passes, and
+nothing in the tool pushes — so at the moment the command judges the
+world, the files the layer just wrote are in the working tree and nowhere
+else: not committed, not on a remote. A verify that asks a system to read
+those files out of a git repository is asking about files that
+demonstrably do not exist yet.
+
+That makes a deployment model whose source of truth is the committed
+repository — GitOps: ArgoCD, Flux — circular on the first run of any
+layer that introduces manifests, and it fails silently rather than
+loudly. The controller syncs the revision it can see, finds no manifests,
+manages zero resources, and reports healthy; an empty set is trivially
+healthy. A verify that asks "is the application healthy?" gets yes and
+commits a vacuous claim. A continuous-sync policy (ArgoCD's `automated`,
+`selfHeal`) compounds it: it reverts whatever the verify command applied
+out of band — including on revisions moved by later commits that never
+touched the manifests — and a verify that re-applies the controller's own
+Application manifest re-arms that policy on every run.
+
+Two answers are expressible under this discipline:
+
+- **The layer applies directly** — `kubectl apply`, `helm upgrade`, a
+  registry push — and its verify asserts against what it just applied.
+  The repository records what was deployed; it is not what
+  deploys. No reconciliation controller with an automated sync policy
+  belongs in any layer's committed output, since it will revert the layer
+  that applied out of band.
+- **The push is an out-of-band step between two layers** — a person or CI
+  pushes after layer N commits, and layer N+1's verify assumes it
+  happened. The graph cannot represent that step, schedule it, or check
+  it ran, so name it in `core-design.md` as a manual precondition of
+  layer N+1 and expect the first clean run to stop there until someone
+  performs it.
+
+A third answer — the deployed state is reconciled from the committed
+repository, and the verify judges that reconciled state — is not
+expressible: it requires a commit before the verify that gates the
+commit. Choose a model that applies directly rather than designing a
+layer around it.
+
 ## Step 5 — write `.hedgehog/core.yaml`
 
 The loader parses `id` plus a `layers` list of flat maps. Every layer
@@ -302,6 +351,22 @@ if missed:
   of) passes on an empty implementation. Pair typecheck/build commands
   with a test command that exercises the layer's actual output whenever
   the layer produces behavior, not just types.
+- **A layer whose output a framework compiles must run that build in its
+  `verify`.** A typechecker and a test runner are not the framework's
+  build: they are different module resolvers, reading different config,
+  applying different rules. Code can typecheck clean and pass every test
+  and still be unbuildable — a relative import written with an explicit
+  `.js` extension resolves under `NodeNext` and fails under a
+  bundler-style `moduleResolution`, and only the framework's own build
+  says so. The blast radius is what makes this silent rather than slow:
+  these builds are usually all-or-nothing across the app, so one
+  unbuildable file blocks the artifact for every other route too, and it
+  surfaces layers later as "nothing deploys" rather than "this layer is
+  wrong". Put `next build` / `astro build` / `vite build` / `expo export`
+  / whatever the chosen framework's build command is into that layer's
+  `verify` alongside the typecheck and the tests, and declare what the
+  build reads as `verify_radius` (Step 4b) — a whole-app build reads the
+  whole app, not just this layer's scope.
 - **A `verify` filter token must cross-check against that same layer's
   `scope`.** When `verify` includes a test-runner filter string (`pnpm
   test <token>`, `pnpm test <token1> <token2> ...`), each token is a
@@ -364,6 +429,8 @@ to change only until the file lands. Hard stop.
   cross-checked against that same layer's scope globs (Step 5).
 - The module-axis decision, named as such, with the consequence stated
   (intents × layers tasks, or one task per layer).
+- For any layer that deploys or publishes: where the push happens
+  relative to that layer's commit (Step 4c) — or that no layer deploys.
 - That this is an authored core: the sequence was designed for this
   project, not battle-tested across many, and it carries the same
   enforcement as a Golden Core but a weaker guarantee.
