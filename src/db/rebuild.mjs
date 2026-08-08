@@ -12,7 +12,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { execSync } from 'node:child_process';
 import { applySchema } from './schema.mjs';
 import { addIntent, INTENTS_DIR } from './intent.mjs';
-import { planTasks } from './plan.mjs';
+import { planTasks, CORE_MODULE } from './plan.mjs';
 import { loadCore } from './core.mjs';
 
 // Alphabetical by filename so replay order is deterministic across
@@ -51,17 +51,26 @@ async function replayIntents(db, intentsDir) {
   return count;
 }
 
-// Every commit subject in history, as a Set — one `git log` call rather
-// than one per task, since the check below is pure membership.
+// Every commit subject in history mapped to its position, newest first —
+// one `git log` call rather than one per task. Membership alone answers
+// "did this task ever run"; position also answers "did it run *after*
+// the thing it depends on", which is what a `once: true` task needs,
+// since its commit subject is a constant that one historical occurrence
+// would otherwise satisfy forever. `--topo-order` so the position is a
+// property of the history's shape rather than of commit timestamps.
 function loadCommitSubjects() {
-  const output = execSync('git log --format=%H%x00%s', { encoding: 'utf8' });
-  const subjects = new Set();
+  const output = execSync('git log --topo-order --format=%H%x00%s', { encoding: 'utf8' });
+  const newestPosition = new Map();
+  let position = 0;
   for (const line of output.split('\n')) {
     if (!line) continue;
     const [, subject] = line.split('\0');
-    if (subject !== undefined) subjects.add(subject);
+    if (subject === undefined) continue;
+    // Newest first, so the first occurrence seen is the most recent one.
+    if (!newestPosition.has(subject)) newestPosition.set(subject, position);
+    position++;
   }
-  return subjects;
+  return newestPosition;
 }
 
 // A task is complete iff some commit's subject exactly matches its
@@ -69,16 +78,86 @@ function loadCommitSubjects() {
 // commit. Marks status directly rather than through verifyTask's flow:
 // there's no verify_command to re-run and no working tree diff to check,
 // only the historical fact that the commit already happened.
+//
+// A `once: true` task carries two extra conditions: every prerequisite
+// must be complete, and its own commit must be *newer* than all of them.
+// Its prerequisite set is the only one that grows after the task has
+// already run — `planner`'s Re-entry pass adds a new intent whose work a
+// tail once-layer then depends on (plan.mjs reopens it for exactly that
+// reason). Its commit subject carries no {module}, so it is a constant:
+// the single `chore(infra): deploy` from the first run would otherwise
+// make the layer look done forever, re-closing it here on the next fresh
+// clone and quietly undoing the reopen. Requiring it to sit above its
+// prerequisites in history is what encodes "the deploy ran *after* that
+// module landed". Walked to a fixpoint, since a once-layer may sit
+// behind another one.
+//
+// This condition is deliberately not applied to per-module tasks. A task
+// that completed without touching any file leaves no commit at all
+// (verifyTask writes none), and cascading that gap through the whole
+// chain would reset already-built modules. Scoping it to once-layers
+// keeps the change to cores that use the feature, and errs toward
+// re-running an idempotent infrastructure step rather than skipping it.
 function markCompletedTasks(db, commitSubjects) {
-  const tasks = db.prepare('SELECT id, commit_message FROM tasks').all();
-  const setComplete = db.prepare("UPDATE tasks SET status = 'complete' WHERE id = ?");
-  let count = 0;
-  for (const task of tasks) {
-    if (!commitSubjects.has(task.commit_message)) continue;
-    setComplete.run(task.id);
-    count++;
+  const tasks = db.prepare('SELECT id, module, commit_message FROM tasks').all();
+  const prerequisites = new Map(tasks.map((t) => [t.id, []]));
+  for (const d of db.prepare('SELECT task_id, depends_on_task_id FROM dependencies').all()) {
+    prerequisites.get(d.task_id)?.push(d.depends_on_task_id);
   }
-  return count;
+
+  // Position of each task's most recent matching commit; undefined means
+  // the task never committed.
+  const positionOf = new Map(
+    tasks.map((t) => [t.id, commitSubjects.get(t.commit_message)]),
+  );
+
+  const complete = new Set();
+  const onceTasks = [];
+  for (const task of tasks) {
+    if (task.module === CORE_MODULE) {
+      onceTasks.push(task);
+      continue;
+    }
+    if (positionOf.get(task.id) !== undefined) complete.add(task.id);
+  }
+
+  // Lower position is newer, so a once-task ran after a prerequisite when
+  // its own position is strictly smaller.
+  const ranAfterPrerequisites = (task) => {
+    const own = positionOf.get(task.id);
+    return prerequisites.get(task.id).every((id) => {
+      const prereq = positionOf.get(id);
+      return prereq === undefined || own < prereq;
+    });
+  };
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const task of onceTasks) {
+      if (complete.has(task.id) || positionOf.get(task.id) === undefined) continue;
+      if (!prerequisites.get(task.id).every((id) => complete.has(id))) continue;
+      if (!ranAfterPrerequisites(task)) continue;
+      complete.add(task.id);
+      changed = true;
+    }
+  }
+
+  const setComplete = db.prepare("UPDATE tasks SET status = 'complete' WHERE id = ?");
+  for (const id of complete) setComplete.run(id);
+
+  // Rebuild also runs against an already-populated DB ("after suspected
+  // corruption"), where a once-task may be sitting at `complete` from
+  // before a re-entry pass added work under it. Reconcile it back rather
+  // than leaving the stale status untouched.
+  const reopen = db.prepare(
+    "UPDATE tasks SET status = 'planned' WHERE id = ? AND status = 'complete'",
+  );
+  for (const task of onceTasks) {
+    if (!complete.has(task.id)) reopen.run(task.id);
+  }
+
+  return complete.size;
 }
 
 // Rebuilds `db` from scratch: schema, then every committed intent

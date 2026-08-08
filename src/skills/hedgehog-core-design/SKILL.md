@@ -235,6 +235,15 @@ there is no module to substitute; `validateCore` rejects it outright. And
 a core cannot be all `once` layers: at least one layer has to be
 per-intent, or no intent compiles anything.
 
+A `once` layer that sits *below* per-module layers is re-entrant by
+design, and that shapes what belongs in one. When `planner`'s Re-entry
+pass adds a new module to a finished build, the new module's task becomes
+a prerequisite of that already-complete layer, so `hedgehog plan` reopens
+it and says so — otherwise the graph would report the build done with the
+new module never deployed. Design such a layer to be safe to run more
+than once: `terraform apply` and `kubectl apply` are, a migration that
+assumes a fresh database is not.
+
 `once` and `exclusive` are different axes and often both apply.
 `once: true` is *how many tasks compile*; `exclusive: true` is *whether
 the one that compiled may run alongside anything else*. Shared

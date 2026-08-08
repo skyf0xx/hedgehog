@@ -262,6 +262,78 @@ function ensureCoreIntent(db, core) {
   }
 }
 
+// A once-layer is the only task whose prerequisite set can grow *after*
+// it has completed: `planner`'s Re-entry pass adds a new intent to a
+// finished build, and a tail once-layer picks up that new module's task
+// as a prerequisite. Left complete, the new module can finish and the
+// graph reports the whole build done while the build-wide deploy never
+// ran for it — a green graph over work that did not happen.
+//
+// So it is reopened. Re-running is what the layer is for: cross-cutting
+// infrastructure work is idempotent by construction (`terraform apply`
+// against its own state, `kubectl apply` per object), and the earlier
+// commit stays in history untouched — this moves the task's status, not
+// the record of what it already did.
+//
+// Not reopened: per-module tasks downstream of a once-layer. Their
+// commits are real work on files that still exist and still pass, and
+// re-running them is a Correction Protocol decision rather than
+// something `plan` should do silently to already-built modules.
+function reopenOnceTask(db, taskId, intentId) {
+  const row = db.prepare('SELECT status FROM tasks WHERE id = ?').get(taskId);
+  if (row === undefined) return false;
+
+  // An agent is running it right now against the old prerequisite set.
+  // Slipping a new dependency under a live lease would either be ignored
+  // (it verifies and completes anyway) or corrupt the lease invariant on
+  // the way back to `planned`. Refuse the whole plan run instead.
+  if (row.status === 'building' || row.status === 'verifying') {
+    throw new Error(
+      `once: true task "${taskId}" is ${row.status} right now, and intent "${intentId}" adds a new prerequisite to it — let it finish (or \`hedgehog release ${taskId}\`) and run \`hedgehog plan\` again`,
+    );
+  }
+
+  if (row.status !== 'complete') return false;
+  db.prepare("UPDATE tasks SET status = 'planned', blocked_reason = NULL WHERE id = ?").run(
+    taskId,
+  );
+  return true;
+}
+
+// Reopens each seed once-task, then walks once → once edges so a
+// once-layer downstream of a reopened one reopens too — its input changed
+// for the same reason.
+function reopenOnceTasks(db, core, seeds) {
+  const byId = layerById(core);
+  const onceChildren = new Map();
+  for (const layer of core.layers) {
+    if (!layer.once || !layer.depends_on) continue;
+    if (!byId.get(layer.depends_on).once) continue;
+    const parentId = onceTaskId(layer.depends_on);
+    if (!onceChildren.has(parentId)) onceChildren.set(parentId, []);
+    onceChildren.get(parentId).push(onceTaskId(layer.id));
+  }
+
+  const reopened = [];
+  const seen = new Set();
+  const frontier = [...seeds];
+  while (frontier.length > 0) {
+    const { id, intentId } = frontier.pop();
+    if (seen.has(id)) continue;
+    seen.add(id);
+    if (reopenOnceTask(db, id, intentId)) reopened.push(id);
+    for (const childId of onceChildren.get(id) ?? []) {
+      frontier.push({ id: childId, intentId });
+    }
+  }
+
+  if (reopened.length > 0) {
+    // The synthesised intent is no longer finished either.
+    db.prepare("UPDATE intents SET status = 'active' WHERE id = ?").run(CORE_INTENT_ID);
+  }
+  return reopened.sort();
+}
+
 const insertTask = (db) =>
   db.prepare(`
     INSERT INTO tasks
@@ -341,6 +413,9 @@ export function planTasks(db, core) {
   const compiledIntentIds = [];
   const skippedIntentIds = [];
   const compiledOnceTaskIds = [];
+  // Once-tasks that a newly compiled intent hangs a prerequisite on.
+  const onceTasksGainingPrereqs = [];
+  let reopenedOnceTaskIds = [];
 
   db.exec('BEGIN IMMEDIATE');
   try {
@@ -405,6 +480,9 @@ export function planTasks(db, core) {
       }
       for (const d of dependencies) {
         runInsertDep.run(d.task_id, d.depends_on_task_id);
+        if (onceTaskIds.has(d.task_id)) {
+          onceTasksGainingPrereqs.push({ id: d.task_id, intentId: intent.id });
+        }
       }
 
       // Cross-intent edge: per layer, not first-to-last — this intent's
@@ -424,6 +502,8 @@ export function planTasks(db, core) {
 
       compiledIntentIds.push(intent.id);
     }
+
+    reopenedOnceTaskIds = reopenOnceTasks(db, core, onceTasksGainingPrereqs);
     db.exec('COMMIT');
   } catch (err) {
     try {
@@ -438,5 +518,6 @@ export function planTasks(db, core) {
     compiled: compiledIntentIds,
     skipped: skippedIntentIds,
     once: compiledOnceTaskIds,
+    reopened: reopenedOnceTaskIds,
   };
 }

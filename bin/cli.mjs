@@ -602,6 +602,11 @@ async function planCommand() {
   }
   for (const id of result.compiled) console.log(`  ${green('compiled')}  ${id}`);
   for (const id of result.skipped) console.log(`  ${dim('skipped')}  ${id} ${dim('(already compiled)')}`);
+  for (const id of result.reopened) {
+    console.log(
+      `  ${bold('reopened')}  ${id} ${dim('(once — new scope landed under it; it must run again)')}`,
+    );
+  }
   console.log(
     `\n${green(bold('Plan complete.'))} ${dim(`${result.compiled.length} intent(s) compiled, ${result.skipped.length} skipped`)}\n`,
   );
