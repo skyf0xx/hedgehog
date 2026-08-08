@@ -1,9 +1,17 @@
-// `hedgehog claim` / `release` / `renew` — lease-based task assignment.
-// See hedgehog-persistent-build-graph.md, "Claims", and the lease/claim
+// `hedgehog claim` / `release` / `renew` / `retry` — lease-based task
+// assignment and the one transition back out of `blocked`. See
+// hedgehog-persistent-build-graph.md, "Claims", and the lease/claim
 // columns added to `tasks` in schema.mjs.
+//
+// Every write in this file keeps the schema's lease invariant —
+// `CHECK ((lease_owner IS NULL) = (status NOT IN ('building','verifying')))`
+// — by setting status and the three lease columns in the same UPDATE:
+// a task entering `building` gets an owner, and a task leaving it (to
+// ready, planned, blocked) has all three cleared.
 
 import { inTransaction } from './init.mjs';
 import { conflicts } from './conflict.mjs';
+import { incompleteDependencies } from './next.mjs';
 
 // Same no-incomplete-dependency shape as next.mjs's READY_TASK_SQL, without
 // the LIMIT 1 — claimTasks may take more than one candidate per call.
@@ -104,6 +112,102 @@ export function claimTasks(db, { owner, count = 1, leaseMinutes = 45 }) {
   });
 }
 
+// Claims one named task for `owner`, bypassing the fan-out's ordering
+// without bypassing any of its safety rules. The batch claim above walks
+// candidates in `priority, id` order and takes the first non-conflicting
+// set, which means a task that conflicts with everything — an
+// `exclusive: true` layer — is only ever handed out when it happens to
+// sort ahead of every other candidate. Any non-exclusive candidate
+// sorting before it takes the slot instead, on every call, however many
+// times the loop runs: the exclusive task starves. This is the operator's
+// way to say which task to hand out, rather than editing the lease into
+// the database by hand.
+//
+// The four refusals below are exactly the fan-out's own preconditions,
+// checked against one named task instead of a candidate list, and each
+// one returns a reason rather than a bare false — a caller that can't say
+// *why* nothing was claimed is the silent-failure this command exists to
+// replace:
+//   no_such_task            — the id doesn't name a row
+//   not_claimable           — wrong status, or already leased
+//   incomplete_dependencies — a dependency isn't `complete` yet
+//   conflict                — conflicts with a task already in flight
+//   race_lost               — a concurrent claim won the atomic UPDATE
+export function claimTask(db, taskId, { owner, leaseMinutes = 45 }) {
+  return inTransaction(db, () => {
+    reapExpiredLeases(db);
+
+    const task = loadTask(db, taskId);
+    if (task === undefined) return { claimed: false, reason: 'no_such_task' };
+
+    if (!['planned', 'ready'].includes(task.status) || task.lease_owner !== null) {
+      return { claimed: false, reason: 'not_claimable', task };
+    }
+
+    const incomplete = incompleteDependencies(db, taskId);
+    if (incomplete.length > 0) {
+      return { claimed: false, reason: 'incomplete_dependencies', task, incomplete };
+    }
+
+    // Conflicting with something already building/verifying is the one
+    // refusal a targeted claim must keep: the whole point of the
+    // conflict predicate is that two overlapping tasks in one working
+    // tree corrupt each other's scope check and commit. Waiting for the
+    // neighbor to finish (or releasing it) is the fix, not overriding
+    // this.
+    const conflicting = [];
+    for (const other of findInFlightTasks(db)) {
+      if (other.id === task.id) continue;
+      const kind = conflicts(task, other);
+      if (kind !== null) conflicting.push({ task: other, kind });
+    }
+    if (conflicting.length > 0) {
+      return { claimed: false, reason: 'conflict', task, conflicting };
+    }
+
+    const result = claimOne(db).get(owner, leaseMinutes, task.id);
+    if (result === undefined) return { claimed: false, reason: 'race_lost', task };
+
+    return { claimed: true, task: loadTask(db, task.id) };
+  });
+}
+
+// Returns a `blocked` task to `planned`, so it can be claimed and built
+// again. Every blocked_reason is eligible: a failed verification and a
+// scope violation are the loop's expected failure cases (build, gate
+// rejects, fix, retry), and a reaped lease is a dead agent's task that a
+// live one has to be able to pick back up. Without this there is no
+// transition out of `blocked` at all — `releaseTask` only accepts
+// `building`, and `verifyTask` refuses anything that isn't `building`
+// and leased, so a blocked task is unreachable by every other command.
+//
+// `planned` rather than `ready`: it's the status `plan.mjs` writes for a
+// task that hasn't been built yet, and the readiness SELECT accepts both,
+// so the task re-enters the queue exactly where a freshly compiled one
+// would — still subject to its dependencies being complete.
+export function retryTask(db, taskId) {
+  return inTransaction(db, () => {
+    const task = loadTask(db, taskId);
+    if (task === undefined) return { retried: false, reason: 'no_such_task' };
+    if (task.status !== 'blocked') return { retried: false, reason: 'not_blocked', task };
+
+    const result = db
+      .prepare(
+        `
+        UPDATE tasks SET status = 'planned', blocked_reason = NULL,
+          lease_owner = NULL, lease_expires_at = NULL, leased_at = NULL
+        WHERE id = ? AND status = 'blocked'
+        RETURNING id
+      `,
+      )
+      .get(taskId);
+
+    if (result === undefined) return { retried: false, reason: 'not_blocked', task };
+
+    return { retried: true, from: task.blocked_reason, task: loadTask(db, taskId) };
+  });
+}
+
 // Releases `taskId` back to `ready` if `owner` currently holds its lease.
 // Scoped to `status = 'building'` — `verifying` is the engine's own
 // transient lease during verifyTask, not something an external release
@@ -124,7 +228,13 @@ export function releaseTask(db, taskId, owner) {
       )
       .get(taskId, owner);
 
-    return { released: result !== undefined };
+    if (result !== undefined) return { released: true };
+    // Which of the two failures this was, so the CLI can say "no such
+    // task" instead of implying the id exists but is held by someone
+    // else — a mistyped id and a genuinely un-held task are different
+    // problems with different fixes.
+    const task = loadTask(db, taskId);
+    return { released: false, reason: task === undefined ? 'no_such_task' : 'not_held', task };
   });
 }
 
@@ -142,6 +252,8 @@ export function renewLease(db, taskId, owner, minutes) {
       )
       .get(minutes, taskId, owner);
 
-    return { renewed: result !== undefined };
+    if (result !== undefined) return { renewed: true };
+    const task = loadTask(db, taskId);
+    return { renewed: false, reason: task === undefined ? 'no_such_task' : 'not_held', task };
   });
 }
