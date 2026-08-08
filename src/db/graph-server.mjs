@@ -6,12 +6,17 @@
 // CLI command or reloading the page.
 //
 // Runs as its own process rather than inline in a CLI command because
-// `hedgehog plan` and `hedgehog graph` both need to exit promptly (the
-// former is typically invoked by an agent, not a human waiting at a
-// terminal) while the graph a human opened stays live. One process
-// serves whichever project invoked it; a second invocation against the
-// same project reuses it (see startOrReuseGraphServer's pidfile check)
-// rather than starting a second server on the same database.
+// `hedgehog graph` (and `hedgehog plan --open`) needs to exit promptly
+// while the graph a human opened stays live. One process serves
+// whichever project invoked it; a second invocation against the same
+// project reuses it (see startOrReuseGraphServer's pidfile check) rather
+// than starting a second server on the same database.
+//
+// Started only when a command is explicitly asked to open the graph.
+// `hedgehog plan` on its own starts nothing: its caller is usually an
+// agent in a headless session with no browser to hand the URL to, and
+// starting this process there only leaves it behind, listening on
+// 127.0.0.1 with an open handle on the build graph.
 
 import { createServer } from 'node:http';
 import { readFile, writeFile, rm } from 'node:fs/promises';
