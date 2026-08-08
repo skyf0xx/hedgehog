@@ -157,6 +157,49 @@ export function taskIds(dir) {
   }
 }
 
+export function taskStatuses(dir) {
+  const db = openGraph(dir);
+  try {
+    return Object.fromEntries(
+      db
+        .prepare('SELECT id, status FROM tasks ORDER BY id')
+        .all()
+        .map((r) => [r.id, r.status]),
+    );
+  } finally {
+    db.close();
+  }
+}
+
+// The commit `hedgehog verify` would write for a task, made directly.
+// This exercises the real recovery path — `hedgehog db rebuild` decides a
+// task is complete by matching its commit_message against git history —
+// without needing each layer to have real files to touch.
+export function commitTaskSubject(dir, taskId) {
+  const db = openGraph(dir);
+  let subject;
+  try {
+    subject = db.prepare('SELECT commit_message FROM tasks WHERE id = ?').get(taskId)
+      ?.commit_message;
+  } finally {
+    db.close();
+  }
+  if (!subject) throw new Error(`no task "${taskId}" to commit for`);
+  execFileSync('git', ['commit', '-q', '--allow-empty', '-m', subject], {
+    cwd: dir,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  return subject;
+}
+
+export function rebuildFromScratch(dir) {
+  for (const suffix of ['', '-wal', '-shm']) {
+    rmSync(join(dir, `.hedgehog/hedgehog.db${suffix}`), { force: true });
+  }
+  return cli(dir, ['db', 'rebuild']);
+}
+
 export function tasksForLayer(dir, layer) {
   const db = openGraph(dir);
   try {
