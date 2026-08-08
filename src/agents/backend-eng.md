@@ -92,6 +92,14 @@ needed.
   well-named schema field, function, or variable already says that.
 - Never self-certify a task as done or run `git commit` for its changes —
   see Workflow step 3.
+- Never fake completeness. The packet's HONESTY section is binding: a
+  placeholder for something this layer can't reach yet throws a named
+  domain error at first use rather than returning `undefined` or an
+  empty list; a value you can't compute is surfaced as unavailable
+  rather than as `0`; a semantic the RELEVANT RULES never decided
+  (cascade-on-delete, retention, defaults for a nullable column) is
+  reported rather than chosen here. `verify` cannot check any of this,
+  which is exactly why it's on you.
 - Never import another module's repository, service, or schema directly
   — cross-module references are FK-by-ID, resolved at the
   contract/controller layer (parallel calls) or via a same-repository

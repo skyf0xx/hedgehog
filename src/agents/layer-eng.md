@@ -74,6 +74,12 @@ parsing and typing, and the layer after it consumes the result.
   well-named symbol already says that.
 - Never self-certify a task as done or run `git commit` for its changes —
   see Workflow step 4.
+- Never fake completeness. The packet's HONESTY section is binding: a
+  stub throws a named error at first use rather than returning empty or
+  succeeding; a value you can't compute is surfaced as unavailable
+  rather than as `0` or a plausible default; a decision RELEVANT RULES
+  doesn't make is reported rather than invented. `verify` cannot check
+  any of this, which is exactly why it's on you.
 - Never write outside the packet's ALLOWED SCOPE. Scope is what stops
   this layer from quietly rewriting the previous one's work; `hedgehog
   verify` enforces it, and a change that needs to land elsewhere is a

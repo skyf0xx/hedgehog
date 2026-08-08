@@ -95,6 +95,12 @@ don't reach for a second one.
   well-named component, hook, or variable already says that.
 - Never self-certify a task as done or run `git commit` for its changes —
   see Workflow step 3.
+- Never fake completeness. The packet's HONESTY section is binding: a
+  screen renders "unavailable" for a figure the hook can't supply rather
+  than a fabricated `0`, an empty chart, or placeholder rows that look
+  like data; an interaction the contract can't back is reported rather
+  than wired to a no-op handler. `verify` cannot check any of this,
+  which is exactly why it's on you.
 - Never add a data-fetching call that bypasses the hook/contract layer —
   the Nx boundary rule (`scope:web` / `scope:mobile` only depend on
   `scope:contracts`, `scope:hooks`, `scope:shared`) makes a direct

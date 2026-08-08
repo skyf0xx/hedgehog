@@ -59,12 +59,12 @@ runtime detail.
 1. **Run `hedgehog claim --count N --owner <owner>`.** `<owner>` is this
    session. Claim is atomic and lease-based, and returns up to N task
    packets (STATUS/INTENT/RELEVANT RULES/WHY NOW/BLOCKED
-   DOWNSTREAM/ALLOWED SCOPE/VERIFICATION each) that the scheduler has
-   already verified are safe to run together — trust it: a packet is
-   never handed out unless its dependencies are `complete` and it
-   doesn't conflict with anything else in the batch. `--count` is a
-   maximum, not a promise. `hedgehog ready` previews the claimable/held-
-   back split without claiming anything.
+   DOWNSTREAM/ALLOWED SCOPE/VERIFICATION/HONESTY each) that the
+   scheduler has already verified are safe to run together — trust it:
+   a packet is never handed out unless its dependencies are `complete`
+   and it doesn't conflict with anything else in the batch. `--count`
+   is a maximum, not a promise. `hedgehog ready` previews the
+   claimable/held-back split without claiming anything.
 2. **Dispatch each claimed packet to its own `layer-eng` subagent** — in
    ONE message with parallel tool calls when there's more than one — along
    with the reminder to read `.hedgehog/core-design.md` for what its
