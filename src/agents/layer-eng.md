@@ -25,9 +25,12 @@ live in the project, not in this file:
   stack (language, package manager, frameworks, test runner), and a line
   per layer on what it owns and why it sits where it does. This is what
   tells you *what belongs in* the layer you're building.
-- **The task packet** — INTENT and RELEVANT RULES carry the domain
-  requirements mined from the PRD; ALLOWED SCOPE and VERIFICATION are the
-  gate you'll be checked against.
+- **The task packet** — INTENT carries the goal and outcome of the
+  *whole* intent this layer belongs to (not your layer's objective, which
+  only names what kind of thing to build); RELEVANT RULES carry the
+  domain requirements mined from the PRD; INHERITED DEBT carries what the
+  layers you depend on declared they left undone; ALLOWED SCOPE and
+  VERIFICATION are the gate you'll be checked against.
 
 Read all three before writing anything. `core-design.md`'s line for your
 layer is the closest thing to a spec you get — a layer described as
@@ -43,6 +46,20 @@ parsing and typing, and the layer after it consumes the result.
 - Write the tests the layer's `verify` command runs. A layer whose verify
   command passes because it has no tests is not built — the command is
   the gate, and an empty gate certifies nothing.
+- Build this layer's share of the packet's INTENT goal, not just
+  something plausible for the layer's name. Your `verify` command runs
+  the tests you wrote, so it proves internal consistency and nothing
+  about coverage: half the goal, exhaustively tested, is green. Report
+  anything the goal asks for that ALLOWED SCOPE and RELEVANT RULES don't
+  account for — silently building the part you can is the failure mode
+  this section exists for.
+- Read INHERITED DEBT before you start. A layer you depend on declared
+  those limitations knowing you'd inherit them.
+- Declare your own, with `hedgehog debt add <task-id> "<note>"`, whenever
+  you leave something the next layer has to compensate for. It lands in
+  the packet of every task that depends on yours. A "KNOWN LIMITATION"
+  comment in a source file reaches nobody — the next packet is assembled
+  from the build graph, not from your file's comments.
 - Match the conventions already in the workspace: the generated
   toolchain's idioms, the file naming already on disk, the import style
   the earlier layers established.

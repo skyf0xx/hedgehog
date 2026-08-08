@@ -58,7 +58,7 @@ runtime detail.
 
 1. **Run `hedgehog claim --count N --owner <owner>`.** `<owner>` is this
    session. Claim is atomic and lease-based, and returns up to N task
-   packets (STATUS/INTENT/RELEVANT RULES/WHY NOW/BLOCKED
+   packets (STATUS/INTENT/RELEVANT RULES/INHERITED DEBT/WHY NOW/BLOCKED
    DOWNSTREAM/ALLOWED SCOPE/VERIFICATION each) that the scheduler has
    already verified are safe to run together — trust it: a packet is
    never handed out unless its dependencies are `complete` and it
@@ -94,6 +94,46 @@ runtime detail.
 Each `hedgehog verify` call commits exactly one layer, built right for
 what's known now; a wrong layer is fixed forward later via the Correction
 Protocol.
+
+## The packet's INTENT is the whole intent
+
+The packet's **INTENT** block carries the goal and outcome of the intent
+this layer belongs to — not a restatement of the layer's own objective
+("domain-service for card"), which says what kind of thing to build and
+nothing about what it's for. This matters because a layer's `verify`
+command runs the tests that layer itself wrote: it measures internal
+consistency, never coverage of what was asked. A layer that builds half
+the intent's goal and tests that half exhaustively is green.
+
+So: build the layer's share of the goal, and report anything the goal
+asks for that the packet's scope and rules don't account for — that's a
+`planner` or Correction Protocol call, not something to quietly drop.
+
+When `hedgehog verify` closes the **last** layer of an intent, it prints
+the goal and outcome back out as an **INTENT CHECK**. Read the work built
+across that intent's layers against it before moving on. It isn't a gate
+and can't be one — it's the only point in the circuit where what was
+built is compared to what was requested.
+
+## Declared debt between layers
+
+A layer that hits a real limitation the next layer has to compensate for
+declares it:
+
+```
+hedgehog debt add <task-id> "<note>"
+```
+
+The note lands in the **INHERITED DEBT** section of the packet of every
+task that depends on that one, so it reaches the layer that inherits the
+problem. A "KNOWN LIMITATION" comment in a source file is not a
+mechanism — the inheriting task's packet is assembled from the graph, and
+nothing reads that comment. `hedgehog debt list [<task-id>]` reads them
+back.
+
+Debt lives in the build graph only (not a committed log), so it does not
+survive `hedgehog db rebuild` — declare it while the chain is live, which
+is when it's needed.
 
 ## Intra-layer conventions
 

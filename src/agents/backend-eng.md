@@ -63,7 +63,14 @@ needed.
 ## Workflow
 
 1. Read the claimed task packet: its ALLOWED SCOPE is what to
-   build, not a step name you infer independently. Its WHY NOW section
+   build, not a step name you infer independently. Its INTENT block is
+   the goal and outcome of the whole intent this layer belongs to — build
+   this layer's share of it, and report anything the goal asks for that
+   the packet's scope and rules don't account for; your own tests prove
+   internal consistency, never coverage of what was asked. INHERITED DEBT
+   is what the layers you depend on declared they left for you; declare
+   your own with `hedgehog debt add <task-id> "<note>"` rather than a
+   code comment nothing reads. Its WHY NOW section
    already confirms the module is in scope and every dependency is
    `complete` — no need to re-derive that by hand. Cross-module FK
    targets should already have their own schema landed (the packet's

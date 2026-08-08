@@ -166,6 +166,22 @@ writes `docs/design/<module>.md`, not its own compiled layer — the
 5. **Repeat** — `hedgehog claim --count N --owner <owner>` again for the
    next batch.
 
+Each claimed packet is the full packet — STATUS/INTENT/RELEVANT
+RULES/INHERITED DEBT/WHY NOW/BLOCKED DOWNSTREAM/ALLOWED
+SCOPE/VERIFICATION — and its **INTENT** block carries the goal and
+outcome of the whole intent, not just this layer's objective. A layer's
+verify command runs the tests that layer wrote, so it measures internal
+consistency, never coverage of what was asked; build the layer's share of
+the goal and say so when the packet doesn't account for something the
+goal asks for. When `hedgehog verify` closes the **last** layer of an
+intent it prints the goal and outcome back as an **INTENT CHECK** — read
+the built work against it there, because nothing else in the build does.
+
+A layer that hits a limitation the next layer must compensate for
+declares it with `hedgehog debt add <task-id> "<note>"`; the note lands
+in the **INHERITED DEBT** section of every packet that depends on that
+task. A comment in a source file is not a mechanism — nothing reads it.
+
 Each `hedgehog verify` call commits exactly one layer, built right for
 what's known now; a wrong layer is fixed forward later via the
 Correction Protocol. Valid task statuses are `planned`, `ready`,

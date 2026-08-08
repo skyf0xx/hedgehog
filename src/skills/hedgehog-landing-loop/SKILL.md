@@ -139,8 +139,9 @@ paragraph algorithm, and their self-tests.
 
 1. **Run `hedgehog claim --owner <owner> --count <n>`.** `<owner>` is
    this session (a stable id — session id or equivalent). It emits the
-   task packet for one ready compiled layer (STATUS/WHY NOW/BLOCKED
-   DOWNSTREAM/ALLOWED SCOPE/VERIFICATION) — trust it: `hedgehog claim`
+   task packet for one ready compiled layer (STATUS/INTENT/RELEVANT
+   RULES/INHERITED DEBT/WHY NOW/BLOCKED DOWNSTREAM/ALLOWED
+   SCOPE/VERIFICATION) — trust it: `hedgehog claim`
    never hands out a layer whose dependency isn't `complete`, so there's
    no separate gate check to run by hand. This core's chain is linear, so
    `--count N` always returns 1 task, never more — see Rules below.

@@ -68,7 +68,14 @@ don't reach for a second one.
 
 ## Workflow
 
-1. Read the claimed task packet: its WHY NOW section already
+1. Read the claimed task packet: its INTENT block is the goal and outcome
+   of the whole intent this layer belongs to — build this layer's share
+   of it, and report anything the goal asks for that the packet's scope
+   and rules don't account for; your own tests prove internal
+   consistency, never coverage of what was asked. INHERITED DEBT is what
+   the layers you depend on declared they left for you; declare your own
+   with `hedgehog debt add <task-id> "<note>"` rather than a code comment
+   nothing reads. Its WHY NOW section already
    confirms Phase A is closed for this module (the `hook`/`screen`
    layer's dependencies wouldn't be `complete` otherwise) — no need to
    re-derive that by hand. If you're handed a step outside a packet with

@@ -84,8 +84,11 @@ intake first.
 
 ## The loop
 
-1. \`hedgehog next\` emits one task packet — STATUS, WHY NOW, BLOCKED
-   DOWNSTREAM, ALLOWED SCOPE, VERIFICATION. Trust it: a task is never
+1. \`hedgehog next\` emits one task packet — STATUS, INTENT (the goal and
+   outcome of the whole intent, not just this layer), RELEVANT RULES,
+   INHERITED DEBT, WHY NOW, BLOCKED DOWNSTREAM, ALLOWED SCOPE,
+   VERIFICATION. \`hedgehog claim\` emits the same packet and reserves the
+   task with a lease. Trust it: a task is never
    emitted unless every dependency is \`complete\`.
 2. Delegate the **full packet** to the agent that owns that layer (see
    the table below). Don't summarize it, and don't pass just a step name.

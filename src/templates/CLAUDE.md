@@ -68,8 +68,9 @@ context** below).
 re-derive build state from prose. To work from it:
 
 1. Run `hedgehog claim --count N --owner <owner>`. It's atomic and
-   lease-based, and returns up to N tasks (each with its own STATUS/WHY
-   NOW/BLOCKED DOWNSTREAM/ALLOWED SCOPE/VERIFICATION packet) that the
+   lease-based, and returns up to N tasks (each with its own full
+   STATUS/INTENT/RELEVANT RULES/INHERITED DEBT/WHY NOW/BLOCKED
+   DOWNSTREAM/ALLOWED SCOPE/VERIFICATION packet) that the
    scheduler has already verified are safe to run together right now —
    scope and verify-radius disjoint. `--count` is a maximum, not a
    promise: a call may return fewer than N, or zero. `hedgehog ready` is
@@ -89,6 +90,21 @@ re-derive build state from prose. To work from it:
 
 `hedgehog claim` hands out only tasks safe to run together. Never run
 two tasks it didn't hand you together.
+
+The packet's **INTENT** block names the goal and outcome of the *whole*
+intent, not just this layer. A layer's own verify command runs the tests
+that layer wrote, so it measures internal consistency and never coverage
+of what was asked — a layer that builds half the intent and tests that
+half exhaustively is green. Build the layer's share of the goal, and say
+so when the packet doesn't account for something the goal asks for.
+When `hedgehog verify` closes the **last** layer of an intent it prints
+that goal and outcome back as an **INTENT CHECK**: read the built work
+against it there, because nothing else in the build does.
+
+A layer that discovers a limitation the next layer has to compensate for
+records it with `hedgehog debt add <task-id> "<note>"` — it lands in the
+**INHERITED DEBT** section of every packet that depends on that task. A
+comment in a source file is not a mechanism; nothing reads it.
 
 `planner` owns writing intents (`hedgehog intent add`) at planning
 intake; `hedgehog plan` compiles them into the task graph the loop
