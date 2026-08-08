@@ -10,14 +10,46 @@
 // chain is the degenerate case of the layer graph (spec: MVP scope
 // item 5).
 
-function fillModule(template, module) {
+export function fillModule(template, module) {
   return template.replaceAll('{module}', module);
 }
 
 // Deterministic, human-legible task id: <INTENT>-<LAYER>, upper-cased.
 // Stable across repeated `hedgehog plan` runs on the same intent/layer.
-function taskId(intentId, layerId) {
+export function taskId(intentId, layerId) {
   return `${intentId}-${layerId}`.toUpperCase();
+}
+
+// The `tasks` columns whose value is derived purely from the core
+// definition's layer (plus the module it's being instantiated for) —
+// i.e. everything `plan` copies out of core.yaml and that a later
+// core.yaml edit therefore leaves stale. Named once here so drift.mjs
+// checks exactly the set layerTaskFields() writes, and the two can't
+// silently diverge. `priority` is deliberately absent: it comes from the
+// intent, not the layer.
+export const LAYER_DERIVED_FIELDS = [
+  'objective',
+  'scope_globs',
+  'verify_command',
+  'commit_message',
+  'exclusive',
+  'verify_radius',
+];
+
+// The single definition of "what a layer contributes to a task row",
+// shared by the compiler (below) and the drift check (drift.mjs).
+export function layerTaskFields(layer, module) {
+  return {
+    objective: `${layer.id} for ${module}`,
+    scope_globs: JSON.stringify(layer.scope.map((g) => fillModule(g, module))),
+    verify_command: fillModule(layer.verify, module),
+    commit_message: fillModule(layer.commit, module),
+    exclusive: layer.exclusive ? 1 : 0,
+    verify_radius:
+      layer.verify_radius === null
+        ? null
+        : JSON.stringify(layer.verify_radius.map((g) => fillModule(g, module))),
+  };
 }
 
 // Compiles one intent's tasks + intra-intent dependencies (mirroring the
@@ -29,16 +61,8 @@ function compileIntentTasks(intent, core) {
     intent_id: intent.id,
     module,
     layer: layer.id,
-    objective: `${layer.id} for ${module}`,
-    scope_globs: JSON.stringify(layer.scope.map((g) => fillModule(g, module))),
-    verify_command: fillModule(layer.verify, module),
-    commit_message: fillModule(layer.commit, module),
     priority: intent.priority,
-    exclusive: layer.exclusive ? 1 : 0,
-    verify_radius:
-      layer.verify_radius === null
-        ? null
-        : JSON.stringify(layer.verify_radius.map((g) => fillModule(g, module))),
+    ...layerTaskFields(layer, module),
   }));
 
   const dependencies = [];
