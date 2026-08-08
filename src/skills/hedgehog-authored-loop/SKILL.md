@@ -192,14 +192,22 @@ the ones that were designed.
 ## Stop Condition
 
 Same fresh-context handoff as `hedgehog-loop`'s Stop Condition (offer it
-once every task is `complete`, nothing is still in flight — check
-`hedgehog status`'s IN FLIGHT section or run `hedgehog quiesce` — and
+once every task is `complete`, `hedgehog boundary` exits 0, and
 scope isn't genuinely ambiguous; the permanent record is the committed
 intents, friction log, and `core.yaml`, not `.hedgehog/hedgehog.db`,
 which is gitignored and derived; a `tweaker` session in a *new* chat
 window handles adjustments, using the same paste-in prompt that skill's
 Stop Condition gives). On a module axis, "every task complete" means
 every intent through every layer, not the last layer completed once.
+
+Mid-build, the layer boundary this core clears context at is the same
+question: run `hedgehog boundary` before `/clear` rather than judging it.
+It exits 0 only when nothing is in flight, the working tree is clean, and
+the last closed task completed its intent — every layer of it, on a
+module axis — and names which of the three failed otherwise. `hedgehog
+quiesce` answers only the in-flight third, which is why it's the check
+the Correction Protocol above uses and not the one for clearing. The next
+session opens on `hedgehog boundary --handoff`.
 
 **New scope** — a new intent on the module axis, anything beyond
 adjusting what exists — goes to `planner`, which runs

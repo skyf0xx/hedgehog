@@ -13,4 +13,6 @@ gates the commit either way.
 The skills in `.cursor/skills/` are procedures to follow — read the one
 whose situation applies rather than improvising the steps.
 
-Clear the conversation at the unit boundaries described above.
+Clear the conversation at the unit boundaries described above —
+`hedgehog boundary` tells you whether you're at one (exit 0), and
+`hedgehog boundary --handoff` is what the next session starts from.

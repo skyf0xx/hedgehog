@@ -96,8 +96,9 @@ consumes. Nothing checks a box — there is no checklist, only queryable
 state.
 
 **When the build is done:** once `hedgehog status` shows every task
-`complete` and nothing in flight (see `hedgehog quiesce` below), the
-build session is complete. The permanent record is the committed
+`complete` and `hedgehog boundary` exits 0 (see **Managing context**
+below — it checks nothing-in-flight, a clean tree, and a closed intent
+together), the build session is complete. The permanent record is the committed
 intents (`.hedgehog/intents/*.json`), the friction log
 (`.hedgehog/friction/*.md`), `core.yaml`, and the git commit history
 itself — not the database. `.hedgehog/hedgehog.db` is gitignored: a
@@ -151,15 +152,30 @@ context small:
 
 - **Clear context at natural boundaries** — a module's Phase A, a
   landing page section, whatever this core's own unit boundary is — once
-  that unit is done and committed. Clear the conversation and start
-  fresh, then run `hedgehog status`/`hedgehog claim` and continue. Nothing
-  is lost, because the build graph, commits, and code hold all the state.
-  Prefer this over letting one session accumulate the entire project.
-  Before clearing, run `hedgehog quiesce` and confirm it exits 0 —
-  nothing in flight — first. Clearing context while a lease is
-  outstanding orphans that lease until it expires.
+  that unit is done and committed. Ask `hedgehog boundary` rather than
+  judging it: it exits 0 only when all three of nothing-in-flight, a
+  clean working tree, and a last closed task that completed its intent
+  hold, and names which one failed otherwise. Clear the conversation and
+  start fresh, then run `hedgehog status`/`hedgehog claim` and continue.
+  Nothing is lost, because the build graph, commits, and code hold all
+  the state. Prefer this over letting one session accumulate the entire
+  project.
+- **`hedgehog quiesce` and `hedgehog boundary` answer different
+  questions.** `quiesce` reports whether anything is still in flight —
+  necessary before clearing (clearing while a lease is outstanding
+  orphans that lease until it expires), but not sufficient: a graph can
+  be perfectly settled halfway through an intent, with a dirty working
+  tree. `boundary` is the whole question — is this a moment to throw the
+  conversation away — and it includes the `quiesce` check as its first
+  condition. Use `quiesce` when you're waiting for dispatched work to
+  land (the Correction Protocol), `boundary` when you're deciding whether
+  to clear.
 - **A cleared or new session recovers by running `hedgehog status` and
   reading the commit log**, never by needing the prior conversation.
+  `hedgehog boundary --handoff` prints that recovery block directly —
+  where the build is, what's next and why, what's in flight, what's
+  blocked — derived from the graph, so no session hands a summary to the
+  next one.
 - **Delegate heavy work to agents.** Planning intake, scaffolding, and
   every build step each run in their own isolated context — so that work
   doesn't pile up in the main thread.

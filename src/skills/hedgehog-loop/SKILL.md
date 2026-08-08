@@ -329,12 +329,21 @@ and the commit history itself — not `.hedgehog/hedgehog.db`, which is
 gitignored and derived, rebuildable at any time via `hedgehog db
 rebuild`. That's what makes the next session cheap.
 
-Before offering that handoff, confirm nothing is still in flight — every
-task showing `complete` is not sufficient on its own, since a lease can
-be outstanding without a visible status change. Check `hedgehog
-status`'s IN FLIGHT section (or run `hedgehog quiesce`, which exits
-non-zero if anything is still claimed) and only declare the Stop
-Condition met once it's empty.
+Before offering that handoff, run `hedgehog boundary` and only declare
+the Stop Condition met once it exits 0. Every task showing `complete` is
+not sufficient on its own: a lease can be outstanding without a visible
+status change, and the working tree can still hold uncommitted work.
+`boundary` checks all three — nothing in flight, clean tree, last closed
+task completed its intent — and names which one failed when it exits
+non-zero. `hedgehog quiesce` covers only the first of the three; it is
+the right check mid-correction, not the right check for a handoff.
+
+The same command answers the mid-build question the project instructions
+file's **Managing context** section depends on: whether *this* moment,
+not just the end of the build, is one to clear the conversation at. Run
+it at any point you're considering `/clear`, and start the next session
+from `hedgehog boundary --handoff`, which prints where the build is,
+what's next and why, and what's blocked, straight from the graph.
 
 Name **both** ways forward, because which one applies depends on what the
 user wants next:

@@ -412,6 +412,15 @@ the friction log, and the git commit history itself, including every
 `.hedgehog/hedgehog.db` is gitignored: a derived index, rebuildable at
 any time via `hedgehog db rebuild`.
 
+Confirm it with `hedgehog boundary` before offering the handoff: it exits
+0 only when nothing is in flight, the working tree is clean, and the last
+closed task completed its intent, and names which of the three failed
+otherwise. `hedgehog quiesce` answers only the in-flight third — the
+right check while waiting out a correction, not the one for clearing
+context. The same command is what decides any mid-chain `/clear` too, and
+`hedgehog boundary --handoff` prints the block the next session opens
+with: where the build is, what's next and why, and what's blocked.
+
 Tell the user plainly that the build (including the polish pass) is
 complete, and that clearing context now costs nothing — the chain
 artifacts, the build graph, and the commit log hold everything a fresh
