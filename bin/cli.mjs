@@ -26,6 +26,7 @@ import { verifyTask } from '../src/db/verify.mjs';
 import { claimTasks, releaseTask, renewLease } from '../src/db/claim.mjs';
 import { readyTasks, formatReady } from '../src/db/ready.mjs';
 import { graphStatus, formatStatus } from '../src/db/status.mjs';
+import { boundaryState, formatBoundary, formatPosition, formatHandoff } from '../src/db/boundary.mjs';
 import { whyPath, formatWhy } from '../src/db/why.mjs';
 import { addFriction, listFriction } from '../src/db/friction.mjs';
 import { rebuildDb } from '../src/db/rebuild.mjs';
@@ -196,7 +197,11 @@ const exists = (p) =>
 // there's nothing to rebuild from either (a genuinely fresh project, no
 // intents yet), this no-ops and leaves the DB missing — the caller's own
 // existing "No build graph found" guard still fires for that case.
-async function ensureDb() {
+// `log` exists for the one caller whose stdout is a machine-consumable
+// payload (`hedgehog boundary`): the rebuild notice is commentary, and
+// commentary on stdout would corrupt a block meant to be captured or
+// piped. Every other command leaves it at the default.
+async function ensureDb({ log = console.log } = {}) {
   if (await exists(DB_PATH)) return;
 
   let intentFiles = [];
@@ -218,7 +223,7 @@ async function ensureDb() {
   } finally {
     db.close();
   }
-  console.log(
+  log(
     `${dim('DB missing — rebuilt from')} ${bold(INTENTS_DIR)}${dim(':')} ${dim(`${result.intentsReplayed} intent(s) replayed, ${result.tasksMarkedComplete} task(s) marked complete`)}\n`,
   );
 }
@@ -317,6 +322,10 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog status                    graph overview: counts by status, ready list, in flight
   npx @skyf0xx/hedgehog ready                     preview which ready tasks are claimable now vs held back
   npx @skyf0xx/hedgehog quiesce                   report whether anything is still in flight
+  npx @skyf0xx/hedgehog boundary                  is this a moment to clear context? exits 0 only if it is,
+                                                   and prints what a fresh session picks up next
+  npx @skyf0xx/hedgehog boundary --handoff        print the block a fresh session starts from
+  npx @skyf0xx/hedgehog boundary --quiet          exit code only, for a shell hook
   npx @skyf0xx/hedgehog graph                     start (or reuse) the live graph server and open it
   npx @skyf0xx/hedgehog graph --no-open           start (or reuse) the server; print the URL instead
   npx @skyf0xx/hedgehog why <path>                provenance chain for a file
@@ -1024,6 +1033,62 @@ async function quiesceCommand() {
   process.exitCode = 1;
 }
 
+// `hedgehog boundary [--quiet] [--handoff]` — is this a good moment to
+// clear the conversation, and where would a fresh one pick up?
+//
+// `quiesce` answers one third of that question (nothing in flight).
+// This answers all of it: nothing in flight, a clean working tree, and a
+// last closed task that completed its intent — see boundary.mjs for how
+// each is derived. Exits 0 only when all three hold, so a shell hook can
+// consume it without reading anything.
+//
+// Output is split by consumer, not by importance:
+//   stdout — the payload worth capturing: the NEXT/WHY positioning block,
+//            or with --handoff the full block a fresh session starts from.
+//   stderr — the verdict and the per-condition results, so a non-zero
+//            exit always names which condition failed without that
+//            commentary landing in a captured payload.
+//   --quiet drops the commentary and the default payload, leaving the
+//            exit code (and, if asked for explicitly, --handoff's block).
+//
+// Exit codes: 0 boundary reached; 1 not a boundary; 2 the question can't
+// be answered here (no build graph, no git repository, or a last closed
+// task that isn't identifiable).
+async function boundaryCommand(args) {
+  const quiet = args.includes('--quiet');
+  const handoff = args.includes('--handoff');
+
+  await ensureDb({ log: (msg) => console.error(msg) });
+
+  if (!(await exists(DB_PATH))) {
+    if (!quiet) {
+      console.error(`${red('No build graph found.')} Run ${bold('hedgehog db init')} first.\n`);
+    }
+    process.exitCode = 2;
+    return;
+  }
+
+  const db = openDb();
+  let state;
+  try {
+    state = boundaryState(db);
+  } finally {
+    db.close();
+  }
+
+  if (!quiet) console.error(formatBoundary(state));
+  if (handoff) console.log(formatHandoff(state));
+  else if (!quiet && state.reached) console.log(formatPosition(state));
+
+  if (state.undecidable) {
+    process.exitCode = 2;
+    return;
+  }
+  if (!state.reached) {
+    process.exitCode = 1;
+  }
+}
+
 const GRAPH_PIDFILE_PATH = '.hedgehog/graph-server.json';
 const GRAPH_SERVER_MODULE = join(PKG_ROOT, 'src/db/graph-server.mjs');
 const GRAPH_TEMPLATE_PATH = join(PKG_ROOT, 'src/templates/graph.html');
@@ -1368,6 +1433,11 @@ async function main() {
 
   if (cmd === 'quiesce') {
     await quiesceCommand();
+    return;
+  }
+
+  if (cmd === 'boundary') {
+    await boundaryCommand(args.slice(1));
     return;
   }
 
