@@ -223,9 +223,14 @@ function completeIntentIfDone(db, intentId) {
       "SELECT 1 FROM tasks WHERE intent_id = ? AND status <> 'complete'",
     )
     .get(intentId);
-  if (openTask !== undefined) return false;
+  if (openTask !== undefined) return null;
   db.prepare("UPDATE intents SET status = 'complete' WHERE id = ?").run(intentId);
-  return true;
+  // Returns the intent row rather than a bare `true`: this is the one
+  // moment the engine can put what was asked for back in front of whoever
+  // is closing it, and the CLI prints goal/outcome here as an INTENT
+  // CHECK. Nothing else in the circuit compares built work to requested
+  // work.
+  return db.prepare('SELECT id, goal, outcome FROM intents WHERE id = ?').get(intentId);
 }
 
 // Runs `command` via the shell, capturing combined stdout+stderr and exit
@@ -314,7 +319,11 @@ function claimForVerify(db, taskId, owner) {
 // Returns a result object describing what happened:
 //   { outcome: 'scope_violation', offending: [...] }
 //   { outcome: 'failed', exitCode, output }
-//   { outcome: 'complete', exitCode, output, commitSha, unlocked: [...] }
+//   { outcome: 'complete', exitCode, output, commitSha, unlocked: [...],
+//     intentComplete, completedIntent }
+// `completedIntent` is the intent row (id/goal/outcome) when this task
+// was the last one of its intent, else null — the CLI prints it back as
+// an INTENT CHECK.
 export function verifyTask(db, taskId, owner) {
   const task = claimForVerify(db, taskId, owner);
 
@@ -390,7 +399,7 @@ export function verifyTask(db, taskId, owner) {
   });
 
   let unlocked;
-  let intentComplete;
+  let completedIntent;
   db.exec('BEGIN IMMEDIATE');
   try {
     insertVerification(db).run(task.id, task.verify_command, exitCode, output, 'passed');
@@ -402,7 +411,7 @@ export function verifyTask(db, taskId, owner) {
 
     setTaskStatus(db, task.id, 'complete');
     unlocked = unlockReadyDependents(db, task.id);
-    intentComplete = completeIntentIfDone(db, task.intent_id);
+    completedIntent = completeIntentIfDone(db, task.intent_id);
 
     db.exec('COMMIT');
   } catch (err) {
@@ -414,5 +423,13 @@ export function verifyTask(db, taskId, owner) {
     throw err;
   }
 
-  return { outcome: 'complete', exitCode, output, commitSha, unlocked, intentComplete };
+  return {
+    outcome: 'complete',
+    exitCode,
+    output,
+    commitSha,
+    unlocked,
+    intentComplete: completedIntent !== null,
+    completedIntent: completedIntent ?? null,
+  };
 }

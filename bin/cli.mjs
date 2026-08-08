@@ -821,6 +821,27 @@ async function verifyCommand(args) {
   if (result.intentComplete) {
     console.log(`  ${green('intent complete')}  ${dim('every task for this intent is done')}`);
   }
+
+  // The one comparison in the circuit. Each layer's verify_command runs
+  // the tests that layer itself wrote, so it measures internal
+  // consistency and never coverage of what was asked — a layer that
+  // builds half an intent and tests that half exhaustively is green.
+  // Closing the last layer is the moment the intent is claimed done, so
+  // that is where what was requested gets printed back to be read against
+  // what was built. It is not a machine-checkable gate; it cannot be. Its
+  // value is that the comparison happens at all, once.
+  if (result.completedIntent) {
+    const { id, goal, outcome } = result.completedIntent;
+    console.log('');
+    console.log(`${bold('INTENT CHECK')}  ${bold(id)}  ${dim('— this closed the last layer of this intent.')}`);
+    console.log(`  ${dim('GOAL')}     ${goal}`);
+    console.log(`  ${dim('OUTCOME')}  ${outcome}`);
+    console.log('');
+    console.log(dim('  Confirm the work built across this intent\'s layers covers the above.'));
+    console.log(dim('  Anything asked for and not built is a Correction Protocol case now,'));
+    console.log(dim('  not a later discovery. Nothing else in the build checks this.'));
+    console.log('');
+  }
 }
 
 // `hedgehog claim --owner <owner> [--count <n>]` — atomically claims up to
