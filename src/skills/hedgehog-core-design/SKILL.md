@@ -224,8 +224,8 @@ For each layer, ask: does this layer's `verify` command only read files
 inside its own `scope`, or does it also read, or typecheck, a wider
 package or project? A test runner scoped by filename or filter token
 usually stays inside `scope`. A typecheck or build step often doesn't —
-`tsc` has no per-module isolation, so a command like `pnpm nx test db
---testPathPattern={module}` typechecks the whole `packages/db` project on
+`tsc` has no per-module isolation, so a command like `pnpm nx test db --
+src/schema/{module}/` typechecks the whole `packages/db` project on
 every run, regardless of which module's tests it filters to.
 
 Where the verify command reads wider than `scope`, declare that wider set
@@ -246,8 +246,8 @@ a flaky verify when a neighboring in-flight task's files get picked up
 mid-run.
 
 Worked example: a Drizzle schema layer scoped to
-`packages/db/src/schema/{module}/**` with `verify: "pnpm nx test db
---testPathPattern={module}"` looks module-scoped by its test filter, but
+`packages/db/src/schema/{module}/**` with `verify: "pnpm nx test db --
+src/schema/{module}/"` looks module-scoped by its test filter, but
 the command typechecks all of `packages/db`, not just that module's
 files. Its true verify radius is the whole package —
 `verify_radius: ["packages/db/**"]` — not just its own scope glob, so two
