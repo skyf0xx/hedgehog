@@ -1,0 +1,606 @@
+{
+  "full-stack-app": {
+    "intents": [
+      {
+        "id": "orders",
+        "goal": "build orders",
+        "outcome": "orders works",
+        "priority": 20,
+        "status": "active"
+      },
+      {
+        "id": "users",
+        "goal": "build users",
+        "outcome": "users works",
+        "priority": 10,
+        "status": "active"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "ORDERS-CONTRACT",
+        "intent_id": "orders",
+        "module": "orders",
+        "layer": "contract",
+        "objective": "contract for orders",
+        "scope_globs": "[\"packages/contracts/src/orders/**\"]",
+        "verify_command": "pnpm nx test contracts --testPathPattern=orders",
+        "commit_message": "feat(orders): contract",
+        "priority": 20,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "ORDERS-CONTROLLER",
+        "intent_id": "orders",
+        "module": "orders",
+        "layer": "controller",
+        "objective": "controller for orders",
+        "scope_globs": "[\"apps/api/src/app/orders/**\"]",
+        "verify_command": "pnpm nx test api --testPathPattern=orders",
+        "commit_message": "feat(orders): api",
+        "priority": 20,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "ORDERS-HOOK",
+        "intent_id": "orders",
+        "module": "orders",
+        "layer": "hook",
+        "objective": "hook for orders",
+        "scope_globs": "[\"packages/hooks/src/orders/**\"]",
+        "verify_command": "pnpm nx test hooks --testPathPattern=orders",
+        "commit_message": "feat(orders): hooks",
+        "priority": 20,
+        "exclusive": 0,
+        "verify_radius": "[\"packages/hooks/**\"]",
+        "status": "planned"
+      },
+      {
+        "id": "ORDERS-JOIN",
+        "intent_id": "orders",
+        "module": "orders",
+        "layer": "join",
+        "objective": "join for orders",
+        "scope_globs": "[\"**\"]",
+        "verify_command": "pnpm typecheck && pnpm nx run-many -t test",
+        "commit_message": "chore(orders): join",
+        "priority": 20,
+        "exclusive": 1,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "ORDERS-REPOSITORY",
+        "intent_id": "orders",
+        "module": "orders",
+        "layer": "repository",
+        "objective": "repository for orders",
+        "scope_globs": "[\"libs/orders/repository/**\"]",
+        "verify_command": "pnpm nx test orders-repository",
+        "commit_message": "feat(orders): repository",
+        "priority": 20,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "ORDERS-SCHEMA",
+        "intent_id": "orders",
+        "module": "orders",
+        "layer": "schema",
+        "objective": "schema for orders",
+        "scope_globs": "[\"packages/db/src/schema/orders/**\"]",
+        "verify_command": "pnpm nx test db --testPathPattern=orders",
+        "commit_message": "feat(orders): schema",
+        "priority": 20,
+        "exclusive": 0,
+        "verify_radius": "[\"packages/db/**\"]",
+        "status": "planned"
+      },
+      {
+        "id": "ORDERS-SCREEN",
+        "intent_id": "orders",
+        "module": "orders",
+        "layer": "screen",
+        "objective": "screen for orders",
+        "scope_globs": "[\"apps/web/src/app/orders/**\",\"apps/mobile/src/orders/**\"]",
+        "verify_command": "pnpm nx test web --testPathPattern=orders && pnpm nx test mobile --testPathPattern=orders",
+        "commit_message": "feat(orders): screen-web",
+        "priority": 20,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "ORDERS-SERVICE",
+        "intent_id": "orders",
+        "module": "orders",
+        "layer": "service",
+        "objective": "service for orders",
+        "scope_globs": "[\"libs/orders/service/**\"]",
+        "verify_command": "pnpm nx test orders-service",
+        "commit_message": "feat(orders): service",
+        "priority": 20,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "USERS-CONTRACT",
+        "intent_id": "users",
+        "module": "users",
+        "layer": "contract",
+        "objective": "contract for users",
+        "scope_globs": "[\"packages/contracts/src/users/**\"]",
+        "verify_command": "pnpm nx test contracts --testPathPattern=users",
+        "commit_message": "feat(users): contract",
+        "priority": 10,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "USERS-CONTROLLER",
+        "intent_id": "users",
+        "module": "users",
+        "layer": "controller",
+        "objective": "controller for users",
+        "scope_globs": "[\"apps/api/src/app/users/**\"]",
+        "verify_command": "pnpm nx test api --testPathPattern=users",
+        "commit_message": "feat(users): api",
+        "priority": 10,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "USERS-HOOK",
+        "intent_id": "users",
+        "module": "users",
+        "layer": "hook",
+        "objective": "hook for users",
+        "scope_globs": "[\"packages/hooks/src/users/**\"]",
+        "verify_command": "pnpm nx test hooks --testPathPattern=users",
+        "commit_message": "feat(users): hooks",
+        "priority": 10,
+        "exclusive": 0,
+        "verify_radius": "[\"packages/hooks/**\"]",
+        "status": "planned"
+      },
+      {
+        "id": "USERS-JOIN",
+        "intent_id": "users",
+        "module": "users",
+        "layer": "join",
+        "objective": "join for users",
+        "scope_globs": "[\"**\"]",
+        "verify_command": "pnpm typecheck && pnpm nx run-many -t test",
+        "commit_message": "chore(users): join",
+        "priority": 10,
+        "exclusive": 1,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "USERS-REPOSITORY",
+        "intent_id": "users",
+        "module": "users",
+        "layer": "repository",
+        "objective": "repository for users",
+        "scope_globs": "[\"libs/users/repository/**\"]",
+        "verify_command": "pnpm nx test users-repository",
+        "commit_message": "feat(users): repository",
+        "priority": 10,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "USERS-SCHEMA",
+        "intent_id": "users",
+        "module": "users",
+        "layer": "schema",
+        "objective": "schema for users",
+        "scope_globs": "[\"packages/db/src/schema/users/**\"]",
+        "verify_command": "pnpm nx test db --testPathPattern=users",
+        "commit_message": "feat(users): schema",
+        "priority": 10,
+        "exclusive": 0,
+        "verify_radius": "[\"packages/db/**\"]",
+        "status": "planned"
+      },
+      {
+        "id": "USERS-SCREEN",
+        "intent_id": "users",
+        "module": "users",
+        "layer": "screen",
+        "objective": "screen for users",
+        "scope_globs": "[\"apps/web/src/app/users/**\",\"apps/mobile/src/users/**\"]",
+        "verify_command": "pnpm nx test web --testPathPattern=users && pnpm nx test mobile --testPathPattern=users",
+        "commit_message": "feat(users): screen-web",
+        "priority": 10,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "USERS-SERVICE",
+        "intent_id": "users",
+        "module": "users",
+        "layer": "service",
+        "objective": "service for users",
+        "scope_globs": "[\"libs/users/service/**\"]",
+        "verify_command": "pnpm nx test users-service",
+        "commit_message": "feat(users): service",
+        "priority": 10,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      }
+    ],
+    "dependencies": [
+      {
+        "task_id": "ORDERS-CONTRACT",
+        "depends_on_task_id": "ORDERS-SCHEMA"
+      },
+      {
+        "task_id": "ORDERS-CONTRACT",
+        "depends_on_task_id": "USERS-CONTRACT"
+      },
+      {
+        "task_id": "ORDERS-CONTROLLER",
+        "depends_on_task_id": "ORDERS-SERVICE"
+      },
+      {
+        "task_id": "ORDERS-CONTROLLER",
+        "depends_on_task_id": "USERS-CONTROLLER"
+      },
+      {
+        "task_id": "ORDERS-HOOK",
+        "depends_on_task_id": "ORDERS-CONTROLLER"
+      },
+      {
+        "task_id": "ORDERS-HOOK",
+        "depends_on_task_id": "USERS-HOOK"
+      },
+      {
+        "task_id": "ORDERS-JOIN",
+        "depends_on_task_id": "ORDERS-SCREEN"
+      },
+      {
+        "task_id": "ORDERS-JOIN",
+        "depends_on_task_id": "USERS-JOIN"
+      },
+      {
+        "task_id": "ORDERS-REPOSITORY",
+        "depends_on_task_id": "ORDERS-CONTRACT"
+      },
+      {
+        "task_id": "ORDERS-REPOSITORY",
+        "depends_on_task_id": "USERS-REPOSITORY"
+      },
+      {
+        "task_id": "ORDERS-SCHEMA",
+        "depends_on_task_id": "USERS-SCHEMA"
+      },
+      {
+        "task_id": "ORDERS-SCREEN",
+        "depends_on_task_id": "ORDERS-HOOK"
+      },
+      {
+        "task_id": "ORDERS-SCREEN",
+        "depends_on_task_id": "USERS-SCREEN"
+      },
+      {
+        "task_id": "ORDERS-SERVICE",
+        "depends_on_task_id": "ORDERS-REPOSITORY"
+      },
+      {
+        "task_id": "ORDERS-SERVICE",
+        "depends_on_task_id": "USERS-SERVICE"
+      },
+      {
+        "task_id": "USERS-CONTRACT",
+        "depends_on_task_id": "USERS-SCHEMA"
+      },
+      {
+        "task_id": "USERS-CONTROLLER",
+        "depends_on_task_id": "USERS-SERVICE"
+      },
+      {
+        "task_id": "USERS-HOOK",
+        "depends_on_task_id": "USERS-CONTROLLER"
+      },
+      {
+        "task_id": "USERS-JOIN",
+        "depends_on_task_id": "USERS-SCREEN"
+      },
+      {
+        "task_id": "USERS-REPOSITORY",
+        "depends_on_task_id": "USERS-CONTRACT"
+      },
+      {
+        "task_id": "USERS-SCREEN",
+        "depends_on_task_id": "USERS-HOOK"
+      },
+      {
+        "task_id": "USERS-SERVICE",
+        "depends_on_task_id": "USERS-REPOSITORY"
+      }
+    ],
+    "task_requirements": [
+      {
+        "task_id": "ORDERS-CONTRACT",
+        "requirement_id": "ORDERS-RULE-1"
+      },
+      {
+        "task_id": "ORDERS-CONTROLLER",
+        "requirement_id": "ORDERS-RULE-1"
+      },
+      {
+        "task_id": "ORDERS-HOOK",
+        "requirement_id": "ORDERS-RULE-1"
+      },
+      {
+        "task_id": "ORDERS-JOIN",
+        "requirement_id": "ORDERS-RULE-1"
+      },
+      {
+        "task_id": "ORDERS-REPOSITORY",
+        "requirement_id": "ORDERS-RULE-1"
+      },
+      {
+        "task_id": "ORDERS-SCHEMA",
+        "requirement_id": "ORDERS-RULE-1"
+      },
+      {
+        "task_id": "ORDERS-SCREEN",
+        "requirement_id": "ORDERS-RULE-1"
+      },
+      {
+        "task_id": "ORDERS-SERVICE",
+        "requirement_id": "ORDERS-RULE-1"
+      }
+    ]
+  },
+  "landing-page": {
+    "intents": [
+      {
+        "id": "orders",
+        "goal": "build orders",
+        "outcome": "orders works",
+        "priority": 20,
+        "status": "active"
+      },
+      {
+        "id": "users",
+        "goal": "build users",
+        "outcome": "users works",
+        "priority": 10,
+        "status": "active"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "ORDERS-ARTIFACT",
+        "intent_id": "orders",
+        "module": "orders",
+        "layer": "artifact",
+        "objective": "artifact for orders",
+        "scope_globs": "[\"src/**\"]",
+        "verify_command": "pnpm build",
+        "commit_message": "feat(landing): build",
+        "priority": 20,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "ORDERS-BRIEF",
+        "intent_id": "orders",
+        "module": "orders",
+        "layer": "brief",
+        "objective": "brief for orders",
+        "scope_globs": "[\".hedgehog/chain/00-brief.md\"]",
+        "verify_command": "test -s .hedgehog/chain/00-brief.md",
+        "commit_message": "chore(planning): intake",
+        "priority": 20,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "ORDERS-FEELING",
+        "intent_id": "orders",
+        "module": "orders",
+        "layer": "feeling",
+        "objective": "feeling for orders",
+        "scope_globs": "[\".hedgehog/chain/01-feeling.md\"]",
+        "verify_command": "test -s .hedgehog/chain/01-feeling.md",
+        "commit_message": "feat(landing): strategy",
+        "priority": 20,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "ORDERS-SEQUENCE",
+        "intent_id": "orders",
+        "module": "orders",
+        "layer": "sequence",
+        "objective": "sequence for orders",
+        "scope_globs": "[\".hedgehog/chain/03-sequence.md\"]",
+        "verify_command": "test -s .hedgehog/chain/03-sequence.md",
+        "commit_message": "feat(landing): sequence",
+        "priority": 20,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "ORDERS-TOKENS",
+        "intent_id": "orders",
+        "module": "orders",
+        "layer": "tokens",
+        "objective": "tokens for orders",
+        "scope_globs": "[\".hedgehog/chain/02-tokens.md\",\"src/styles/global.css\"]",
+        "verify_command": "test -s .hedgehog/chain/02-tokens.md",
+        "commit_message": "feat(landing): systems",
+        "priority": 20,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "USERS-ARTIFACT",
+        "intent_id": "users",
+        "module": "users",
+        "layer": "artifact",
+        "objective": "artifact for users",
+        "scope_globs": "[\"src/**\"]",
+        "verify_command": "pnpm build",
+        "commit_message": "feat(landing): build",
+        "priority": 10,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "USERS-BRIEF",
+        "intent_id": "users",
+        "module": "users",
+        "layer": "brief",
+        "objective": "brief for users",
+        "scope_globs": "[\".hedgehog/chain/00-brief.md\"]",
+        "verify_command": "test -s .hedgehog/chain/00-brief.md",
+        "commit_message": "chore(planning): intake",
+        "priority": 10,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "USERS-FEELING",
+        "intent_id": "users",
+        "module": "users",
+        "layer": "feeling",
+        "objective": "feeling for users",
+        "scope_globs": "[\".hedgehog/chain/01-feeling.md\"]",
+        "verify_command": "test -s .hedgehog/chain/01-feeling.md",
+        "commit_message": "feat(landing): strategy",
+        "priority": 10,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "USERS-SEQUENCE",
+        "intent_id": "users",
+        "module": "users",
+        "layer": "sequence",
+        "objective": "sequence for users",
+        "scope_globs": "[\".hedgehog/chain/03-sequence.md\"]",
+        "verify_command": "test -s .hedgehog/chain/03-sequence.md",
+        "commit_message": "feat(landing): sequence",
+        "priority": 10,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      },
+      {
+        "id": "USERS-TOKENS",
+        "intent_id": "users",
+        "module": "users",
+        "layer": "tokens",
+        "objective": "tokens for users",
+        "scope_globs": "[\".hedgehog/chain/02-tokens.md\",\"src/styles/global.css\"]",
+        "verify_command": "test -s .hedgehog/chain/02-tokens.md",
+        "commit_message": "feat(landing): systems",
+        "priority": 10,
+        "exclusive": 0,
+        "verify_radius": null,
+        "status": "planned"
+      }
+    ],
+    "dependencies": [
+      {
+        "task_id": "ORDERS-ARTIFACT",
+        "depends_on_task_id": "ORDERS-SEQUENCE"
+      },
+      {
+        "task_id": "ORDERS-ARTIFACT",
+        "depends_on_task_id": "USERS-ARTIFACT"
+      },
+      {
+        "task_id": "ORDERS-BRIEF",
+        "depends_on_task_id": "USERS-BRIEF"
+      },
+      {
+        "task_id": "ORDERS-FEELING",
+        "depends_on_task_id": "ORDERS-BRIEF"
+      },
+      {
+        "task_id": "ORDERS-FEELING",
+        "depends_on_task_id": "USERS-FEELING"
+      },
+      {
+        "task_id": "ORDERS-SEQUENCE",
+        "depends_on_task_id": "ORDERS-TOKENS"
+      },
+      {
+        "task_id": "ORDERS-SEQUENCE",
+        "depends_on_task_id": "USERS-SEQUENCE"
+      },
+      {
+        "task_id": "ORDERS-TOKENS",
+        "depends_on_task_id": "ORDERS-FEELING"
+      },
+      {
+        "task_id": "ORDERS-TOKENS",
+        "depends_on_task_id": "USERS-TOKENS"
+      },
+      {
+        "task_id": "USERS-ARTIFACT",
+        "depends_on_task_id": "USERS-SEQUENCE"
+      },
+      {
+        "task_id": "USERS-FEELING",
+        "depends_on_task_id": "USERS-BRIEF"
+      },
+      {
+        "task_id": "USERS-SEQUENCE",
+        "depends_on_task_id": "USERS-TOKENS"
+      },
+      {
+        "task_id": "USERS-TOKENS",
+        "depends_on_task_id": "USERS-FEELING"
+      }
+    ],
+    "task_requirements": [
+      {
+        "task_id": "ORDERS-ARTIFACT",
+        "requirement_id": "ORDERS-RULE-1"
+      },
+      {
+        "task_id": "ORDERS-BRIEF",
+        "requirement_id": "ORDERS-RULE-1"
+      },
+      {
+        "task_id": "ORDERS-FEELING",
+        "requirement_id": "ORDERS-RULE-1"
+      },
+      {
+        "task_id": "ORDERS-SEQUENCE",
+        "requirement_id": "ORDERS-RULE-1"
+      },
+      {
+        "task_id": "ORDERS-TOKENS",
+        "requirement_id": "ORDERS-RULE-1"
+      }
+    ]
+  }
+}
