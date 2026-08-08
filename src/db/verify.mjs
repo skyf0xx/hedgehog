@@ -12,11 +12,14 @@
 //
 // Two gates, in order:
 //   1. `git diff --name-only` (working tree) against the task's
-//      scope_globs, with paths inside any other in-flight task's own
-//      declared scope excluded first — those are a concurrent neighbor's
-//      legitimate uncommitted edits, not this task's violation, since
-//      there's no working-tree isolation between concurrent tasks by
-//      design. Any remaining touched path outside scope refuses to run
+//      scope_globs, with two classes of path excluded first, because
+//      there is no working-tree isolation between concurrent tasks by
+//      design and the diff therefore sees far more than this task's own
+//      work: paths whose content is unchanged since the task was claimed
+//      (they cannot be this task's doing — see attributedToTask), and
+//      paths inside any other in-flight task's own declared scope (a
+//      concurrent neighbor's legitimate uncommitted edits). Any remaining
+//      touched path outside scope refuses to run
 //      verification at all — the task moves to `blocked` with
 //      blocked_reason `scope_violation`, no `verifications` row written,
 //      lease released. This is a scope violation, not a failing check.
@@ -50,7 +53,8 @@
 import { execSync } from 'node:child_process';
 import { DB_PATH } from './init.mjs';
 import { withCommitLock, LOCK_PATH } from './commitLock.mjs';
-import { reapExpiredLeases } from './claim.mjs';
+import { reapExpiredLeases, pathFingerprint } from './claim.mjs';
+import { ensureTaskColumns } from './schema.mjs';
 
 // The build graph file and the commit lock are engine state, written
 // only by this CLI, never by an agent — both are excluded from every
@@ -84,6 +88,38 @@ function changedPaths(pathspecs) {
     [...tracked.split('\n'), ...untracked.split('\n')].map((p) => p.trim()).filter(Boolean),
   );
   return [...paths].filter((p) => !isEngineStatePath(p));
+}
+
+// Narrows a set of touched paths to the ones this task can actually be
+// held responsible for: those whose content differs from the claim-time
+// snapshot claim.mjs recorded on the lease. A path that is byte-identical
+// to what it was when the task was claimed did not change during the
+// lease, so no amount of dirtiness there is this task's doing — an
+// uncommitted friction log, the user's own half-finished edit, a stray
+// file some tool left behind before the claim.
+//
+// This narrows attribution without weakening the gate. A genuine
+// out-of-scope write necessarily *changes* the file, so its fingerprint
+// no longer matches the snapshot and it stays attributed; the only paths
+// this drops are ones where the task provably changed nothing. (A task
+// that wrote a byte-identical copy over pre-existing dirt is the one
+// exempted edge, and it changed nothing to commit either.)
+//
+// `claimSnapshot` is null for a lease taken before snapshots existed, or
+// in a working tree git couldn't read at claim time. Null means "no
+// attribution information", and the gate falls back to attributing
+// everything dirty — the stricter, pre-snapshot behaviour.
+function attributedToTask(touched, claimSnapshot) {
+  if (!claimSnapshot) return touched;
+  let snapshot;
+  try {
+    snapshot = JSON.parse(claimSnapshot);
+  } catch {
+    return touched;
+  }
+  return touched.filter(
+    (path) => !Object.hasOwn(snapshot, path) || snapshot[path] !== pathFingerprint(path),
+  );
 }
 
 // Every other task currently `building` or `verifying` — their declared
@@ -143,10 +179,19 @@ function setTaskStatus(db, taskId, status, { blockedReason } = {}) {
       blocked_reason = ?,
       lease_owner = CASE WHEN ? THEN NULL ELSE lease_owner END,
       lease_expires_at = CASE WHEN ? THEN NULL ELSE lease_expires_at END,
-      leased_at = CASE WHEN ? THEN NULL ELSE leased_at END
+      leased_at = CASE WHEN ? THEN NULL ELSE leased_at END,
+      claim_snapshot = CASE WHEN ? THEN NULL ELSE claim_snapshot END
     WHERE id = ?
   `,
-  ).run(status, blockedReason ?? null, releasesLease ? 1 : 0, releasesLease ? 1 : 0, releasesLease ? 1 : 0, taskId);
+  ).run(
+    status,
+    blockedReason ?? null,
+    releasesLease ? 1 : 0,
+    releasesLease ? 1 : 0,
+    releasesLease ? 1 : 0,
+    releasesLease ? 1 : 0,
+    taskId,
+  );
 }
 
 const insertVerification = (db) =>
@@ -279,6 +324,10 @@ function commitTouchedPaths(paths, commitMessage) {
 // run verification against a task it doesn't hold.
 function claimForVerify(db, taskId, owner) {
   let task;
+  // Before BEGIN, and before any statement below names claim_snapshot: a
+  // DB created by an earlier version has no such column, and both the
+  // status writes here and the gate's snapshot read depend on it.
+  ensureTaskColumns(db);
   db.exec('BEGIN IMMEDIATE');
   try {
     // Reaps this (and any other) task's lease if lease_expires_at has
@@ -330,7 +379,13 @@ export function verifyTask(db, taskId, owner) {
   // (generated lockfiles, formatted output), and committing a stale
   // pre-verify_command snapshot would silently drop those.
   const { offending } = withCommitLock(() => {
-    const touchedNow = changedPaths();
+    // Only what changed during this task's lease is this task's to answer
+    // for; everything else in the shared working tree was already there
+    // when the task was handed out. The commit set below is deliberately
+    // *not* filtered this way — it is scope-restricted already, and a
+    // pre-existing dirty file inside the task's own scope is still swept
+    // into the layer's commit exactly as before.
+    const touchedNow = attributedToTask(changedPaths(), task.claim_snapshot);
     return splitByScope(db, taskId, touchedNow, scopeGlobs);
   });
 

@@ -2,8 +2,81 @@
 // See hedgehog-persistent-build-graph.md, "Claims", and the lease/claim
 // columns added to `tasks` in schema.mjs.
 
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+
 import { inTransaction } from './init.mjs';
 import { conflicts } from './conflict.mjs';
+import { ensureTaskColumns } from './schema.mjs';
+
+// ── Claim-time working-tree snapshot ──────────────────────────────────
+//
+// The scope gate in verify.mjs can only see *that* the working tree is
+// dirty, never *who* dirtied it — there is one working tree shared by
+// every concurrent task, the agent, the user, and whatever hooks the
+// surrounding harness runs. Judging a task by the whole dirty tree
+// therefore blames whoever verifies first for anything already sitting
+// there: an uncommitted friction log, a half-finished edit of the user's,
+// a neighbour's stray write.
+//
+// So the claim records what the tree already looked like. A path whose
+// content is byte-identical to what it was at claim time did not change
+// during this task's lease, and cannot be this task's doing. Anything
+// else still is — which is why this narrows attribution without ever
+// letting a real out-of-scope write through: writing a file *changes* it,
+// and a changed fingerprint is attributed.
+
+// Sentinel fingerprint for a path git reports as dirty but that isn't
+// readable as a file — a deletion, most often. Distinct from any sha1, so
+// "deleted at claim time, still deleted now" matches and "present at claim
+// time, deleted now" doesn't.
+const ABSENT = 'absent';
+
+// sha1 of the file's bytes, or ABSENT when it can't be read. Exported so
+// verify.mjs fingerprints paths the exact same way it was done here — two
+// implementations that drifted would silently mis-attribute.
+export function pathFingerprint(path) {
+  try {
+    return createHash('sha1').update(readFileSync(path)).digest('hex');
+  } catch {
+    return ABSENT;
+  }
+}
+
+// Every path the working tree is currently dirty at, relative to the repo
+// root: tracked modifications and deletions (`git diff HEAD`) plus
+// untracked files (`git ls-files --others`), the same two reads verify's
+// own `changedPaths` makes. Deliberately unfiltered — engine state and all
+// — because a path recorded here only ever makes the gate more forgiving
+// of something it already ignored.
+function dirtyPaths() {
+  const run = (args) =>
+    execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const tracked = run(['diff', '--name-only', 'HEAD']);
+  const untracked = run(['ls-files', '--others', '--exclude-standard']);
+  return [
+    ...new Set(
+      [...tracked.split('\n'), ...untracked.split('\n')].map((p) => p.trim()).filter(Boolean),
+    ),
+  ];
+}
+
+// The JSON snapshot stored on the lease, or null when the working tree
+// can't be read at all (not a git repo, no commits yet). null is the
+// honest answer rather than an empty snapshot: an empty snapshot claims
+// "nothing was dirty", which would attribute the whole tree to the task,
+// whereas null tells the gate it has no attribution information and to
+// fall back to its pre-snapshot behaviour.
+export function snapshotWorkingTree() {
+  try {
+    const snapshot = {};
+    for (const path of dirtyPaths()) snapshot[path] = pathFingerprint(path);
+    return JSON.stringify(snapshot);
+  } catch {
+    return null;
+  }
+}
 
 // Same no-incomplete-dependency shape as next.mjs's READY_TASK_SQL, without
 // the LIMIT 1 — claimTasks may take more than one candidate per call.
@@ -50,7 +123,8 @@ export function reapExpiredLeases(db) {
     `
     UPDATE tasks
     SET status = 'blocked', blocked_reason = 'lease_expired',
-        lease_owner = NULL, lease_expires_at = NULL, leased_at = NULL
+        lease_owner = NULL, lease_expires_at = NULL, leased_at = NULL,
+        claim_snapshot = NULL
     WHERE status IN ('building', 'verifying') AND lease_expires_at < datetime('now')
   `,
   ).run();
@@ -62,7 +136,8 @@ export function reapExpiredLeases(db) {
 const claimOne = (db) =>
   db.prepare(`
     UPDATE tasks SET status = 'building', lease_owner = ?, leased_at = datetime('now'),
-      lease_expires_at = datetime('now', '+' || ? || ' minutes')
+      lease_expires_at = datetime('now', '+' || ? || ' minutes'),
+      claim_snapshot = ?
     WHERE id = ? AND status IN ('planned','ready') AND lease_owner IS NULL
     RETURNING id
   `);
@@ -83,6 +158,14 @@ const claimOne = (db) =>
 // and doesn't count against `count` — it neither joins the batch nor
 // short-circuits the loop.
 export function claimTasks(db, { owner, count = 1, leaseMinutes = 45 }) {
+  ensureTaskColumns(db);
+  // Read the working tree *before* BEGIN — this file keeps verify.mjs's
+  // rule that no subprocess runs with a sqlite transaction open. One
+  // snapshot serves the whole batch: they all start from the same tree.
+  // Taking it a moment early can only miss a path dirtied in between,
+  // which leaves that path attributed — the strict direction.
+  const claimSnapshot = snapshotWorkingTree();
+
   return inTransaction(db, () => {
     reapExpiredLeases(db);
 
@@ -95,7 +178,7 @@ export function claimTasks(db, { owner, count = 1, leaseMinutes = 45 }) {
       if (claimed.length >= count) break;
       const against = [...inFlight, ...claimed];
       if (against.some((accepted) => conflicts(candidate, accepted) !== null)) continue;
-      const result = runClaim.get(owner, leaseMinutes, candidate.id);
+      const result = runClaim.get(owner, leaseMinutes, claimSnapshot, candidate.id);
       if (result === undefined) continue; // lost the race, skip
       claimed.push(loadTask(db, candidate.id));
     }
@@ -117,7 +200,7 @@ export function releaseTask(db, taskId, owner) {
       .prepare(
         `
         UPDATE tasks SET status = 'ready', lease_owner = NULL,
-          lease_expires_at = NULL, leased_at = NULL
+          lease_expires_at = NULL, leased_at = NULL, claim_snapshot = NULL
         WHERE id = ? AND lease_owner = ? AND status = 'building'
         RETURNING id
       `,
