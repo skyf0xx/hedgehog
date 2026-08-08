@@ -17,16 +17,51 @@ An authored core's layer sequence and stack were designed for this
 project by `hedgehog-core-design`. Two files carry them, and both are
 locked:
 
-- **`.hedgehog/core.yaml`** — the compiled authority: layer order, each
+- **`.hedgehog/core.yaml`** — the design authority: layer order, each
   layer's `scope` globs, `verify` command, commit message. `hedgehog
-  plan` compiled the graph from it; every packet is generated from it.
+  plan` compiled the graph from it.
 - **`.hedgehog/core-design.md`** — the rationale: system shape, stack,
   what each layer owns and why it sits where it does, and the module-axis
   decision.
 
 Read `core-design.md` at the start of a session to know what this project
-is; trust `core.yaml` and the packet as authoritative if the two ever
-seem to disagree.
+is.
+
+### core.yaml vs. the packet
+
+`hedgehog plan` **copies** each layer's scope globs, verify command and
+commit message onto every task row when it compiles. From that moment
+the row — which is what the packet shows — is what `hedgehog claim` hands
+out and what `hedgehog verify` gates against. `core.yaml` is no longer
+consulted for a task that already exists.
+
+So an edit to `core.yaml` after `plan` has run does **not** reach
+already-compiled tasks, and re-running `hedgehog plan` won't apply it
+either: compiling an intent flips it to `active`, and `plan` only reads
+`proposed`/`planned` intents, so it reports "0 intent(s) compiled" and
+changes nothing.
+
+If the packet and `core.yaml` disagree, the packet is what your work will
+actually be judged by. Reconcile, don't pick a winner:
+
+1. `hedgehog status` prints a **DRIFT** section: every task whose
+   compiled fields no longer match `core.yaml`, field by field, with
+   `core.yaml`'s value against the task's.
+2. `hedgehog plan --recompile` rewrites those fields from the current
+   `core.yaml` on tasks nothing has acted on yet (`proposed`, `planned`,
+   `ready`), and refuses `building`, `verifying`, `complete` and
+   `blocked` tasks, naming each and why. `--dry-run` previews it;
+   `--include-blocked` opts in the blocked ones (their working-tree work
+   was done against the old scope, so check it after);  `--strict` exits
+   non-zero when drift remains.
+3. Drift `--recompile` won't touch — a task already built or committed, a
+   layer dropped from `core.yaml`, a changed `depends_on` — is a
+   Correction Protocol case (below), not a field rewrite.
+
+Never patch a task row in SQLite by hand to work around this. The DB is
+derived and gitignored; `hedgehog db rebuild` re-derives every task from
+`core.yaml` and the committed intents, so a hand-patched row silently
+disappears on the next rebuild or fresh clone.
 
 ## Module axis
 
@@ -147,6 +182,12 @@ wrong place, a missing layer, a scope glob that never fits — that's a
 `.hedgehog/core-design.md` are locked, and changing them re-shapes every
 task the graph compiles. Stop, say what the design got wrong, and hand to
 `planner`.
+
+Once `planner` has changed `core.yaml`, the edit still has to be pushed
+into the already-compiled graph — run `hedgehog plan --recompile` (see
+"core.yaml vs. the packet" above) and read what it reports. Tasks it
+refuses are the ones this Correction Protocol has to fix forward in
+commits instead.
 
 ### Post-build entry
 

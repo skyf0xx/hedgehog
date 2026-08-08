@@ -19,8 +19,13 @@ An authored core's stack varies by project, so the specifics you need
 live in the project, not in this file:
 
 - **`.hedgehog/core.yaml`** — the layer sequence, each layer's `scope`
-  globs, `verify` command, and commit message. The compiled authority:
-  the packet you receive is generated from it.
+  globs, `verify` command, and commit message. The design authority: the
+  packet you receive was compiled from it, but it is a *copy* taken at
+  compile time. If the packet and `core.yaml` disagree, the packet is
+  what `hedgehog verify` will gate you against — build to the packet, and
+  report the disagreement rather than silently following the YAML. (The
+  fix is `hedgehog plan --recompile`, run by whoever is driving the loop,
+  not by you mid-task.)
 - **`.hedgehog/core-design.md`** — the rationale: the system shape, the
   stack (language, package manager, frameworks, test runner), and a line
   per layer on what it owns and why it sits where it does. This is what

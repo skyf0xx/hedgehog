@@ -5,22 +5,41 @@ planning intake, rather than taken from a shipped Golden Core. The layer
 sequence, the stack, and each layer's file scope and verification live in
 two files, and both are locked:
 
-- **`.hedgehog/core.yaml`** — the compiled authority: `id`, the layer
+- **`.hedgehog/core.yaml`** — the design authority: `id`, the layer
   order, and per layer its `scope` globs, `verify` command, and commit
-  message. `hedgehog plan` compiled the build graph from this; every task
-  packet is generated from it.
+  message. `hedgehog plan` compiled the build graph from this.
 - **`.hedgehog/core-design.md`** — the rationale: the system shape (what
   this project fundamentally is), the stack and why it was chosen, a line
   per layer on what it owns and why it sits where it does, and the
   module-axis decision.
 
 Read `core-design.md` to know what this project is and what each layer
-owns. Trust `core.yaml` and the packet `hedgehog next` emits as
-authoritative if the two ever seem to disagree.
+owns.
 
-Changing either file re-shapes every task the graph compiles. Both are
-locked at `hedgehog-core-design`'s Confirm & Lock — a layer boundary that
-turns out wrong is a `planner` decision through the Correction Protocol.
+**The packet is what actually runs.** `hedgehog plan` *copies* each
+layer's scope globs, verify command and commit message onto every task
+row at compile time, and from then on the row — surfaced as the packet
+`hedgehog next`/`claim` emits — is what the engine reads. Editing
+`core.yaml` afterwards does not reach tasks already compiled, and a plain
+`hedgehog plan` re-run won't either (compiling an intent marks it
+`active`, and `plan` only looks at pending ones). So if the packet and
+`core.yaml` disagree, the packet is what your work will be gated
+against — reconcile them rather than picking a winner:
+
+- `hedgehog status` reports a **DRIFT** section naming every task whose
+  compiled fields no longer match `core.yaml`, and what differs.
+- `hedgehog plan --recompile` rewrites those fields from the current
+  `core.yaml` on tasks that haven't started, and refuses (naming each
+  one) tasks that are `building`, `verifying`, `complete` or `blocked`.
+  `--dry-run` previews; `--include-blocked` opts blocked tasks in.
+- A task already built or committed can't be reconciled this way at all
+  — that's the Correction Protocol: fix the layer at its source and
+  re-run it.
+
+Changing either file re-shapes every task the graph compiles *from then
+on*. Both are locked at `hedgehog-core-design`'s Confirm & Lock — a layer
+boundary that turns out wrong is a `planner` decision through the
+Correction Protocol.
 
 ### The skills — invoke these, don't improvise
 

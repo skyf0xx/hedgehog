@@ -10,11 +10,23 @@ reserves the packet(s) for ready layers, build them, `hedgehog verify`
 gates and commits each. The build graph (`.hedgehog/hedgehog.db`) is the
 live list — query it via `hedgehog status`/`hedgehog ready`, never
 re-derive state from prose. The step tables below mirror
-`src/golden-cores/full-stack-app/core.yaml`, already the source of truth
+`src/golden-cores/full-stack-app/core.yaml`, the design source of truth
 for layer order, scope, and verify command per layer — read the tables
-for the human-readable shape, trust the YAML (and the packet `hedgehog
-claim` emits from it) as the authoritative one if they ever seem to
-disagree.
+for the human-readable shape, and the YAML when they seem to disagree.
+
+The packet, though, is what actually runs. `hedgehog plan` copies each
+layer's scope globs, verify command and commit message onto every task
+row at compile time; from then on the row — not `core.yaml` — is what
+`hedgehog claim` hands out and `hedgehog verify` gates against, and
+editing `core.yaml` afterwards does not reach tasks already compiled (a
+plain `hedgehog plan` re-run won't apply it either — it only reads
+intents still pending). `hedgehog status` prints a **DRIFT** section
+whenever the two have diverged, and `hedgehog plan --recompile` rewrites
+the layer-derived fields on not-yet-started tasks from the current
+`core.yaml`, refusing — and naming — every task already building,
+verifying, complete, or blocked. Never patch a task row in SQLite by
+hand: the DB is derived and gitignored, so `hedgehog db rebuild` drops
+the patch.
 
 ## Determine phase
 
