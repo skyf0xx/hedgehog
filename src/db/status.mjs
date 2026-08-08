@@ -63,7 +63,7 @@ function loadReadyTasks(db) {
 // so without listing them here a build whose only remaining work is a
 // blocked task looks identical to a finished one — "READY (none)" with
 // no indication anything is wrong. Listing them is what makes the
-// fix-and-re-verify path in hedgehog-loop's Loop step 4 discoverable
+// fix-then-`retry` path in hedgehog-loop's Loop step 4 discoverable
 // from a fresh context.
 const ATTENTION_TASKS_SQL = `
   SELECT t.* FROM tasks t

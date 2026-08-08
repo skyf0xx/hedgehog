@@ -185,8 +185,11 @@ paragraph algorithm, and their self-tests.
    above) and unlocks the next layer. On a scope violation or a failing
    check, the task moves to `blocked` with a `blocked_reason` of
    `scope_violation` or `verification_failed`, and nothing downstream
-   unlocks — fix it and re-run `hedgehog verify <task-id> --owner
-   <owner>`, don't hand-commit around it.
+   unlocks. Fix the work, then run `hedgehog retry <task-id>` to return
+   the task to `planned`, claim it again, and verify again — `hedgehog
+   verify` only accepts a task you currently hold in `building`, so a
+   blocked task has to go back through `retry` and `claim` first. Don't
+   hand-commit around it.
 5. **Repeat** — `hedgehog claim --owner <owner> --count <n>` again for
    the following layer.
 

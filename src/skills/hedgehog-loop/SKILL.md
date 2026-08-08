@@ -155,12 +155,14 @@ writes `docs/design/<module>.md`, not its own compiled layer — the
    the tables above, plus the updated build graph) and unlocks the next
    layer. On a scope violation or a failing check, the task moves to
    `blocked` with a `blocked_reason` of `scope_violation` or
-   `verification_failed`, and nothing downstream unlocks — fix it and
-   re-run `hedgehog verify <task-id> --owner <owner>`, don't hand-commit
-   around it.
+   `verification_failed`, and nothing downstream unlocks. Fix the work,
+   then run `hedgehog retry <task-id>` to return the task to `planned`,
+   claim it again, and verify again — `hedgehog verify` only accepts a
+   task you currently hold in `building`, so a blocked task has to go
+   back through `retry` and `claim` first. Don't hand-commit around it.
 
    A `blocked` task is not pickable by `hedgehog claim`, so `hedgehog
-   status` lists it under NEEDS ATTENTION with the task id to re-verify.
+   status` lists it under NEEDS ATTENTION with the task id to retry.
    If `hedgehog claim` returns nothing and the graph isn't actually done,
    fix that task — don't treat it as "nothing left to do."
 5. **Repeat** — `hedgehog claim --count N --owner <owner>` again for the
