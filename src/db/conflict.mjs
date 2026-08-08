@@ -5,7 +5,10 @@
 
 // Path-segment-wise prefix before the first wildcard character. A glob
 // with no wildcard is a literal path and is its own full prefix.
-function globPrefix(glob) {
+// Exported so core.mjs's verify-radius checks reason in exactly the glob
+// algebra the scheduler decides conflicts with, rather than a second,
+// drifting copy of it.
+export function globPrefix(glob) {
   const wildcard = glob.search(/[*?[]/);
   const literal = wildcard === -1 ? glob : glob.slice(0, wildcard);
   const segments = literal.split('/');

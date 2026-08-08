@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { dbInit, DB_PATH, openDb } from '../src/db/init.mjs';
-import { loadCore } from '../src/db/core.mjs';
+import { loadCore, lintCore } from '../src/db/core.mjs';
 import { planTasks } from '../src/db/plan.mjs';
 import { addIntent, INTENTS_DIR } from '../src/db/intent.mjs';
 import { nextTask, formatNext, stalledTasks } from '../src/db/next.mjs';
@@ -947,6 +947,34 @@ async function renewCommand(args) {
   console.log(`${green(bold('Renewed.'))} Task ${bold(taskId)}'s lease extended by ${minutes} minute(s).`);
 }
 
+// Heuristic problems with the project's own core definition, rendered for
+// `hedgehog status`. Surfaced here because status is the command every
+// session starts with, and a core-definition smell is a build-wide fact
+// rather than one task's: a layer whose verify command doesn't reach the
+// verify_radius it declared lets a task break a neighbour and still
+// commit green, and nothing later in the loop will say so. Warnings only
+// — the certainties throw from validateCore, on load.
+async function coreWarningLines() {
+  const corePath = await resolveCorePath();
+  if (!corePath) return [];
+  const label = relative(DEST_ROOT, corePath) || corePath;
+  let core;
+  try {
+    core = await loadCore(corePath);
+  } catch (err) {
+    // Every other command that loads the core fails outright on this; say
+    // so here rather than letting `hedgehog status` die with a stack.
+    return ['', `${red('CORE')}  ${bold(label)} is invalid: ${err.message}`];
+  }
+  const warnings = lintCore(core);
+  if (warnings.length === 0) return [];
+  return [
+    '',
+    `${yellow('CORE WARNINGS')}  ${dim(label)}`,
+    ...warnings.map((warning) => `  ${yellow('!')} ${warning}`),
+  ];
+}
+
 async function statusCommand() {
   await ensureDb();
 
@@ -965,6 +993,8 @@ async function statusCommand() {
   }
 
   console.log(formatStatus(result));
+  const warningLines = await coreWarningLines();
+  if (warningLines.length > 0) console.log(warningLines.join('\n'));
 }
 
 // `hedgehog ready` — read-only preview of what a `hedgehog claim` call

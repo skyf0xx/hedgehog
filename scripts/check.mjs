@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { parse } from '../src/hosts/frontmatter.mjs';
 import { AGENT_CAPABILITY } from '../src/hosts/capabilities.mjs';
-import { loadCore } from '../src/db/core.mjs';
+import { loadCore, lintCore } from '../src/db/core.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -101,12 +101,18 @@ for (const { label, text } of allEntries) {
   }
 }
 
-// ── 5. Both shipped core.yaml files load and validate cleanly. ─────────
+// ── 5. Both shipped core.yaml files load, validate, and lint cleanly.
+//    The lint (core.mjs's lintCore) is heuristic and only warns in a
+//    project, but a shipped core is the worked example every authored
+//    core is written against, so a warning on one is a release blocker
+//    here — and a shipped core tripping it is also the evidence that the
+//    heuristic cries wolf. ────────────────────────────────────────────
 for (const core of ['full-stack-app', 'landing-page']) {
   const path = join(ROOT, 'src/golden-cores', core, 'core.yaml');
   try {
     const loaded = await loadCore(path);
     if (loaded.id !== core) fail(`${path}: id "${loaded.id}" != directory name "${core}"`);
+    for (const warning of lintCore(loaded)) fail(`${path}: ${warning}`);
   } catch (err) {
     fail(`${path}: failed to load — ${err.message}`);
   }

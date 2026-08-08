@@ -254,6 +254,14 @@ files. Its true verify radius is the whole package —
 modules' schema tasks correctly serialize against each other on that
 radius even though their scopes don't overlap.
 
+A declared radius must contain the layer's own `scope` — `validateCore`
+rejects one that doesn't, because `conflict.mjs` compares scope against
+scope and radius against radius and never one against the other, so a
+radius missing part of its scope hides the case where one task writes a
+file another task's verify reads. Having declared a radius here, Step 5's
+last constraint is where you check that the `verify` command actually
+reaches it.
+
 ## Step 5 — write `.hedgehog/core.yaml`
 
 The loader parses `id` plus a `layers` list of flat maps. Every layer
@@ -318,6 +326,36 @@ if missed:
   own test-file paths back to confirm each has a covering token — fix
   both directions (add the missing scope path, or add the missing
   filter token) before Step 6, not after a build discovers the gap live.
+- **A layer that declares a wider `verify_radius` must run a `verify`
+  that reaches that far.** The constraint above cross-checks `verify`
+  against the layer's own `scope`; this one checks it against
+  `verify_radius`, which is a strictly wider set whenever Step 4b
+  declared one. A command can satisfy the first perfectly and still
+  leave everything between `scope` and the radius unexercised. The
+  radius is a claim that this layer's verify run *reads* that whole set,
+  and the scheduler serializes other tasks against exactly that claim
+  (`conflict.mjs`); a `verify` that runs only its own scope's specs
+  collects the serialization without doing the reading, and the gap is
+  invisible — the layer looks correct in isolation. Concretely: a layer
+  scoped to `apps/api/src/{module}/http/**` with `verify_radius:
+  ["apps/api/**"]` and `verify: "... vitest run src/{module}/http/"`
+  typechecks all of `apps/api` but runs only its own module's specs, so
+  binding a real adapter to a port can falsify a *neighbouring* module's
+  spec asserting that port is still unbound — that spec is outside the
+  filter and never runs, `tsc` sees a type error but not a false
+  assertion, and the task commits green having broken a module it
+  declared it was reading. For every layer with a `verify_radius`,
+  answer yes or no: **for each path in my radius that lies outside my
+  `scope`, does some part of my `verify` command actually execute
+  against it?** If no, widen the command (drop the path filter, run the
+  package's whole suite — the radius already serializes those tasks, so
+  this costs runtime, not concurrency) or narrow the radius to what the
+  command really reads; prefer widening, since Step 4b declared the
+  radius for a reason. `hedgehog status` warns on the form it can see —
+  a wider radius whose `verify` command's only path arguments sit inside
+  `scope` — but a filter expressed as a flag rather than a path
+  (`--testPathPattern={module}`, `-t <name>`) is invisible to it, so on
+  those the answer is yours, not the linter's.
 
 Verify the file loads before showing it back, by calling the loader
 directly:
