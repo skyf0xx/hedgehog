@@ -28,6 +28,7 @@ import { readyTasks, formatReady } from '../src/db/ready.mjs';
 import { graphStatus, formatStatus } from '../src/db/status.mjs';
 import { whyPath, formatWhy } from '../src/db/why.mjs';
 import { addFriction, listFriction } from '../src/db/friction.mjs';
+import { addDebt, listDebt } from '../src/db/debt.mjs';
 import { rebuildDb } from '../src/db/rebuild.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
@@ -322,6 +323,8 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog why <path>                provenance chain for a file
   npx @skyf0xx/hedgehog friction add "<note>"     log a friction note [--task <task-id>]
   npx @skyf0xx/hedgehog friction list             list logged friction, oldest first
+  npx @skyf0xx/hedgehog debt add <task-id> "<note>"   declare debt that lands in dependent tasks' packets
+  npx @skyf0xx/hedgehog debt list [<task-id>]     list declared debt, oldest first
   npx @skyf0xx/hedgehog --help
 
 Available cores: ${cores.join(', ')}
@@ -1291,6 +1294,74 @@ async function frictionCommand(args) {
   process.exitCode = 1;
 }
 
+// `hedgehog debt add <task-id> "<note>"` / `hedgehog debt list [<task-id>]`
+// — declared debt between tasks. A note recorded against a task is
+// rendered into the INHERITED DEBT section of the packet of every task
+// that depends on it (see src/db/debt.mjs and src/db/next.mjs).
+async function debtCommand(args) {
+  await ensureDb();
+
+  const sub = args[0];
+
+  if (!(await exists(DB_PATH))) {
+    console.error(`${red('No build graph found.')} Run ${bold('hedgehog db init')} first.\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (sub === 'add') {
+    const taskId = args[1];
+    const note = args.slice(2).join(' ');
+    if (!taskId || !note) {
+      console.error(`${red('Usage:')} hedgehog debt add <task-id> "<note>"\n`);
+      process.exitCode = 1;
+      return;
+    }
+
+    const db = openDb();
+    let entry;
+    try {
+      entry = addDebt(db, { taskId, note });
+    } catch (err) {
+      console.error(`${red('Failed to declare debt:')} ${err.message}\n`);
+      process.exitCode = 1;
+      return;
+    } finally {
+      db.close();
+    }
+
+    console.log(`  ${green('declared')}  #${entry.id} ${bold(entry.taskId)}`);
+    console.log(`  ${dim('reaches the packet of every task depending on it')}`);
+    return;
+  }
+
+  if (sub === 'list') {
+    const taskId = args[1];
+    const db = openDb();
+    let entries;
+    try {
+      entries = listDebt(db, taskId);
+    } finally {
+      db.close();
+    }
+
+    if (entries.length === 0) {
+      console.log(`${dim('No debt declared.')}\n`);
+      return;
+    }
+    for (const entry of entries) {
+      console.log(`#${entry.id}  ${dim(entry.loggedAt)}  ${bold(entry.taskId)}`);
+      console.log(`  ${entry.note}\n`);
+    }
+    return;
+  }
+
+  console.error(
+    `${red('Unknown debt subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog debt add <task-id> "<note>"\n   or: hedgehog debt list [<task-id>]\n`,
+  );
+  process.exitCode = 1;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help') || args.includes('-h') || args.length === 0) {
@@ -1421,6 +1492,11 @@ async function main() {
 
   if (cmd === 'friction') {
     await frictionCommand(args.slice(1));
+    return;
+  }
+
+  if (cmd === 'debt') {
+    await debtCommand(args.slice(1));
     return;
   }
 

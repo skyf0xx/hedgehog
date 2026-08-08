@@ -47,6 +47,50 @@ function loadTaskRequirements(db, taskId) {
     .all(taskId);
 }
 
+// The full transitive closure of tasks this one depends on — its whole
+// upstream chain, not just its direct dependencies. Debt declared three
+// layers up doesn't stop applying one layer later, so the packet has to
+// see the same distance the dependency edge actually reaches.
+function loadUpstreamTaskIds(db, taskId) {
+  const directDeps = db.prepare(
+    'SELECT depends_on_task_id AS id FROM dependencies WHERE task_id = ?',
+  );
+  const seen = new Set([taskId]);
+  const upstream = [];
+  let frontier = [taskId];
+  while (frontier.length > 0) {
+    const next = [];
+    for (const id of frontier) {
+      for (const row of directDeps.all(id)) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        upstream.push(row.id);
+        next.push(row.id);
+      }
+    }
+    frontier = next;
+  }
+  return upstream;
+}
+
+// Debt declared by anything this task inherits from (see debt.mjs).
+// Tolerates a `debt` table that doesn't exist yet — a build graph created
+// before the table was added must still be able to emit a packet.
+function loadInheritedDebt(db, taskId) {
+  const upstream = loadUpstreamTaskIds(db, taskId);
+  if (upstream.length === 0) return [];
+  const placeholders = upstream.map(() => '?').join(',');
+  try {
+    return db
+      .prepare(
+        `SELECT task_id AS taskId, note FROM debt WHERE task_id IN (${placeholders}) ORDER BY id ASC`,
+      )
+      .all(...upstream);
+  } catch {
+    return [];
+  }
+}
+
 function loadDirectDependents(db, taskId) {
   return db
     .prepare(
@@ -92,12 +136,14 @@ export function assemblePacket(db, task) {
   const intent = loadIntent(db, task.intent_id);
   const requirements = loadTaskRequirements(db, task.id);
   const dependents = loadBlockedDownstream(db, task.id);
+  const inheritedDebt = loadInheritedDebt(db, task.id);
 
   return {
     task,
     intent,
     requirements,
     dependents,
+    inheritedDebt,
   };
 }
 
@@ -127,14 +173,15 @@ export function stalledTasks(db) {
     .all();
 }
 
-// Renders a packet into the STATUS / INTENT / RELEVANT RULES / WHY NOW /
-// BLOCKED DOWNSTREAM / ALLOWED SCOPE / VERIFICATION format. The spec
+// Renders a packet into the STATUS / INTENT / RELEVANT RULES /
+// INHERITED DEBT / WHY NOW / BLOCKED DOWNSTREAM / ALLOWED SCOPE /
+// VERIFICATION format. The spec
 // splits this across two examples — the `hedgehog next` display and "The
 // task packet" (which carries the intent and its rules) — but an agent
 // receives one thing, so the packet is one thing: everything the worker
 // needs to build the task without reading the plan.
 export function formatNext(packet) {
-  const { task, intent, requirements, dependents } = packet;
+  const { task, intent, requirements, dependents, inheritedDebt = [] } = packet;
   const scopeGlobs = JSON.parse(task.scope_globs);
 
   const lines = [];
@@ -159,6 +206,15 @@ export function formatNext(packet) {
   } else {
     for (const req of requirements) {
       lines.push(`  - ${req.statement}`);
+    }
+  }
+  lines.push('');
+  lines.push('INHERITED DEBT');
+  if (inheritedDebt.length === 0) {
+    lines.push('  (none declared)');
+  } else {
+    for (const entry of inheritedDebt) {
+      lines.push(`  ! ${entry.taskId}  ${entry.note}`);
     }
   }
   lines.push('');

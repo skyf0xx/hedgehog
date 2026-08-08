@@ -87,6 +87,20 @@ CREATE TABLE IF NOT EXISTS verifications (
   ran_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Declared debt: a note one task leaves for the tasks that inherit from
+-- it. A layer that discovers a real limitation has nowhere else to put
+-- it — a "KNOWN LIMITATION" comment in a source file is not a mechanism,
+-- because the task that inherits the problem never reads that file's
+-- comments before building. Rows here are rendered into the packet of
+-- every task that (transitively) depends on task_id, so the limitation
+-- travels down the chain the same way the dependency does.
+CREATE TABLE IF NOT EXISTS debt (
+  id        INTEGER PRIMARY KEY,
+  task_id   TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  note      TEXT NOT NULL,
+  logged_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS friction (
   id        INTEGER PRIMARY KEY,
   task_id   TEXT REFERENCES tasks(id) ON DELETE SET NULL,

@@ -71,7 +71,13 @@ export async function dbInit(dbPath = DB_PATH) {
   const db = new DatabaseSync(dbPath);
   try {
     db.exec('PRAGMA foreign_keys = ON;');
-    if (!already) applySchema(db);
+    // Applied unconditionally, not only on creation: the schema is all
+    // `CREATE TABLE IF NOT EXISTS`, so re-running it against an existing
+    // graph is a no-op for tables that are already there and the
+    // migration path for ones added since that graph was created (the
+    // `debt` table, for instance). `created` still reports whether the
+    // file itself is new.
+    applySchema(db);
   } finally {
     db.close();
   }
