@@ -19,17 +19,71 @@
 # type/integration breakage isn't caught at the task that caused it once
 # schema/hook run per-module; join catches it once, after every module's
 # layers land, in exchange for those layers running in parallel.
+#
+# ── How the test filter is spelled, and why ──────────────────────────
+# This core runs Vitest 4, not Jest. `--testPathPattern=` is a Jest flag;
+# Vitest's CLI parser (CAC) rejects unknown options outright, so every
+# templated verify died with `CACError: Unknown option --testPathPattern`
+# before a single test ran — a gate that could never pass, whatever the
+# code did. Vitest's own file filter is positional, and `nx test <project>
+# -- <args>` forwards everything after `--` to the underlying command
+# (verified against a real instantiated workspace: `nx run db:test
+# src/schema/board/` → `vitest src/schema/board/`).
+#
+# Each filter is anchored on the layer's own scope directory, relative to
+# that project's root — `src/schema/{module}/`, never a bare `{module}`.
+# A bare module name is a substring match against the whole test file
+# path, so `card` also matches `src/board/use-board-cards.spec.ts` and
+# verifies (or fails on) another module's work. Worse, several plausible
+# module names are Vitest subcommands: `vitest list` runs Vitest's
+# list-collected-tests command, which prints the collected tests and
+# exits 0 — measured, with a deliberately broken test in place, on a
+# module named `list`. That is a gate that cannot fail. The trailing
+# slash matters too: it keeps `src/{module}/` from matching a sibling
+# directory that merely starts with the same characters.
+#
+# A filter that matches nothing exits 1 ("No test files found"), so a
+# layer that lands source with no test is caught rather than waved
+# through.
+#
+# ── screen and the optional Mobile add-on ────────────────────────────
+# `apps/mobile` exists only when planning intake turns the Mobile add-on
+# on (.hedgehog/addons.yaml); the core itself never lands it. So the
+# shipped verify runs web only — the half that is always true. core.yaml's
+# grammar is flat scalars with no conditional, so it cannot express "also
+# run mobile, if mobile exists", and the shell tricks that could are all
+# gates that pass silently when they do nothing: `nx run-many -t test -p
+# mobile` exits 0 with "No tasks were run" when no such project exists —
+# and equally when mobile exists but its test target does not. Extending
+# this layer's verify with `&& pnpm nx test mobile -- src/{module}/`
+# belongs to hedgehog-bootstrap's Mobile add-on step, alongside the
+# `nx g @nx/expo:app apps/mobile` that creates the project. Until then
+# join's run-many sweep is what covers apps/mobile. The mobile scope glob
+# stays either way: with the add-on on, the screen layer must be allowed
+# to write there.
+#
+# ── join ─────────────────────────────────────────────────────────────
+# join runs the same typecheck/lint/test sweep
+# hedgehog-bootstrap-full-stack-app-core verifies the workspace with. The
+# template's `pnpm typecheck` named a root package.json script this core
+# has never defined (its only script is `dev`), so join died with
+# `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL Command "typecheck" not found`.
+# The typecheck target itself is real — nx.json registers it through the
+# @nx/js/typescript plugin — so run-many reaches it directly with no root
+# script to keep in sync. Keeping typecheck in join is what makes a
+# type-only regression (which Vitest's esbuild transform strips rather
+# than reports) fail somewhere.
 id: full-stack-app
 layers:
   - id: schema
     scope: ["packages/db/src/schema/{module}/**"]
-    verify: "pnpm nx test db --testPathPattern={module}"
+    verify: "pnpm nx test db -- src/schema/{module}/"
     verify_radius: ["packages/db/**"]
     commit: "feat({module}): schema"
   - id: contract
     depends_on: schema
     scope: ["packages/contracts/src/{module}/**"]
-    verify: "pnpm nx test contracts --testPathPattern={module}"
+    verify: "pnpm nx test contracts -- src/{module}/"
     commit: "feat({module}): contract"
   - id: repository
     depends_on: contract
@@ -44,22 +98,22 @@ layers:
   - id: controller
     depends_on: service
     scope: ["apps/api/src/app/{module}/**"]
-    verify: "pnpm nx test api --testPathPattern={module}"
+    verify: "pnpm nx test api -- src/app/{module}/"
     commit: "feat({module}): api"
   - id: hook
     depends_on: controller
     scope: ["packages/hooks/src/{module}/**"]
-    verify: "pnpm nx test hooks --testPathPattern={module}"
+    verify: "pnpm nx test hooks -- src/{module}/"
     verify_radius: ["packages/hooks/**"]
     commit: "feat({module}): hooks"
   - id: screen
     depends_on: hook
     scope: ["apps/web/src/app/{module}/**", "apps/mobile/src/{module}/**"]
-    verify: "pnpm nx test web --testPathPattern={module} && pnpm nx test mobile --testPathPattern={module}"
+    verify: "pnpm nx test web -- src/app/{module}/"
     commit: "feat({module}): screen-web"
   - id: join
     depends_on: screen
     scope: ["**"]
-    verify: "pnpm typecheck && pnpm nx run-many -t test"
+    verify: "pnpm nx run-many -t typecheck,lint,test"
     exclusive: true
     commit: "chore({module}): join"
