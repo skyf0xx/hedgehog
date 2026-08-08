@@ -9,6 +9,14 @@
 // a core definition's layer chain once per intent — because a linear
 // chain is the degenerate case of the layer graph (spec: MVP scope
 // item 5).
+//
+// Layer cardinality: a layer marked `once: true` in the core definition
+// opts out of that per-intent multiplication and compiles a single task
+// for the whole build. It's how a module-axis core expresses genuinely
+// cross-cutting work — provisioning a cluster, deploying the built
+// system — that is one piece of work no matter how many modules the
+// graph holds. Without it such a layer compiles once per intent and
+// every copy but the first is a replay of the same command.
 
 function fillModule(template, module) {
   return template.replaceAll('{module}', module);
@@ -20,11 +28,113 @@ function taskId(intentId, layerId) {
   return `${intentId}-${layerId}`.toUpperCase();
 }
 
-// Compiles one intent's tasks + intra-intent dependencies (mirroring the
-// core definition's layer order) without touching the database.
+// A `once: true` layer's task id is the bare layer id — no intent
+// prefix, because there is no intent it belongs to. The missing prefix
+// is the signal: `DEPLOY` is the build's one deploy, `ORDERS-DEPLOY`
+// would be one of several.
+function onceTaskId(layerId) {
+  return layerId.toUpperCase();
+}
+
+// `tasks.intent_id` is NOT NULL and a foreign key into `intents`, so a
+// once-layer's task still needs an intent to hang off. Attributing it to
+// a real intent is what this feature exists to stop — it would put
+// cluster provisioning under whichever module happened to compile first,
+// link it to that module's requirements, and hold that intent open until
+// the infrastructure ran. So the compiler synthesises one intent, owned
+// by the core rather than by any module. It is derived entirely from
+// core.yaml, which makes it reproducible by `hedgehog db rebuild`
+// (whereas "the first intent compiled" is not: intent order changes as
+// intents are added, so a rebuild could attribute the same task
+// differently). No `.hedgehog/intents/*.json` backs it — core.yaml is
+// its committed source.
+export const CORE_INTENT_ID = '_core';
+
+// Also `tasks.module` for every once-layer task: the value that would be
+// substituted into {module} if a once-layer were allowed to carry one
+// (core.mjs's validateCore rejects that). next.mjs reads it to know a
+// packet is cross-cutting rather than module-scoped.
+export const CORE_MODULE = CORE_INTENT_ID;
+
+// Once-layer tasks take the schema's default intent priority. Ordering
+// between a once-layer and the modules around it is carried by the
+// dependency edges, not by priority — a head once-layer is upstream of
+// every module's first layer, and a tail one is downstream of every
+// module's last.
+const CORE_INTENT_PRIORITY = 100;
+
+function coreIntent(core) {
+  return {
+    id: CORE_INTENT_ID,
+    goal: `Cross-cutting layers of core "${core.id}"`,
+    outcome: `Each once: true layer of "${core.id}" is built exactly once for the whole build, not once per module`,
+  };
+}
+
+function layerById(core) {
+  return new Map(core.layers.map((layer) => [layer.id, layer]));
+}
+
+// Compiles the core's `once: true` layers — one task each, for the whole
+// build — plus the edges between two once-layers. Edges that cross the
+// cardinality boundary in either direction are per-intent and belong to
+// compileIntentTasks. Independent of the intent set entirely, which is
+// what makes the result identical on every run.
+function compileOnceTasks(core) {
+  const byId = layerById(core);
+  const onceLayers = core.layers.filter((layer) => layer.once);
+
+  const tasks = onceLayers.map((layer) => ({
+    id: onceTaskId(layer.id),
+    intent_id: CORE_INTENT_ID,
+    module: CORE_MODULE,
+    layer: layer.id,
+    objective: `${layer.id} for the whole build`,
+    scope_globs: JSON.stringify(layer.scope),
+    verify_command: layer.verify,
+    commit_message: layer.commit,
+    priority: CORE_INTENT_PRIORITY,
+    exclusive: layer.exclusive ? 1 : 0,
+    verify_radius:
+      layer.verify_radius === null ? null : JSON.stringify(layer.verify_radius),
+  }));
+
+  const dependencies = [];
+  for (const layer of onceLayers) {
+    if (!layer.depends_on) continue;
+    if (!byId.get(layer.depends_on).once) continue; // per-intent parent — see compileIntentTasks
+    dependencies.push({
+      task_id: onceTaskId(layer.id),
+      depends_on_task_id: onceTaskId(layer.depends_on),
+    });
+  }
+
+  return { tasks, dependencies };
+}
+
+// Compiles one intent's tasks + the dependencies that intent contributes,
+// without touching the database. Only the core's per-intent layers become
+// tasks here; `once: true` layers are compiled separately, exactly once,
+// by compileOnceTasks.
+//
+// Three of the four `depends_on` combinations are this function's, one
+// row per intent:
+//   per-intent → per-intent   this intent's chain link (the original case)
+//   per-intent → once         every module's task waits on the single
+//                             once-task, so a head infra layer gates the
+//                             whole build
+//   once → per-intent         the single once-task waits on this intent's
+//                             task — repeated across intents, it becomes
+//                             "waits on all of them", so a tail deploy
+//                             layer runs after every module has landed
+// The fourth (once → once) is compileOnceTasks's, since it has no
+// per-intent multiplicity.
 function compileIntentTasks(intent, core) {
   const module = intent.id;
-  const tasks = core.layers.map((layer) => ({
+  const byId = layerById(core);
+  const perIntentLayers = core.layers.filter((layer) => !layer.once);
+
+  const tasks = perIntentLayers.map((layer) => ({
     id: taskId(intent.id, layer.id),
     intent_id: intent.id,
     module,
@@ -44,9 +154,13 @@ function compileIntentTasks(intent, core) {
   const dependencies = [];
   for (const layer of core.layers) {
     if (!layer.depends_on) continue;
+    const parent = byId.get(layer.depends_on);
+    if (layer.once && parent.once) continue; // compileOnceTasks owns this edge
     dependencies.push({
-      task_id: taskId(intent.id, layer.id),
-      depends_on_task_id: taskId(intent.id, layer.depends_on),
+      task_id: layer.once ? onceTaskId(layer.id) : taskId(intent.id, layer.id),
+      depends_on_task_id: parent.once
+        ? onceTaskId(parent.id)
+        : taskId(intent.id, parent.id),
     });
   }
 
@@ -113,6 +227,41 @@ function taskExists(db, taskId) {
   return db.prepare('SELECT 1 FROM tasks WHERE id = ?').get(taskId) !== undefined;
 }
 
+// Real intents only — the synthesised core intent doesn't count, or the
+// once-layer bootstrap below would fire on a graph with no work in it.
+function countRealIntents(db) {
+  return db
+    .prepare('SELECT COUNT(*) AS n FROM intents WHERE id <> ?')
+    .get(CORE_INTENT_ID).n;
+}
+
+// Inserts the synthesised core intent if it isn't there yet. Written
+// straight to 'active': it is compiled at the moment it's created, and it
+// must never be picked up as a pending intent by loadPendingIntents.
+// A pre-existing row with a different goal is a user intent squatting on
+// the reserved id — intent.mjs refuses to create one, so this only fires
+// on a graph predating that guard.
+function ensureCoreIntent(db, core) {
+  const intent = coreIntent(core);
+  const existing = db
+    .prepare('SELECT goal FROM intents WHERE id = ?')
+    .get(CORE_INTENT_ID);
+
+  if (existing === undefined) {
+    db.prepare(
+      `INSERT INTO intents (id, goal, outcome, priority, status)
+       VALUES (?, ?, ?, ?, 'active')`,
+    ).run(intent.id, intent.goal, intent.outcome, CORE_INTENT_PRIORITY);
+    return;
+  }
+
+  if (existing.goal !== intent.goal) {
+    throw new Error(
+      `intent id "${CORE_INTENT_ID}" is reserved for the core's once: true layers, but an unrelated intent already holds it`,
+    );
+  }
+}
+
 const insertTask = (db) =>
   db.prepare(`
     INSERT INTO tasks
@@ -153,6 +302,16 @@ const insertTaskRequirement = (db) =>
 // the traceability chain (spec: "Traceability") has no middle link:
 // `hedgehog why` could reach the intent but never name the requirement a
 // file satisfies.
+//
+// Once-layers: compiled before the intent loop, in the same transaction,
+// and only if the graph already holds at least one real intent. They are
+// skipped by id like everything else, so a second `hedgehog plan` after a
+// fourth intent is added re-uses the single existing task instead of
+// compiling a second copy. Adding `once` to a core whose intents are
+// already compiled is a core-definition change, not a plan run: the
+// already-compiled intents are skipped and so contribute no edges to the
+// new once-layer. Delete `.hedgehog/hedgehog.db` and `hedgehog db
+// rebuild` to recompile the whole graph against the new definition.
 export function planTasks(db, core) {
   const intents = loadPendingIntents(db);
   const intentDependencies = loadIntentDependencies(db);
@@ -164,7 +323,16 @@ export function planTasks(db, core) {
     dependsOnByIntent.get(intent_id).push(depends_on_intent_id);
   }
 
-  const firstLayerId = core.layers[0].id;
+  const perIntentLayers = core.layers.filter((layer) => !layer.once);
+  // validateCore guarantees at least one per-intent layer. The skip check
+  // has to key on the first *per-intent* layer, not core.layers[0]: with a
+  // once-layer at the head, core.layers[0]'s task id is the same for every
+  // intent, so every intent after the first would look already-compiled
+  // and silently compile nothing.
+  const firstLayerId = perIntentLayers[0].id;
+  const onceTaskIds = new Set(
+    core.layers.filter((layer) => layer.once).map((layer) => onceTaskId(layer.id)),
+  );
 
   const runInsert = insertTask(db);
   const runInsertDep = insertDependency(db);
@@ -172,9 +340,35 @@ export function planTasks(db, core) {
 
   const compiledIntentIds = [];
   const skippedIntentIds = [];
+  const compiledOnceTaskIds = [];
 
   db.exec('BEGIN IMMEDIATE');
   try {
+    if (onceTaskIds.size > 0 && countRealIntents(db) > 0) {
+      ensureCoreIntent(db, core);
+      const { tasks, dependencies } = compileOnceTasks(core);
+      for (const t of tasks) {
+        if (taskExists(db, t.id)) continue;
+        runInsert.run(
+          t.id,
+          t.intent_id,
+          t.module,
+          t.layer,
+          t.objective,
+          t.scope_globs,
+          t.verify_command,
+          t.commit_message,
+          t.priority,
+          t.exclusive,
+          t.verify_radius,
+        );
+        compiledOnceTaskIds.push(t.id);
+      }
+      for (const d of dependencies) {
+        runInsertDep.run(d.task_id, d.depends_on_task_id);
+      }
+    }
+
     for (const intent of ordered) {
       const firstTaskId = taskId(intent.id, firstLayerId);
       if (taskExists(db, firstTaskId)) {
@@ -185,6 +379,13 @@ export function planTasks(db, core) {
       const { tasks, dependencies } = compileIntentTasks(intent, core);
       const requirementIds = loadIntentRequirements(db, intent.id).map((r) => r.id);
       for (const t of tasks) {
+        // <INTENT>-<LAYER> colliding with a bare once-layer id would
+        // otherwise surface as a primary-key failure mid-transaction.
+        if (onceTaskIds.has(t.id)) {
+          throw new Error(
+            `task "${t.id}" for intent "${intent.id}" collides with the id of once: true layer "${t.id.toLowerCase()}" — rename the layer or the intent`,
+          );
+        }
         runInsert.run(
           t.id,
           t.intent_id,
@@ -208,9 +409,11 @@ export function planTasks(db, core) {
 
       // Cross-intent edge: per layer, not first-to-last — this intent's
       // layer task can't be ready until the matching layer of every
-      // intent it depends_on is complete.
+      // intent it depends_on is complete. Once-layers have no per-intent
+      // counterpart to pair up, and pairing one with itself would be a
+      // self-edge the `dependencies` CHECK rejects outright.
       for (const depIntentId of dependsOnByIntent.get(intent.id) ?? []) {
-        for (const layer of core.layers) {
+        for (const layer of perIntentLayers) {
           runInsertDep.run(taskId(intent.id, layer.id), taskId(depIntentId, layer.id));
         }
       }
@@ -231,5 +434,9 @@ export function planTasks(db, core) {
     throw err;
   }
 
-  return { compiled: compiledIntentIds, skipped: skippedIntentIds };
+  return {
+    compiled: compiledIntentIds,
+    skipped: skippedIntentIds,
+    once: compiledOnceTaskIds,
+  };
 }

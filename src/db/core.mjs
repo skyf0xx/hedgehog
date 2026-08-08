@@ -58,6 +58,7 @@ function indentOf(line) {
 //       verify: <scalar>
 //       commit: <scalar>
 //       exclusive: <bool>             # optional, default false
+//       once: <bool>                  # optional, default false
 //       verify_radius: [<scalar>, ...] # optional, default null (falls back to scope)
 export function parseCoreYaml(text) {
   const rawLines = text.split('\n');
@@ -113,6 +114,10 @@ export function parseCoreYaml(text) {
       // Scheduler isolation flag (conflict.mjs) — absent means concurrency-safe.
       exclusive:
         layer.exclusive !== undefined && parseScalar(layer.exclusive) === 'true',
+      // Cardinality flag (plan.mjs) — absent means one task per intent, the
+      // module axis. `once: true` means one task for the whole build, no
+      // matter how many intents the graph holds.
+      once: layer.once !== undefined && parseScalar(layer.once) === 'true',
       // null (not []) is the sentinel conflict.mjs reads as "fall back to scope".
       verify_radius:
         layer.verify_radius !== undefined
@@ -133,6 +138,7 @@ export function validateCore(core) {
   if (!Array.isArray(core.layers) || core.layers.length === 0) {
     throw new Error('core definition has no layers');
   }
+  const layerIds = new Set();
   for (const layer of core.layers) {
     if (!layer.id) throw new Error('layer missing id');
     if (!layer.scope || layer.scope.length === 0) {
@@ -141,23 +147,72 @@ export function validateCore(core) {
     if (!layer.verify) {
       throw new Error(`layer "${layer.id}" missing verify`);
     }
+    layerIds.add(layer.id);
+  }
+
+  // `depends_on` naming a layer that doesn't exist compiles to a
+  // dependency row pointing at a task id nothing ever inserts — a foreign
+  // key failure halfway through `hedgehog plan` rather than a legible
+  // error here. It also has to resolve for the cardinality rules below:
+  // which edges a layer compiles depends on whether its parent is `once`.
+  for (const layer of core.layers) {
+    if (!layer.depends_on) continue;
+    if (!layerIds.has(layer.depends_on)) {
+      throw new Error(
+        `layer "${layer.id}" depends_on "${layer.depends_on}", which is not a layer of core "${core.id}"`,
+      );
+    }
+  }
+
+  // A `once: true` layer compiles a single task for the whole build, so
+  // there is no module to substitute into its templates. Left unchecked,
+  // a stray {module} would survive verbatim into scope_globs — a glob
+  // matching a literal "{module}" directory, i.e. nothing — and into the
+  // commit message, which is what `hedgehog db rebuild` matches history
+  // against.
+  for (const layer of core.layers) {
+    if (!layer.once) continue;
+    const templated = [
+      ...layer.scope,
+      layer.verify,
+      layer.commit,
+      ...(layer.verify_radius ?? []),
+    ].join('');
+    if (templated.includes('{module}')) {
+      throw new Error(
+        `layer "${layer.id}" is once: true, so it compiles one task for the whole build and has no module to substitute — remove {module} from its scope/verify/commit/verify_radius`,
+      );
+    }
+  }
+
+  // Every layer `once` leaves no per-intent layer at all: no intent would
+  // ever compile a task, and plan.mjs has nothing to key its
+  // already-compiled check on.
+  if (core.layers.every((layer) => layer.once)) {
+    throw new Error(
+      `core "${core.id}" has no per-intent layer — every layer is once: true, so no intent would compile any task`,
+    );
   }
 
   // A module-axis core's per-module layers must all vary by module in
   // scope — a partial mix means some layer's file-level isolation
   // silently collapses across modules at plan.mjs's fillModule step.
   // scope (not verify/commit) is the check because scope is what
-  // determines file-level isolation. An `exclusive: true` layer is
-  // exempt: exclusive is the declared escape hatch for irreducibly
+  // determines file-level isolation. Two kinds of layer are exempt.
+  // `exclusive: true` is the declared escape hatch for irreducibly
   // global work (a join/integration layer), which by definition has no
   // per-module scope to declare and needs none — the scheduler already
-  // never co-schedules it with anything.
+  // never co-schedules it with anything. `once: true` is exempt for a
+  // stronger reason: it compiles one task, not one per module, so there
+  // is nothing for a {module} in its scope to isolate — and requiring one
+  // would reject exactly the cross-cutting layers `once` exists to
+  // express.
   const isModuleAxis = core.layers.some((layer) =>
     layer.scope.join('').includes('{module}'),
   );
   if (isModuleAxis) {
     for (const layer of core.layers) {
-      if (layer.exclusive) continue;
+      if (layer.exclusive || layer.once) continue;
       if (!layer.scope.join('').includes('{module}')) {
         throw new Error(
           `layer "${layer.id}" has no {module} in scope, but core "${core.id}" is module-axis (another layer's scope uses {module})`,

@@ -17,6 +17,7 @@
 // plain text a PR can review and a fresh clone can replay.
 
 import { mkdir, writeFile } from 'node:fs/promises';
+import { CORE_INTENT_ID } from './plan.mjs';
 
 export const INTENTS_DIR = '.hedgehog/intents';
 
@@ -37,6 +38,14 @@ export function normalizeIntent(record) {
   const { id, goal, outcome, priority, depends_on: dependsOn } = record;
 
   if (!id) throw new Error('intent requires an id');
+  // plan.mjs synthesises this intent from core.yaml to own the tasks of
+  // `once: true` layers. A user intent on the same id would have its
+  // cross-cutting tasks silently merged into it.
+  if (id === CORE_INTENT_ID) {
+    throw new Error(
+      `intent id "${CORE_INTENT_ID}" is reserved for the core's once: true layers`,
+    );
+  }
   if (!goal) throw new Error('intent requires a goal');
   if (!outcome) throw new Error('intent requires an outcome');
 

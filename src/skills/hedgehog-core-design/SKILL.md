@@ -212,11 +212,34 @@ that layer's scope past what it was designed to own.
 
 If yes, add it to Step 3's layer sequence as its own layer, before the
 file is written — a layer whose `scope` is a fixed path with no
-`{module}` placeholder, the same way `full-stack-app`'s own `schema` and
-`contract` layers run once against a fixed scope on an otherwise
-module-axis core. Name it for what it owns (e.g. `background-infra`),
-give it its own `verify` command, and record in `core-design.md` why no
-single module was made to own it.
+`{module}` placeholder, marked **`once: true`**. Name it for what it owns
+(e.g. `background-infra`), give it its own `verify` command, and record
+in `core-design.md` why no single module was made to own it.
+
+`once: true` is the cardinality declaration, and on a module axis it is
+not optional for such a layer. Without it the layer still instantiates
+per intent: six modules compile six identical `terraform apply` tasks,
+five of them replaying work the first one already did, and the commit log
+attributes shared infrastructure to whichever module happened to compile
+first. With it the layer compiles exactly one task, id `<LAYER>` with no
+module prefix, owned by the core rather than by any intent — and the
+dependency edges resolve across the boundary in both directions: a
+per-module layer that `depends_on` it waits on the single task, and a
+`once` layer that `depends_on` a per-module layer waits on *every*
+module's copy. That makes a head `once` layer a gate on the whole build
+and a tail one a join after every module has landed.
+
+Two rules follow from compiling one task. A `once` layer must carry no
+`{module}` anywhere — scope, verify, commit, or verify_radius — since
+there is no module to substitute; `validateCore` rejects it outright. And
+a core cannot be all `once` layers: at least one layer has to be
+per-intent, or no intent compiles anything.
+
+`once` and `exclusive` are different axes and often both apply.
+`once: true` is *how many tasks compile*; `exclusive: true` is *whether
+the one that compiled may run alongside anything else*. Shared
+infrastructure that mutates live state (`terraform apply`, `kubectl
+apply`) usually wants both.
 
 ## Step 4b — declare each layer's verify radius
 
@@ -294,8 +317,12 @@ if missed:
   than `id` and `layers` are ignored, but any nested block
   (`architecture:`, `modules:`, `decisions:`) throws at load. Rationale
   belongs in `.hedgehog/core-design.md`.
-- **`depends_on` names one layer**, and the chain must be acyclic. The
-  compiler walks it directly into `dependencies` rows.
+- **`depends_on` names one layer** that exists in this same core, and the
+  chain must be acyclic. The compiler walks it directly into
+  `dependencies` rows; `validateCore` rejects a name no layer carries.
+- **`once: true` marks a cross-cutting layer** — one task for the whole
+  build instead of one per intent (Step 4). It must carry no `{module}`
+  in any field, and at least one layer of the core must be without it.
 - **`verify` must prove the layer's own claim, not just exit clean.** A
   command that runs but asserts nothing (`tsc --noEmit` alone on a layer
   whose job is behavior, a `test -s` on a file nothing checks the content

@@ -597,6 +597,9 @@ async function planCommand() {
     db.close();
   }
 
+  for (const id of result.once) {
+    console.log(`  ${green('compiled')}  ${id} ${dim('(once — one task for the whole build)')}`);
+  }
   for (const id of result.compiled) console.log(`  ${green('compiled')}  ${id}`);
   for (const id of result.skipped) console.log(`  ${dim('skipped')}  ${id} ${dim('(already compiled)')}`);
   console.log(

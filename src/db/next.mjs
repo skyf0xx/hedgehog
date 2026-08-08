@@ -14,6 +14,8 @@
 // joined through intents/requirements/task_requirements — never
 // hand-written, never the whole plan.
 
+import { CORE_MODULE } from './plan.mjs';
+
 const READY_TASK_SQL = `
   SELECT t.* FROM tasks t
   WHERE t.status IN ('planned', 'ready')
@@ -158,7 +160,14 @@ export function formatNext(packet) {
   lines.push('');
   lines.push('WHY NOW');
   lines.push(`  ✓ Intent "${intent.id}" compiled into the graph`);
-  lines.push(`  ✓ Domain module "${task.module}" resolved`);
+  // A once: true layer has no module — it compiled one task for the whole
+  // build (plan.mjs, CORE_MODULE), so naming a domain module here would
+  // print the compiler's internal placeholder as if it were one.
+  if (task.module === CORE_MODULE) {
+    lines.push('  ✓ Cross-cutting layer — one task for the whole build');
+  } else {
+    lines.push(`  ✓ Domain module "${task.module}" resolved`);
+  }
   lines.push('  ✓ No incomplete dependencies');
   lines.push('');
   lines.push('BLOCKED DOWNSTREAM');
