@@ -21,7 +21,7 @@ import { dbInit, DB_PATH, openDb } from '../src/db/init.mjs';
 import { loadCore } from '../src/db/core.mjs';
 import { planTasks } from '../src/db/plan.mjs';
 import { addIntent, INTENTS_DIR } from '../src/db/intent.mjs';
-import { nextTask, formatNext, stalledTasks } from '../src/db/next.mjs';
+import { nextTask, formatNext, stalledTasks, assemblePacket } from '../src/db/next.mjs';
 import { verifyTask } from '../src/db/verify.mjs';
 import { claimTasks, releaseTask, renewLease } from '../src/db/claim.mjs';
 import { readyTasks, formatReady } from '../src/db/ready.mjs';
@@ -825,8 +825,14 @@ async function verifyCommand(args) {
 
 // `hedgehog claim --owner <owner> [--count <n>]` — atomically claims up to
 // `count` mutually non-conflicting ready tasks (claimTasks's fan-out, item
-// 13) and prints each one's packet-level summary, plus which owner now
-// holds them.
+// 13) and prints each one's FULL packet, plus which owner now holds them.
+//
+// The full packet, not a summary: `claim` is the surface the loop skills
+// dispatch from ("returns up to N task packets ... each"), so an agent
+// handed only a task id and a lease expiry never sees the intent's goal,
+// its rules, its scope, or its verification — it sees a layer name and
+// builds whatever that name suggests. `hedgehog next` prints the same
+// thing for the read-only case; the two now agree.
 async function claimCommand(args) {
   await ensureDb();
 
@@ -848,8 +854,13 @@ async function claimCommand(args) {
 
   const db = openDb();
   let claimed;
+  let packets = [];
   try {
     claimed = claimTasks(db, { owner, count });
+    // Assembled on the same open handle, right after the claim: the
+    // packet is what the caller dispatches, so it has to come back from
+    // the same call that handed out the lease.
+    packets = claimed.map((task) => assemblePacket(db, task));
   } finally {
     db.close();
   }
@@ -867,6 +878,12 @@ async function claimCommand(args) {
   for (const task of claimed) {
     if (claimed.length > 1) console.log(`  ${bold(task.id)}`);
     console.log(`  ${dim('expires')}  ${task.lease_expires_at}`);
+  }
+
+  for (const packet of packets) {
+    console.log('');
+    console.log(dim('─'.repeat(60)));
+    console.log(formatNext(packet));
   }
 }
 
