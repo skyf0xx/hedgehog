@@ -318,6 +318,20 @@ if missed:
   own test-file paths back to confirm each has a covering token — fix
   both directions (add the missing scope path, or add the missing
   filter token) before Step 6, not after a build discovers the gap live.
+- **Declare the binaries `verify` needs, in `requires`.** Optional, an
+  inline list alongside `scope`/`verify`/`commit`
+  (`requires: ["terraform", "kubectl"]`), and only for tools that come
+  from outside the workspace — a binary the project's own package
+  manager installs is already guaranteed by the lockfile, but
+  `terraform`, `docker`, `kubectl`, `psql`, `gh` and friends are not.
+  `hedgehog status` reports any declared binary it can't find before a
+  build starts, and `hedgehog verify` refuses to run that layer's
+  command rather than letting the shell answer `exit 127`. This matters
+  because `verify` runs in a *non-interactive* shell: a tool in
+  `~/.local/bin` that a person's login profile puts on PATH is often
+  absent from the PATH an agent's shell inherits, so the same core
+  verifies green by hand and fails opaquely under the agent that
+  actually runs the build.
 
 Verify the file loads before showing it back, by calling the loader
 directly:

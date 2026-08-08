@@ -59,6 +59,7 @@ function indentOf(line) {
 //       commit: <scalar>
 //       exclusive: <bool>             # optional, default false
 //       verify_radius: [<scalar>, ...] # optional, default null (falls back to scope)
+//       requires: [<scalar>, ...]     # optional, default [] — binaries `verify` needs
 export function parseCoreYaml(text) {
   const rawLines = text.split('\n');
   const lines = [];
@@ -118,6 +119,12 @@ export function parseCoreYaml(text) {
         layer.verify_radius !== undefined
           ? parseInlineList(layer.verify_radius)
           : null,
+      // Binaries `verify` needs on PATH (src/db/requires.mjs). [] — not
+      // null — because "declares nothing" and "declares an empty list"
+      // mean the same thing here, unlike verify_radius, and every core
+      // written before this field existed lands in that case.
+      requires:
+        layer.requires !== undefined ? parseInlineList(layer.requires) : [],
     });
   }
 
@@ -140,6 +147,20 @@ export function validateCore(core) {
     }
     if (!layer.verify) {
       throw new Error(`layer "${layer.id}" missing verify`);
+    }
+    // `requires` is optional by design — every core.yaml written before
+    // it existed omits it and must stay valid, so absence is never an
+    // error. Only a malformed declaration is rejected, and only when the
+    // key is actually present.
+    if (layer.requires !== undefined && layer.requires !== null) {
+      if (!Array.isArray(layer.requires)) {
+        throw new Error(`layer "${layer.id}" has a non-list requires`);
+      }
+      for (const binary of layer.requires) {
+        if (typeof binary !== 'string' || binary.trim() === '') {
+          throw new Error(`layer "${layer.id}" has an empty entry in requires`);
+        }
+      }
     }
   }
 
