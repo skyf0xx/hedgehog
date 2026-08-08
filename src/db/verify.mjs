@@ -272,6 +272,36 @@ function commitTouchedPaths(paths, commitMessage) {
   return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
 }
 
+// Second paragraph of the no-op layer's commit, so the empty commit reads
+// as a deliberate record rather than a stray `--allow-empty`. Deliberately
+// free of backticks: this string is interpolated into a shell command
+// below, where a backtick would be command substitution, not punctuation.
+const NO_OP_COMMIT_NOTE =
+  'Verified no-op: this layer had nothing left to change. Recorded as an ' +
+  'empty commit so one layer still means one commit, and so the completion ' +
+  'survives a "hedgehog db rebuild", which replays git history.';
+
+// The same commit as commitTouchedPaths, for a layer whose verification
+// passed with nothing in scope touched — a legitimate outcome when the
+// layer's work was already satisfied upstream. Returns the new commit sha.
+//
+// Skipping the commit here would close the task `complete` with HEAD
+// unchanged, and that completion is then unreconstructible: the build
+// graph is gitignored and derived (see commitTouchedPaths above), so
+// `hedgehog db rebuild` — which replays the committed sources against git
+// history — has nothing to replay and reports the layer as never built.
+// `--allow-empty` is what makes the record exist at all; git refuses an
+// empty commit otherwise.
+function commitNoOpLayer(commitMessage) {
+  execSync(
+    `git commit --allow-empty -m ${JSON.stringify(commitMessage)} -m ${JSON.stringify(
+      NO_OP_COMMIT_NOTE,
+    )}`,
+    { stdio: 'pipe' },
+  );
+  return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+}
+
 // Phase 0: reap expired leases, load `taskId`, assert it's `building` and
 // leased to `owner`, then set `verifying` — one small transaction. Throws
 // rather than proceeding when the lease doesn't match (including a lease
@@ -385,7 +415,10 @@ export function verifyTask(db, taskId, owner) {
     return {
       touched: inScope,
       kindByPath: classifyArtifacts(inScope),
-      commitSha: inScope.length > 0 ? commitTouchedPaths(inScope, task.commit_message) : null,
+      commitSha:
+        inScope.length > 0
+          ? commitTouchedPaths(inScope, task.commit_message)
+          : commitNoOpLayer(task.commit_message),
     };
   });
 
