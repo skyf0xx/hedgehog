@@ -334,7 +334,10 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog intent add [flags]        add an intent (rules/requirements/dependencies)
   npx @skyf0xx/hedgehog intent add --file <path>  add an intent from a JSON file
   npx @skyf0xx/hedgehog next                      print the task packet for one ready task
+  npx @skyf0xx/hedgehog show <task-id>            print the task packet for any task, at any status
   npx @skyf0xx/hedgehog claim --owner <owner> [--count <n>]   atomically claim up to n ready tasks
+  npx @skyf0xx/hedgehog claim <task-id> --owner <owner>   claim one specific task (breaks a starvation tie)
+  npx @skyf0xx/hedgehog retry <task-id>           return a blocked task to planned, so it can be rebuilt
   npx @skyf0xx/hedgehog release <task-id> --owner <owner>   hand a claimed task back to ready
   npx @skyf0xx/hedgehog renew <task-id> --owner <owner> [--minutes <n>]   extend a held lease
   npx @skyf0xx/hedgehog verify <task-id> --owner <owner>   run scope + verify checks, commit on pass
@@ -785,8 +788,11 @@ async function nextCommand() {
         const reason = BLOCKED_REASON_LABELS[task.blocked_reason] ?? task.blocked_reason;
         console.error(`  ${red('✗')} ${bold(task.id)}   ${task.layer}   ${dim(reason)}`);
       }
+      // `verify` refuses anything that isn't `building` and leased to
+      // the caller, so a blocked task has to go back through the queue
+      // — retry, claim, then verify — rather than straight to verify.
       console.error(
-        `\nFix the work, then re-run ${bold('hedgehog verify <task-id>')}.\n`,
+        `\nFix the work, then ${bold('hedgehog retry <task-id>')} and claim it again.\n`,
       );
       process.exitCode = 1;
       return;
@@ -857,19 +863,50 @@ async function verifyCommand(args) {
   }
 }
 
-// `hedgehog claim --owner <owner> [--count <n>]` — atomically claims up to
-// `count` mutually non-conflicting ready tasks (claimTasks's fan-out, item
-// 13) and prints each one's packet-level summary, plus which owner now
-// holds them.
+// Prints the full task packet for each task in `tasks`, read back from
+// the graph after the claim landed. Claiming moves a task to `building`,
+// which takes it out of `hedgehog next`'s candidate set — so if claim
+// doesn't print the packet here, the STATUS/ALLOWED SCOPE/VERIFICATION an
+// agent is supposed to be dispatched with is no longer reachable from any
+// command. (`hedgehog show <task-id>` reprints it later.)
+function printPackets(tasks) {
+  const db = openDb();
+  try {
+    for (const task of tasks) {
+      const packet = taskPacket(db, task.id);
+      if (!packet) continue;
+      console.log();
+      console.log(formatPacket(packet, taskStatusLine(packet.task)));
+    }
+  } finally {
+    db.close();
+  }
+  console.log();
+}
+
+// `hedgehog claim [<task-id>] --owner <owner> [--count <n>]` — atomically
+// claims up to `count` mutually non-conflicting ready tasks (claimTasks's
+// fan-out, item 13), or the one named task, and prints each claimed
+// task's full packet plus which owner now holds it.
 async function claimCommand(args) {
   await ensureDb();
 
+  // A leading non-flag argument names one specific task; without it this
+  // is the fan-out claim it has always been.
+  const taskId = args[0] && !args[0].startsWith('--') ? args[0] : undefined;
   const ownerIdx = args.indexOf('--owner');
   const owner = ownerIdx !== -1 ? args[ownerIdx + 1] : undefined;
   const countIdx = args.indexOf('--count');
   const count = countIdx !== -1 ? Number(args[countIdx + 1]) : 1;
   if (!owner) {
-    console.error(`${red('Usage:')} hedgehog claim --owner <owner> [--count <n>]\n`);
+    console.error(
+      `${red('Usage:')} hedgehog claim --owner <owner> [--count <n>]\n   or: hedgehog claim <task-id> --owner <owner>\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  if (taskId && countIdx !== -1) {
+    console.error(`${red('--count cannot be combined with a task id')} — a targeted claim takes exactly one task.\n`);
     process.exitCode = 1;
     return;
   }
@@ -877,6 +914,13 @@ async function claimCommand(args) {
   if (!(await exists(DB_PATH))) {
     console.error(`${red('No build graph found.')} Run ${bold('hedgehog db init')} first.\n`);
     process.exitCode = 1;
+    return;
+  }
+
+  printDbTarget();
+
+  if (taskId) {
+    await claimOneCommand(taskId, owner);
     return;
   }
 
@@ -902,6 +946,150 @@ async function claimCommand(args) {
     if (claimed.length > 1) console.log(`  ${bold(task.id)}`);
     console.log(`  ${dim('expires')}  ${task.lease_expires_at}`);
   }
+  printPackets(claimed);
+}
+
+// The targeted half of `claim`: one named task, or a non-zero exit
+// naming which precondition refused it. Never exits 0 without having
+// claimed something — an operator breaking a starvation tie has to be
+// able to tell "claimed" from "matched nothing" by exit code alone.
+async function claimOneCommand(taskId, owner) {
+  const db = openDb();
+  let result;
+  try {
+    result = claimTask(db, taskId, { owner });
+  } finally {
+    db.close();
+  }
+
+  if (result.claimed) {
+    console.log(`${green(bold('Claimed.'))} Task ${bold(taskId)} leased to ${bold(owner)}.`);
+    console.log(`  ${dim('expires')}  ${result.task.lease_expires_at}`);
+    printPackets([result.task]);
+    return;
+  }
+
+  process.exitCode = 1;
+
+  if (result.reason === 'no_such_task') {
+    console.error(`${red('No such task:')} ${bold(taskId)}${dim(` (in ${dbAbsPath()})`)}\n`);
+    return;
+  }
+  if (result.reason === 'not_claimable') {
+    const held = result.task.lease_owner ? `, leased to ${result.task.lease_owner}` : '';
+    console.error(
+      `${red('Not claimable.')} Task ${bold(taskId)} is ${bold(result.task.status)}${held}.\n` +
+        (result.task.status === 'blocked'
+          ? `\nReturn it to the queue first: ${bold(`hedgehog retry ${taskId}`)}\n`
+          : '\n'),
+    );
+    return;
+  }
+  if (result.reason === 'incomplete_dependencies') {
+    console.error(`${red('Not claimable.')} Task ${bold(taskId)} is waiting on:\n`);
+    for (const dep of result.incomplete) {
+      console.error(`  ${red('✗')} ${bold(dep.id)}   ${dep.layer}   ${dep.status}`);
+    }
+    console.error();
+    return;
+  }
+  if (result.reason === 'conflict') {
+    console.error(`${red('Not claimable.')} Task ${bold(taskId)} conflicts with work in flight:\n`);
+    for (const { task, kind } of result.conflicting) {
+      console.error(`  ${red('✗')} ${bold(task.id)}   ${task.status}   ${dim(`(${kind})`)}`);
+    }
+    console.error(
+      `\nWait for those to finish, or ${bold('hedgehog release')} them, then claim again.\n`,
+    );
+    return;
+  }
+  console.error(`${red('Not claimed.')} A concurrent claim took ${bold(taskId)} first.\n`);
+}
+
+// `hedgehog retry <task-id>` — the transition out of `blocked`, for any
+// blocked_reason. A failed verification and a scope violation are the
+// loop's normal failure cases, but `release` only accepts `building` and
+// `verify` only accepts a task leased to the caller, so before this
+// command a blocked task had no CLI path back into the queue at all.
+async function retryCommand(args) {
+  await ensureDb();
+
+  const taskId = args[0] && !args[0].startsWith('--') ? args[0] : undefined;
+  if (!taskId) {
+    console.error(`${red('Usage:')} hedgehog retry <task-id> [--owner <owner>]\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!(await exists(DB_PATH))) {
+    console.error(`${red('No build graph found.')} Run ${bold('hedgehog db init')} first.\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  printDbTarget();
+
+  const db = openDb();
+  let result;
+  try {
+    result = retryTask(db, taskId);
+  } finally {
+    db.close();
+  }
+
+  if (!result.retried) {
+    process.exitCode = 1;
+    if (result.reason === 'no_such_task') {
+      console.error(`${red('No such task:')} ${bold(taskId)}${dim(` (in ${dbAbsPath()})`)}\n`);
+      return;
+    }
+    console.error(
+      `${red('Not retried.')} Task ${bold(taskId)} is ${bold(result.task.status)}, not ${bold('blocked')}.\n`,
+    );
+    return;
+  }
+
+  const reason = BLOCKED_REASON_LABELS[result.from] ?? result.from;
+  console.log(
+    `${green(bold('Retried.'))} Task ${bold(taskId)} is back to ${bold('planned')} ${dim(`(was blocked: ${reason})`)}`,
+  );
+  console.log(`  ${dim('claim it with')}  hedgehog claim ${taskId} --owner <owner>`);
+}
+
+// `hedgehog show <task-id>` — the same packet `next` prints, for a task
+// named by id whatever its status. Read-only: claims nothing, changes
+// nothing.
+async function showCommand(args) {
+  await ensureDb();
+
+  const taskId = args[0];
+  if (!taskId) {
+    console.error(`${red('Usage:')} hedgehog show <task-id>\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!(await exists(DB_PATH))) {
+    console.error(`${red('No build graph found.')} Run ${bold('hedgehog db init')} first.\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const db = openDb();
+  let packet;
+  try {
+    packet = taskPacket(db, taskId);
+  } finally {
+    db.close();
+  }
+
+  if (!packet) {
+    console.error(`${red('No such task:')} ${bold(taskId)}${dim(` (in ${dbAbsPath()})`)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(formatPacket(packet, taskStatusLine(packet.task)));
 }
 
 // `hedgehog release <task-id> --owner <owner>` — hands a claimed task
@@ -924,6 +1112,8 @@ async function releaseCommand(args) {
     process.exitCode = 1;
     return;
   }
+
+  printDbTarget();
 
   const db = openDb();
   let result;
@@ -975,6 +1165,8 @@ async function renewCommand(args) {
     return;
   }
 
+  printDbTarget();
+
   const db = openDb();
   let result;
   try {
@@ -1009,8 +1201,6 @@ async function statusCommand() {
     return;
   }
 
-  printDbTarget();
-
   const db = openDb();
   let result;
   try {
@@ -1033,8 +1223,6 @@ async function readyCommand() {
     process.exitCode = 1;
     return;
   }
-
-  printDbTarget();
 
   const db = openDb();
   let result;
@@ -1402,6 +1590,16 @@ async function main() {
 
   if (cmd === 'claim') {
     await claimCommand(args.slice(1));
+    return;
+  }
+
+  if (cmd === 'show') {
+    await showCommand(args.slice(1));
+    return;
+  }
+
+  if (cmd === 'retry') {
+    await retryCommand(args.slice(1));
     return;
   }
 

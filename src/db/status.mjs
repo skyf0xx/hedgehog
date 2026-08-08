@@ -132,7 +132,10 @@ export function formatStatus({ counts, ready, inFlight, attention, total }) {
       lines.push(`  ${task.id}   ${task.layer}   ${reason}`);
     }
     lines.push('');
-    lines.push('  Fix the work, then re-run: hedgehog verify <task-id>');
+    // Not `verify` directly: a blocked task holds no lease, and verify
+    // refuses anything that isn't `building` under the calling owner.
+    // The way back in is retry (blocked → planned), then a claim.
+    lines.push('  Fix the work, then: hedgehog retry <task-id> && hedgehog claim <task-id> --owner <owner>');
   }
 
   return lines.join('\n');
