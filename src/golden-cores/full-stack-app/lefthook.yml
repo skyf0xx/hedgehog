@@ -1,15 +1,28 @@
+# The `git rev-parse --verify --quiet HEAD` guard on each command is
+# there because `--base=HEAD` cannot resolve in a repo with no commits:
+# on the very first commit of a fresh install every command died with
+# "fatal: ambiguous argument 'HEAD': unknown revision", the commit was
+# rejected, and `git commit --no-verify` became the only way through —
+# which is exactly the habit this gate exists to prevent. (The Nx daemon
+# dying with ECONNRESET behind it made the real cause hard to see.)
+#
+# The fallback is `run-many`, not a skip: with no history there is no
+# diff to narrow by, every project is new, and running the whole
+# workspace is both the honest answer and the strongest one. Silencing
+# the gate on the one commit that introduces the entire codebase would
+# be the worst possible place to do it.
 pre-commit:
   parallel: true
   commands:
     typecheck:
       glob: '*.{ts,tsx}'
-      run: npx nx affected -t typecheck --base=HEAD
+      run: if git rev-parse --verify --quiet HEAD >/dev/null 2>&1; then npx nx affected -t typecheck --base=HEAD; else npx nx run-many -t typecheck; fi
     lint:
       glob: '*.{ts,tsx}'
-      run: npx nx affected -t lint --base=HEAD
+      run: if git rev-parse --verify --quiet HEAD >/dev/null 2>&1; then npx nx affected -t lint --base=HEAD; else npx nx run-many -t lint; fi
     test:
       glob: '*.{ts,tsx}'
-      run: npx nx affected -t test --base=HEAD
+      run: if git rev-parse --verify --quiet HEAD >/dev/null 2>&1; then npx nx affected -t test --base=HEAD; else npx nx run-many -t test; fi
 
 commit-msg:
   commands:
