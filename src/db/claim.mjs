@@ -7,6 +7,20 @@ import { conflicts } from './conflict.mjs';
 
 // Same no-incomplete-dependency shape as next.mjs's READY_TASK_SQL, without
 // the LIMIT 1 — claimTasks may take more than one candidate per call.
+//
+// `exclusive DESC` within a priority band is a scheduling fix, not a
+// preference. conflicts() reports 'exclusive' if *either* side is
+// exclusive, so the fan-out loop below can only ever accept an exclusive
+// candidate while `against` is still empty — i.e. only if it is the very
+// first candidate considered. Ordered by id alone, an exclusive task is
+// skipped on every call for as long as any non-exclusive candidate sorts
+// ahead of it, and since each completing task unlocks its successor there
+// is nearly always one. An exclusive task that is a module's *first*
+// layer therefore holds that entire module back until the rest of the
+// build runs out of lower-sorting work. Taking exclusive candidates first
+// within their band costs nothing in throughput — an exclusive task runs
+// alone whenever it runs, so moving it earlier only moves the same
+// serialized step forward and unblocks its dependents sooner.
 const CLAIMABLE_TASKS_SQL = `
   SELECT t.* FROM tasks t
   WHERE t.status IN ('planned', 'ready')
@@ -16,7 +30,7 @@ const CLAIMABLE_TASKS_SQL = `
       JOIN tasks dep ON dep.id = d.depends_on_task_id
       WHERE d.task_id = t.id AND dep.status <> 'complete'
     )
-  ORDER BY t.priority, t.id
+  ORDER BY t.priority, t.exclusive DESC, t.id
 `;
 
 // Exported for ready.mjs, which walks the identical candidate set to

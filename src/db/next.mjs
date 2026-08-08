@@ -25,7 +25,7 @@ const READY_TASK_SQL = `
       JOIN tasks dep ON dep.id = d.depends_on_task_id
       WHERE d.task_id = t.id AND dep.status <> 'complete'
     )
-  ORDER BY t.priority, t.id
+  ORDER BY t.priority, t.exclusive DESC, t.id
   LIMIT 1;
 `;
 

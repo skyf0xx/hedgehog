@@ -23,6 +23,9 @@ const TASK_STATUSES = [
   'blocked',
 ];
 
+// `exclusive DESC` matches claim.mjs's CLAIMABLE_TASKS_SQL and next.mjs's
+// READY_TASK_SQL, so this list is in the order those two would actually
+// take the work — see claim.mjs for why exclusive sorts first.
 const READY_TASKS_SQL = `
   SELECT t.* FROM tasks t
   WHERE t.status IN ('planned', 'ready')
@@ -32,7 +35,7 @@ const READY_TASKS_SQL = `
       JOIN tasks dep ON dep.id = d.depends_on_task_id
       WHERE d.task_id = t.id AND dep.status <> 'complete'
     )
-  ORDER BY t.priority, t.id;
+  ORDER BY t.priority, t.exclusive DESC, t.id;
 `;
 
 const IN_FLIGHT_TASKS_SQL = `
