@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   tag:
@@ -26,6 +27,11 @@ jobs:
           echo "before=$before" >> "$GITHUB_OUTPUT"
           echo "after=$after" >> "$GITHUB_OUTPUT"
 
+      # Tagging and publishing run in one job, on the runner's own token,
+      # rather than as separate workflows linked by a tag push: a tag
+      # pushed by GITHUB_TOKEN does not trigger other workflows (GitHub's
+      # anti-recursion guard on the default token), so a separate
+      # `on: push: tags:` workflow would never fire.
       - if: steps.version.outputs.before != steps.version.outputs.after
         env:
           TAG: v${{ steps.version.outputs.after }}
@@ -34,3 +40,27 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "$TAG"
           git push origin "$TAG"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - if: steps.version.outputs.before != steps.version.outputs.after
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - if: steps.version.outputs.before != steps.version.outputs.after
+        run: npm install -g npm@latest
+
+      - if: steps.version.outputs.before != steps.version.outputs.after
+        run: npm install
+
+      - if: steps.version.outputs.before != steps.version.outputs.after
+        run: npm run check
+
+      - if: steps.version.outputs.before != steps.version.outputs.after
+        run: npm publish
+
+      - if: steps.version.outputs.before != steps.version.outputs.after
+        run: gh release create "$TAG" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
