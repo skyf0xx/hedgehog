@@ -40,7 +40,14 @@ jobs:
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: |
+          # The whole diff, as data. The API can hand us less than the full
+          # picture two ways — an omitted patch, or a truncated file list —
+          # and both are handled by failing safe below, so a blind spot
+          # becomes an over-label, never a silent miss. This is the parity
+          # the old whole-tree `git diff` had for free and this has to earn.
+          CHANGED=$(gh api "repos/$REPO/pulls/$PR" --jq '.changed_files')
           FILES=$(gh api --paginate --slurp "repos/$REPO/pulls/$PR/files")
+          GOT=$(echo "$FILES" | jq '[.[][]] | length')
 
           # Added lines from files whose patch is present, vendor-skills
           # excluded to match the previous ':!vendor-skills' pathspec.
@@ -52,14 +59,18 @@ jobs:
             | grep -E '^\+' | grep -vE '^\+\+\+' || true)
 
           # GitHub omits `patch` for oversized (or binary) diffs. A text
-          # file with real additions but no patch is one we cannot inspect
-          # — so fail safe and let it count as a match rather than skip it
-          # silently, the way the old whole-tree `git diff` never could.
-          # additions>0 keeps pure deletions/renames from tripping this.
+          # file with real additions but no patch is one we cannot inspect,
+          # so fail safe and let it count as a match. additions>0 keeps
+          # pure deletions/renames from tripping this.
           BLIND=$(echo "$FILES" | jq -r '.[][] | select((.filename | startswith("vendor-skills/")) | not) | select(.additions > 0 and .patch == null) | .filename')
 
-          if [ -n "$BLIND" ] || echo "$ADDED" | grep -qE 'child_process|execFile|execSync|spawn\(|\bexec\(|\beval\(|new Function\(|Docker(file)?\b'; then
+          # The files endpoint caps at ~3000 files; a larger PR returns only
+          # a prefix. Any time we received fewer files than the PR actually
+          # changed, part of the diff is invisible — fail safe, same as an
+          # omitted patch.
+          if [ "$GOT" -lt "$CHANGED" ] || [ -n "$BLIND" ] || echo "$ADDED" | grep -qE 'child_process|execFile|execSync|spawn\(|\bexec\(|\beval\(|new Function\(|Docker(file)?\b'; then
             echo "match=true" >> "$GITHUB_OUTPUT"
+            [ "$GOT" -lt "$CHANGED" ] && echo "::notice::risk:execution set conservatively — files endpoint returned $GOT of $CHANGED changed files"
             [ -n "$BLIND" ] && echo "::notice::risk:execution set conservatively — no diff available to scan for: $(echo "$BLIND" | tr '\n' ' ')"
           else
             echo "match=false" >> "$GITHUB_OUTPUT"
