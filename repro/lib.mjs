@@ -39,6 +39,9 @@ export function makeRepo() {
   git(dir, 'config', 'user.email', 'repro@example.test');
   git(dir, 'config', 'user.name', 'scope gate repro');
   git(dir, 'config', 'commit.gpgsign', 'false');
+  // Explicit, not inherited: the mode-change repro depends on git
+  // actually tracking the executable bit.
+  git(dir, 'config', 'core.fileMode', 'true');
 
   mkdirSync(join(dir, '.hedgehog'), { recursive: true });
   writeFileSync(join(dir, '.gitignore'), '.hedgehog/hedgehog.db*\n.hedgehog/commit.lock\n');

@@ -91,18 +91,21 @@ function changedPaths(pathspecs) {
 }
 
 // Narrows a set of touched paths to the ones this task can actually be
-// held responsible for: those whose content differs from the claim-time
-// snapshot claim.mjs recorded on the lease. A path that is byte-identical
+// held responsible for: those whose fingerprint differs from the
+// claim-time snapshot claim.mjs recorded on the lease. A path identical
 // to what it was when the task was claimed did not change during the
 // lease, so no amount of dirtiness there is this task's doing — an
 // uncommitted friction log, the user's own half-finished edit, a stray
 // file some tool left behind before the claim.
 //
 // This narrows attribution without weakening the gate. A genuine
-// out-of-scope write necessarily *changes* the file, so its fingerprint
-// no longer matches the snapshot and it stays attributed; the only paths
-// this drops are ones where the task provably changed nothing. (A task
-// that wrote a byte-identical copy over pre-existing dirt is the one
+// out-of-scope change necessarily moves the fingerprint, so it stays
+// attributed; the only paths this drops are ones where the task provably
+// changed nothing. That rests entirely on pathFingerprint covering
+// everything git would commit about a path — its bytes, its type, and
+// its executable bit — and not merely its contents; see its comment for
+// why a content-only fingerprint let a `chmod +x` walk through. (A task
+// that rewrote an identical file over pre-existing dirt is the one
 // exempted edge, and it changed nothing to commit either.)
 //
 // `claimSnapshot` is null for a lease taken before snapshots existed, or

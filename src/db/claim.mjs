@@ -3,7 +3,7 @@
 // columns added to `tasks` in schema.mjs.
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readlinkSync, lstatSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
 import { inTransaction } from './init.mjs';
@@ -20,25 +20,65 @@ import { ensureTaskColumns } from './schema.mjs';
 // there: an uncommitted friction log, a half-finished edit of the user's,
 // a neighbour's stray write.
 //
-// So the claim records what the tree already looked like. A path whose
-// content is byte-identical to what it was at claim time did not change
-// during this task's lease, and cannot be this task's doing. Anything
-// else still is — which is why this narrows attribution without ever
-// letting a real out-of-scope write through: writing a file *changes* it,
-// and a changed fingerprint is attributed.
+// So the claim records what the tree already looked like. A path that is
+// identical to what it was at claim time did not change during this
+// task's lease, and cannot be this task's doing. Anything else still is
+// — which is why this narrows attribution without ever letting a real
+// out-of-scope write through: a fingerprint that moved is attributed.
+//
+// "Identical" has to mean identical *to git*, not merely byte-identical
+// in content. Git tracks a file's type and its one permission bit as
+// well as its bytes, so a `chmod +x` or a retargeted symlink is a real,
+// committable change to an out-of-scope path — and a fingerprint blind
+// to those would let the gate be stepped around by making exactly that
+// kind of change to a path that happened to be dirty already.
 
-// Sentinel fingerprint for a path git reports as dirty but that isn't
-// readable as a file — a deletion, most often. Distinct from any sha1, so
-// "deleted at claim time, still deleted now" matches and "present at claim
-// time, deleted now" doesn't.
+// Sentinel fingerprint for a path git reports as dirty but that can't be
+// examined at all — a deletion, most often. Distinct from every real
+// fingerprint below, so "deleted at claim time, still deleted now"
+// matches and "present at claim time, deleted now" doesn't.
 const ABSENT = 'absent';
 
-// sha1 of the file's bytes, or ABSENT when it can't be read. Exported so
-// verify.mjs fingerprints paths the exact same way it was done here — two
-// implementations that drifted would silently mis-attribute.
+const sha1 = (data) => createHash('sha1').update(data).digest('hex');
+
+// Fingerprints a working-tree path over everything git would record
+// about it, and nothing it wouldn't:
+//
+//   - the entry's type, as a prefix, so swapping a file for a symlink to
+//     an identical payload never fingerprints the same;
+//   - for a symlink, its target — git stores a symlink as a blob holding
+//     the target string, so retargeting one is a content change. Read
+//     with readlink rather than following the link: following it would
+//     fingerprint whatever it points at, which is how a retarget to a
+//     same-content file slipped through;
+//   - for a regular file, the owner-execute bit (git's 100644 vs 100755
+//     distinction) and the bytes. Only that one bit: every other
+//     permission bit is invisible to git, and folding those in would
+//     make the gate fire on changes git itself never sees.
+//
+// A path deleted and recreated identically fingerprints the same, which
+// is correct — git calls that path clean, so it never reaches the gate.
+//
+// Cost is one lstat plus one read per dirty path, no subprocess, so this
+// stays cheap over a large working tree.
+//
+// Exported so verify.mjs fingerprints paths the exact same way they were
+// fingerprinted here — two implementations that drifted would silently
+// mis-attribute.
 export function pathFingerprint(path) {
+  let stats;
   try {
-    return createHash('sha1').update(readFileSync(path)).digest('hex');
+    stats = lstatSync(path);
+  } catch {
+    return ABSENT;
+  }
+  try {
+    if (stats.isSymbolicLink()) return `l:${sha1(readlinkSync(path))}`;
+    if (stats.isFile()) return `f${stats.mode & 0o100 ? '755' : '644'}:${sha1(readFileSync(path))}`;
+    // Anything else (fifo, socket, device, directory) is not something
+    // git can hold, but it is something a path can be turned into —
+    // record the type so that turning it into one is still a change.
+    return `o:${(stats.mode & 0o170000).toString(8)}`;
   } catch {
     return ABSENT;
   }
