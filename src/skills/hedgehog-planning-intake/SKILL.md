@@ -33,6 +33,19 @@ graph holds no intents yet. When the graph already holds intents, run the
 **Re-entry pass** at the end of this file instead; the shelf does not run
 twice on one project.
 
+Check `uv` is on PATH before anything else — every skill in the shelf
+below shells out to it (`uv run {bmad-root}/scripts/*.py`) for its
+memlog, customization resolution, and research tooling, so its absence
+mid-shelf strands a run partway through rather than failing at the one
+point where the whole shelf is still skippable. Run `uv --version`; if
+it fails (not found, or exits non-zero), stop before running any BMAD
+skill and tell the user plainly: `uv` is required by the vendored BMAD
+planning shelf and isn't on PATH — install it
+(https://docs.astral.sh/uv/getting-started/installation/) and re-run.
+Don't fall back to a reduced or headless shelf run on this failure;
+that's a silent behavior change of exactly the kind this check exists
+to prevent.
+
 State the BMAD attribution, then run the vendored shelf in full
 sequence — on a first run there is no per-project skip logic and no
 reduced default set:
