@@ -25,18 +25,29 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-          ref: "refs/pull/${{ github.event.pull_request.number }}/merge"
-
+      # No checkout: this job runs under pull_request_target, whose token
+      # carries the base repo's write scope, so it must never place
+      # fork-controlled code in its trusted context. The diff is read as
+      # DATA through the API instead. The previous version checked out
+      # refs/pull/<n>/merge, which actions/checkout@v7 refuses by default
+      # (the "pwn request" guard) — so this job failed at the checkout step
+      # on every fork PR, before its scan ever ran. See check.yml's own
+      # header for why pull_request_target must not run fork code.
       - name: Detect shell/dynamic execution changes
         id: scan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
-          BASE="${{ github.event.pull_request.base.sha }}"
-          HEAD="${{ github.event.pull_request.head.sha }}"
-          ADDED=$(git diff --unified=0 "$BASE" "$HEAD" -- . ':!vendor-skills' | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+          # Per-file patches, vendor-skills excluded to match the previous
+          # ':!vendor-skills' pathspec. Added lines start with a single
+          # '+'; the '+++' filter drops the file headers. Context width is
+          # irrelevant to that test, so no --unified=0 is needed. `.patch`
+          # is absent for binary/oversized files, hence `// ""`.
+          ADDED=$(gh api --paginate "repos/$REPO/pulls/$PR/files" \
+            --jq '.[] | select((.filename | startswith("vendor-skills/")) | not) | .patch // ""' \
+            | grep -E '^\+' | grep -vE '^\+\+\+' || true)
           if echo "$ADDED" | grep -qE 'child_process|execFile|execSync|spawn\(|\bexec\(|\beval\(|new Function\(|Docker(file)?\b'; then
             echo "match=true" >> "$GITHUB_OUTPUT"
           else
