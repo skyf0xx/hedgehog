@@ -797,6 +797,22 @@ async function nextCommand() {
   console.log(formatNext(packet));
 }
 
+// Mirrors, read-only, the condition verifyTask's own Phase 0
+// (claimForVerify) enforces: after expired leases are reaped, the task
+// must be `building` and leased to `owner`. The expiry predicate is
+// claim.mjs#reapExpiredLeases's, kept identical so this can't disagree
+// with the check it's standing in for. Writes nothing and reaps nothing
+// — the authoritative check, with its state changes, stays in verify.mjs.
+const VERIFIABLE_BY_SQL = `
+  SELECT 1 FROM tasks
+  WHERE id = ? AND status = 'building' AND lease_owner = ?
+    AND (lease_expires_at IS NULL OR lease_expires_at >= datetime('now'))
+`;
+
+function taskVerifiableBy(db, taskId, owner) {
+  return db.prepare(VERIFIABLE_BY_SQL).get(taskId, owner) !== undefined;
+}
+
 // The declared-binary gate for one task: resolves the task's layer in
 // the core definition and returns { layer, missing } when that layer's
 // `requires:` names binaries this environment can't find, or null when
@@ -808,7 +824,17 @@ async function nextCommand() {
 // so installing the binary and re-running `hedgehog verify` is the whole
 // fix — no unblocking step, and no failed verification recorded for
 // something that never ran.
-async function missingBinariesForTask(db, taskId) {
+//
+// It only speaks for a caller who could actually verify this task. A
+// caller holding no lease, or a stale one, has a different problem, and
+// telling them to install a binary would send them off to fix something
+// that isn't in their way — so this stays quiet and lets verifyTask
+// report the real ownership/state error. Nothing is lost by deferring:
+// claimForVerify throws before any verify command runs, so falling
+// through still records no failed verification.
+async function missingBinariesForTask(db, taskId, owner) {
+  if (!taskVerifiableBy(db, taskId, owner)) return null;
+
   const row = db.prepare('SELECT layer FROM tasks WHERE id = ?').get(taskId);
   if (row === undefined) return null;
 
@@ -852,7 +878,7 @@ async function verifyCommand(args) {
   const db = openDb();
   let result;
   try {
-    const blockers = await missingBinariesForTask(db, taskId);
+    const blockers = await missingBinariesForTask(db, taskId, owner);
     if (blockers) {
       const list = blockers.missing.map((b) => bold(b)).join(', ');
       console.error(

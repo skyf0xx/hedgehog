@@ -14,6 +14,7 @@ const SCRIPTS = [
   'requires-missing-binary.mjs',
   'core-without-requires.mjs',
   'path-empty-entry.mjs',
+  'verify-lease-precedence.mjs',
 ];
 
 const failed = [];
