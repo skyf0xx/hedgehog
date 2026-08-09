@@ -14,7 +14,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/labeler@v5
+      - uses: actions/labeler@v7
         with:
           configuration-path: .github/labeler.yml
           sync-labels: false
@@ -25,20 +25,53 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-          ref: "refs/pull/${{ github.event.pull_request.number }}/merge"
-
+      # No checkout: this job runs under pull_request_target, whose token
+      # carries the base repo's write scope, so it must never place
+      # fork-controlled code in its trusted context. The diff is read as
+      # DATA through the API instead. The previous version checked out
+      # refs/pull/<n>/merge, which actions/checkout@v7 refuses by default
+      # (the "pwn request" guard) — so this job failed at the checkout step
+      # on every fork PR, before its scan ever ran. See check.yml's own
+      # header for why pull_request_target must not run fork code.
       - name: Detect shell/dynamic execution changes
         id: scan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
-          BASE="${{ github.event.pull_request.base.sha }}"
-          HEAD="${{ github.event.pull_request.head.sha }}"
-          ADDED=$(git diff --unified=0 "$BASE" "$HEAD" -- . ':!vendor-skills' | grep -E '^\+' | grep -vE '^\+\+\+' || true)
-          if echo "$ADDED" | grep -qE 'child_process|execFile|execSync|spawn\(|\bexec\(|\beval\(|new Function\(|Docker(file)?\b'; then
+          # The whole diff, as data. The API can hand us less than the full
+          # picture two ways — an omitted patch, or a truncated file list —
+          # and both are handled by failing safe below, so a blind spot
+          # becomes an over-label, never a silent miss. This is the parity
+          # the old whole-tree `git diff` had for free and this has to earn.
+          CHANGED=$(gh api "repos/$REPO/pulls/$PR" --jq '.changed_files')
+          FILES=$(gh api --paginate --slurp "repos/$REPO/pulls/$PR/files")
+          GOT=$(echo "$FILES" | jq '[.[][]] | length')
+
+          # Added lines from files whose patch is present, vendor-skills
+          # excluded to match the previous ':!vendor-skills' pathspec.
+          # Added lines start with a single '+'; the '+++' filter drops the
+          # file headers, so context width is irrelevant and no
+          # --unified=0 is needed. (--slurp wraps the paged responses as an
+          # array of arrays, hence '.[][]'.)
+          ADDED=$(echo "$FILES" | jq -r '.[][] | select((.filename | startswith("vendor-skills/")) | not) | .patch // ""' \
+            | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+
+          # GitHub omits `patch` for oversized (or binary) diffs. A text
+          # file with real additions but no patch is one we cannot inspect,
+          # so fail safe and let it count as a match. additions>0 keeps
+          # pure deletions/renames from tripping this.
+          BLIND=$(echo "$FILES" | jq -r '.[][] | select((.filename | startswith("vendor-skills/")) | not) | select(.additions > 0 and .patch == null) | .filename')
+
+          # The files endpoint caps at ~3000 files; a larger PR returns only
+          # a prefix. Any time we received fewer files than the PR actually
+          # changed, part of the diff is invisible — fail safe, same as an
+          # omitted patch.
+          if [ "$GOT" -lt "$CHANGED" ] || [ -n "$BLIND" ] || echo "$ADDED" | grep -qE 'child_process|execFile|execSync|spawn\(|\bexec\(|\beval\(|new Function\(|Docker(file)?\b'; then
             echo "match=true" >> "$GITHUB_OUTPUT"
+            [ "$GOT" -lt "$CHANGED" ] && echo "::notice::risk:execution set conservatively — files endpoint returned $GOT of $CHANGED changed files"
+            [ -n "$BLIND" ] && echo "::notice::risk:execution set conservatively — no diff available to scan for: $(echo "$BLIND" | tr '\n' ' ')"
           else
             echo "match=false" >> "$GITHUB_OUTPUT"
           fi
