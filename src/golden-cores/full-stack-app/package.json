@@ -61,10 +61,10 @@
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
-    "axios": "^1.6.0",
+    "axios": "^1.18.0",
     "drizzle-orm": "^0.45.2",
     "nestjs-pino": "^4.6.1",
-    "next": "~16.1.6",
+    "next": "~16.2.11",
     "pg": "^8.22.0",
     "pino-http": "^11.0.0",
     "react": "^19.0.0",
@@ -75,7 +75,8 @@
   },
   "pnpm": {
     "overrides": {
-      "esbuild": "0.25.12"
+      "esbuild": "0.25.12",
+      "axios": "^1.18.0"
     }
   }
 }
