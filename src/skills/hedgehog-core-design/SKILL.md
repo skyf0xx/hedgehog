@@ -255,7 +255,9 @@ modules' schema tasks correctly serialize against each other on that
 radius even though their scopes don't overlap.
 
 A declared radius must contain the layer's own `scope` — `validateCore`
-rejects one that doesn't, because `conflict.mjs` compares scope against
+rejects one that provably doesn't (a concrete path in `scope` that no
+radius glob matches), and `hedgehog status` warns where containment can't
+be decided either way, because `conflict.mjs` compares scope against
 scope and radius against radius and never one against the other, so a
 radius missing part of its scope hides the case where one task writes a
 file another task's verify reads. Having declared a radius here, Step 5's

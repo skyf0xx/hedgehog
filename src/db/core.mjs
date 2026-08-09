@@ -131,34 +131,158 @@ export function parseCoreYaml(text) {
 // against scope, then radius against radius — so the two below are the
 // only things about that pair a file can decide on its own.
 
-// Full segment list of a glob: the literal path itself when it has no
-// wildcard, otherwise the scheduler's own segment-wise prefix. globPrefix
-// deliberately drops a literal glob's last segment (it answers "could
-// these two globs ever meet"); coverage is a containment question, so a
-// literal path counts as all of itself here.
-function globSegments(glob) {
-  if (glob.search(/[*?[]/) === -1) {
-    return glob.split('/').filter((segment) => segment !== '');
+// The glob dialect is git's pathspec `:(glob)` — what verify.mjs actually
+// enforces scope with: `*` and `?` stay inside one path segment, `**`
+// spans any number of them. Every function below reads globs that way.
+function segmentsOf(glob) {
+  return glob.split('/').filter((segment) => segment !== '');
+}
+
+const WILDCARD = /[*?[]/;
+
+// One segment pattern compiled to a regex over a single path segment.
+// `{module}` and friends carry no wildcard characters, so they compile to
+// literals and compare exactly — the same on both sides of any comparison,
+// since plan.mjs fills scope and radius from the same module name.
+function segmentRegExp(pattern) {
+  let source = '^';
+  for (let i = 0; i < pattern.length; i++) {
+    const ch = pattern[i];
+    if (ch === '*') source += '[^/]*';
+    else if (ch === '?') source += '[^/]';
+    else if (ch === '[') {
+      const end = pattern.indexOf(']', i + 1);
+      if (end === -1) source += '\\[';
+      else {
+        source += pattern.slice(i, end + 1);
+        i = end;
+      }
+    } else source += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
+  return new RegExp(`${source}$`);
+}
+
+function segmentMatches(pattern, segment) {
+  return segmentRegExp(pattern).test(segment);
+}
+
+// Does a concrete path (as segments) match a glob? Standard `**`-aware
+// walk. Used only on paths this file generated, to prove non-containment.
+function matchesGlob(pathSegments, glob) {
+  const g = segmentsOf(glob);
+  const walk = (gi, pi) => {
+    if (gi === g.length) return pi === pathSegments.length;
+    if (g[gi] === '**') {
+      for (let k = pi; k <= pathSegments.length; k++) {
+        if (walk(gi + 1, k)) return true;
+      }
+      return false;
+    }
+    if (pi >= pathSegments.length) return false;
+    if (!segmentMatches(g[gi], pathSegments[pi])) return false;
+    return walk(gi + 1, pi + 1);
+  };
+  return walk(0, 0);
+}
+
+// Does the single-segment pattern `outer` match everything `inner` does?
+// 'unknown' wherever deciding it would mean comparing two wildcard
+// languages — the callers treat that as "can't prove", never as an error.
+function segmentContains(outer, inner) {
+  if (outer === inner) return 'yes';
+  if (outer === '*') return 'yes'; // any one segment
+  if (!WILDCARD.test(inner)) return segmentMatches(outer, inner) ? 'yes' : 'no';
+  // inner is a wildcard pattern: `*` or `?` in it matches more than any
+  // single literal can, so a literal outer provably misses something.
+  if (!WILDCARD.test(outer)) return /[*?]/.test(inner) ? 'no' : 'unknown';
+  return 'unknown';
+}
+
+// Structural containment: 'yes' only when every path `inner` matches is
+// provably matched by `outer`. globPrefix (the scheduler's own algebra,
+// which conflict.mjs uses) deliberately answers a different question —
+// "could these two globs ever meet" — and a prefix comparison cannot
+// decide containment: `a/*.ts` shares the prefix `a` with `a/b/**` while
+// matching none of its paths. So this walks the segments instead.
+function structuralContains(outer, inner) {
+  const o = segmentsOf(outer);
+  const i = segmentsOf(inner);
+  let uncertain = false;
+  let oi = 0;
+  let ii = 0;
+  while (oi < o.length) {
+    if (o[oi] === '**') {
+      // A trailing `**` covers everything below the prefix matched so far.
+      // An interior one needs alignment this analysis doesn't attempt.
+      if (oi === o.length - 1) return uncertain ? 'unknown' : 'yes';
+      return 'unknown';
+    }
+    // outer still demands segments inner never produces, or inner can
+    // expand across segments outer matches one at a time.
+    if (ii >= i.length) return 'no';
+    if (i[ii] === '**') return 'no';
+    const rel = segmentContains(o[oi], i[ii]);
+    if (rel === 'no') return 'no';
+    if (rel === 'unknown') uncertain = true;
+    oi++;
+    ii++;
+  }
+  // outer matched exactly its own length; inner going deeper escapes it.
+  if (ii < i.length) return 'no';
+  return uncertain ? 'unknown' : 'yes';
+}
+
+// A few concrete paths the glob certainly matches, used as witnesses for
+// non-containment. Returns none where a witness can't be constructed with
+// certainty (interior `**`, character classes) — no witness means no
+// proof, which the caller reads as "unknown", never as "covered".
+function witnessPaths(glob) {
+  const segments = segmentsOf(glob);
+  const base = [];
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    if (segment === '**') {
+      if (i !== segments.length - 1) return [];
+      // `**` matches one segment and it matches two; both are witnesses,
+      // and neither depends on whether it also matches zero.
+      return [
+        [...base, 'w1'],
+        [...base, 'w1', 'w2'],
+      ];
+    }
+    if (segment.includes('[')) return [];
+    base.push(segment.replace(/[*?]/g, 'w'));
+  }
+  return [base];
+}
+
+// Is `glob` covered by the union of `globs`? 'yes' / 'no' / 'unknown'.
+//
+// 'no' is only ever returned with a proof: a concrete path `glob` matches
+// that no glob in the set does. That matters because 'no' is a hard load
+// failure — and because the union can cover something no single member
+// covers (["a/b/*", "a/b/*/**"] together cover "a/b/**"), so "no member
+// contains it" is not on its own grounds to reject a core. Unprovable
+// either way comes back 'unknown' and is warned about, not thrown.
+function coverage(globs, glob) {
+  for (const candidate of globs) {
+    if (structuralContains(candidate, glob) === 'yes') return 'yes';
+  }
+  for (const witness of witnessPaths(glob)) {
+    if (!globs.some((candidate) => matchesGlob(witness, candidate))) return 'no';
+  }
+  return 'unknown';
+}
+
+// Literal directory segments of a glob — everything before its first
+// wildcard, or the whole path when it has none. This is the scheduler's
+// own globPrefix, except that a literal path counts as all of itself:
+// globPrefix drops the last segment because a file path's directory is
+// what could collide with another glob, while here the question is where
+// a command's path argument sits relative to the scope.
+function literalDirSegments(glob) {
+  if (!WILDCARD.test(glob)) return segmentsOf(glob);
   return globPrefix(glob);
-}
-
-// True when `outer` is at least as broad as `inner` — outer's segments are
-// a segment-wise prefix of inner's. Deliberately permissive about the
-// wildcard tail (`a/*.ts` counts as covering `a/b/**`): every caller uses
-// this to decide whether to complain, so the error direction is silence.
-function globCovers(outer, inner) {
-  const o = globSegments(outer);
-  const i = globSegments(inner);
-  if (o.length > i.length) return false;
-  for (let k = 0; k < o.length; k++) {
-    if (o[k] !== i[k]) return false;
-  }
-  return true;
-}
-
-function covered(globs, glob) {
-  return globs.some((candidate) => globCovers(candidate, glob));
 }
 
 // Path-like arguments in a verify command, as evidence of what the command
@@ -190,8 +314,8 @@ function pathArguments(command) {
 // the repo root. At least one segment must match: a zero-overlap
 // alignment would make every token "inside" every recursive glob.
 function tokenInsideGlob(token, glob) {
-  const t = token.split('/').filter((segment) => segment !== '');
-  const dir = globSegments(glob);
+  const t = segmentsOf(token);
+  const dir = literalDirSegments(glob);
   const recursive = glob.includes('**');
   for (let i = 0; i < dir.length; i++) {
     const overlap = Math.min(t.length, dir.length - i);
@@ -247,8 +371,11 @@ export function validateCore(core) {
           `layer "${layer.id}" declares an empty verify_radius — omit the field to fall back to scope (conflict.mjs's verifyRadius), rather than declaring a radius that covers nothing`,
         );
       }
+      // Only a proven miss throws — coverage() returns 'no' solely when
+      // it holds a concrete path in this layer's scope that no radius
+      // glob matches. Anything it can't decide is left to lintCore.
       for (const glob of layer.scope) {
-        if (!covered(layer.verify_radius, glob)) {
+        if (coverage(layer.verify_radius, glob) === 'no') {
           throw new Error(
             `layer "${layer.id}" declares verify_radius [${layer.verify_radius.join(', ')}], which does not cover its own scope glob "${glob}" — a declared radius replaces scope on the verify axis (conflict.mjs), so anything in scope but outside the radius is a file this layer writes while the scheduler believes no one is reading it`,
           );
@@ -288,7 +415,12 @@ export function validateCore(core) {
 // owns the certainties). Returns a list of human-readable strings; empty
 // means nothing detectable is wrong.
 //
-// The one check here is the verify-command-versus-verify_radius axis. A
+// Two checks. The first is the other half of validateCore's radius rule:
+// where containment between the radius and the scope can be neither
+// proven nor disproven, the author is told to check it rather than the
+// core being rejected on a guess.
+//
+// The second is the verify-command-versus-verify_radius axis. A
 // layer's radius is its claim that its verify command reads that whole
 // set, and the scheduler serializes other tasks against the claim. When
 // the command's only path arguments sit inside the layer's own `scope`,
@@ -308,8 +440,18 @@ export function lintCore(core) {
   for (const layer of core.layers) {
     if (layer.verify_radius === null) continue;
 
+    for (const glob of layer.scope) {
+      if (coverage(layer.verify_radius, glob) === 'unknown') {
+        warnings.push(
+          `layer "${layer.id}": cannot prove verify_radius [${layer.verify_radius.join(', ')}] covers scope glob "${glob}" — check it by hand. A radius that misses part of its own scope leaves this layer writing files the scheduler believes nobody is reading (conflict.mjs compares scope against scope and radius against radius, never one against the other).`,
+        );
+      }
+    }
+
     // Only a radius strictly wider than scope has an unexercised gap.
-    const wider = layer.verify_radius.some((glob) => !covered(layer.scope, glob));
+    const wider = layer.verify_radius.some(
+      (glob) => coverage(layer.scope, glob) !== 'yes',
+    );
     if (!wider) continue;
 
     const paths = pathArguments(layer.verify);
@@ -323,7 +465,7 @@ export function lintCore(core) {
       .filter(
         (other) =>
           other.id !== layer.id &&
-          other.scope.some((glob) => covered(layer.verify_radius, glob)),
+          other.scope.some((glob) => coverage(layer.verify_radius, glob) === 'yes'),
       )
       .map((other) => `"${other.id}"`);
     const reach =
