@@ -11,6 +11,9 @@ one file. The `hedgehog-contributing` skill
 committing, and opening a PR for either kind, and `tweaker` offers it
 directly at the end of a build.
 
+You're also welcome to pick up any open issue labeled
+[`help wanted`](https://github.com/skyf0xx/hedgehog/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
+
 ## Before you start
 
 Read `CLAUDE.md` at the repo root. It defines the rules this content has to
