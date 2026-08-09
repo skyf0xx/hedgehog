@@ -302,6 +302,38 @@ function commitNoOpLayer(commitMessage) {
   return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
 }
 
+// Puts `taskId` back to `building` under the lease it already holds.
+//
+// The commit is the last step of verification and the only one that can
+// fail after the task has left `building` — git hooks (a lefthook that
+// rejects the message), a missing signing key, an unset user.email, any
+// repository configuration. Nothing has been recorded when it does, so
+// the honest resting place is exactly where the task sat before verify
+// ran: still `building`, still leased to the same owner, blocked_reason
+// cleared.
+//
+// Leaving it `verifying` instead strands it with no CLI way out —
+// `hedgehog release` only acts on `building`, claimForVerify below only
+// accepts `building`, `hedgehog claim` skips it, and `hedgehog renew`
+// merely extends the lease. The task would sit unreachable until the
+// lease expired and reapExpiredLeases swept it to `blocked`, which is
+// itself a state no command re-runs. Rolling back keeps both `hedgehog
+// verify` (re-attempt) and `hedgehog release` (hand it back) working.
+function rollbackToBuilding(db, taskId) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    setTaskStatus(db, taskId, 'building');
+    db.exec('COMMIT');
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // Rollback failing must not mask the original error.
+    }
+    throw err;
+  }
+}
+
 // Phase 0: reap expired leases, load `taskId`, assert it's `building` and
 // leased to `owner`, then set `verifying` — one small transaction. Throws
 // rather than proceeding when the lease doesn't match (including a lease
@@ -410,17 +442,36 @@ export function verifyTask(db, taskId, owner) {
   // commit under this task's message, and committing the raw (not
   // scope-restricted) touched set would sweep up a neighbor's untracked,
   // in-scope-for-them files sitting in the same working tree.
-  const { touched, kindByPath, commitSha } = withCommitLock(() => {
-    const inScope = changedPaths(scopeGlobs.map((glob) => `:(glob)${glob}`));
-    return {
-      touched: inScope,
-      kindByPath: classifyArtifacts(inScope),
-      commitSha:
-        inScope.length > 0
-          ? commitTouchedPaths(inScope, task.commit_message)
-          : commitNoOpLayer(task.commit_message),
-    };
-  });
+  //
+  // Both commit calls are inside the try: either can fail on a git hook,
+  // signing, or identity problem, and neither failure may leave the task
+  // parked in `verifying` (see rollbackToBuilding). Re-thrown rather than
+  // returned as an outcome so the CLI reports it through its own
+  // `Verify failed:` path — the outcomes it knows how to print all end in
+  // a state transition this one deliberately doesn't make.
+  let touched, kindByPath, commitSha;
+  try {
+    ({ touched, kindByPath, commitSha } = withCommitLock(() => {
+      const inScope = changedPaths(scopeGlobs.map((glob) => `:(glob)${glob}`));
+      return {
+        touched: inScope,
+        kindByPath: classifyArtifacts(inScope),
+        commitSha:
+          inScope.length > 0
+            ? commitTouchedPaths(inScope, task.commit_message)
+            : commitNoOpLayer(task.commit_message),
+      };
+    }));
+  } catch (err) {
+    rollbackToBuilding(db, task.id);
+    throw new Error(
+      `Task ${task.id} passed verification but its commit failed, so nothing was ` +
+        `recorded. The task is back to \`building\`, still leased to ${owner} — fix ` +
+        `the cause (a rejecting git hook, commit signing, or git identity), then ` +
+        `re-run \`hedgehog verify ${task.id} --owner ${owner}\`, or hand it back ` +
+        `with \`hedgehog release ${task.id} --owner ${owner}\`.\n\n${err.message}`,
+    );
+  }
 
   let unlocked;
   let intentComplete;
