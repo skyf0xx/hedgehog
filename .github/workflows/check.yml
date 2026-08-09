@@ -30,3 +30,15 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
 
       - run: npm run check
+
+      # The reproductions are the evidence behind every bug fix in this
+      # repo, and until now none of them ran here — `npm run check`
+      # validates the payload, not behaviour. They take ~16s in total.
+      #
+      # Three of them (first-commit-rejected, commit-gate-fails-open,
+      # commit-failure-recovery) install the pinned lefthook from the
+      # registry into a throwaway directory, which they declare in their
+      # own headers. That install is theirs, not this workflow's — the
+      # `--ignore-scripts` above still applies to this repository's own
+      # dependencies, and the job keeps its read-only token either way.
+      - run: npm run repro
