@@ -193,6 +193,14 @@ Two checks that catch most mistakes here:
 An issue with a companion PR is one unit of work. Judge them together
 and resolve them together.
 
+**A `real` issue can split.** Fix the part that's genuinely small and
+simple; for a part that needs real machinery to enforce in general, say
+so and close it (already covered elsewhere) or `edge-case` it rather than
+leaving the whole issue open on unbuilt complexity. Don't grow a small
+fix to cover a case that needed a bigger mechanism — a narrow fix plus an
+honest scope comment beats either overbuilding or an issue left open past
+its actionable part.
+
 ### 4. Act
 
 Take the action the verdict implies.
@@ -202,6 +210,7 @@ Take the action the verdict implies.
 | `malicious` | Leave open. Report to maintainer. No comment, no close. |
 | `real`, fix is small and clear | Fix on a branch, open a PR, comment with the link, close the issue once merged. |
 | `real`, fix is large or design-level | Comment with the confirmed analysis, label, leave open. Do not close a real bug for being inconvenient. |
+| `real`, part small and clear, rest would need real machinery | Fix and PR the small part. Comment naming what's fixed, what's out of scope and why (already covered elsewhere, or a genuine gap not worth the mechanism), close. |
 | `edge-case` | Comment with the reasoning and the condition it needs. Close. |
 | `spurious` | Comment with the evidence that disproves it. Close. |
 | `out-of-scope` | Comment with where it does belong. Close. |
