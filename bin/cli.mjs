@@ -47,6 +47,7 @@ import { whyPath, formatWhy } from '../src/db/why.mjs';
 import { addFriction, listFriction } from '../src/db/friction.mjs';
 import { addDebt, listDebt } from '../src/db/debt.mjs';
 import { rebuildDb } from '../src/db/rebuild.mjs';
+import { loadOverrides, addOverride, orphanedOverrides, OVERRIDES_DIR } from '../src/db/overrides.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
 
@@ -359,6 +360,9 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog plan --open               also start the graph server and open it, if anything compiled
   npx @skyf0xx/hedgehog plan --recompile          rewrite core.yaml-derived fields on not-started tasks
                                                    [--dry-run] [--include-blocked] [--strict]
+  npx @skyf0xx/hedgehog override add <task-id> --scope <glob> [--scope <glob>...] --reason "<why>"
+                                                   record a committed, additive-only scope exception for one task
+  npx @skyf0xx/hedgehog override list             list recorded scope overrides
   npx @skyf0xx/hedgehog intent add [flags]        add an intent (rules/requirements/dependencies)
   npx @skyf0xx/hedgehog intent add --file <path>  add an intent from a JSON file
   npx @skyf0xx/hedgehog next                      print the task packet for one ready task
@@ -666,11 +670,12 @@ async function planRecompileCommand(args, { core, corePath }) {
   const includeBlocked = args.includes('--include-blocked');
   const dryRun = args.includes('--dry-run');
   const strict = args.includes('--strict');
+  const overrides = await loadOverrides();
 
   const db = openDb();
   let result;
   try {
-    result = recompileTasks(db, core, { includeBlocked, dryRun });
+    result = recompileTasks(db, core, { includeBlocked, dryRun, overrides });
   } finally {
     db.close();
   }
@@ -749,10 +754,11 @@ async function planCommand(args = []) {
     return;
   }
 
+  const overrides = await loadOverrides();
   const db = openDb();
   let result;
   try {
-    result = planTasks(db, core);
+    result = planTasks(db, core, overrides);
   } finally {
     db.close();
   }
@@ -778,7 +784,7 @@ async function planCommand(args = []) {
   const driftDb = openDb({ readOnly: true });
   let drifted;
   try {
-    drifted = detectDrift(driftDb, core);
+    drifted = detectDrift(driftDb, core, { overrides });
   } finally {
     driftDb.close();
   }
@@ -1500,10 +1506,11 @@ async function statusCommand() {
     }
   }
 
+  const overrides = core ? await loadOverrides() : new Map();
   const db = openDb();
   let result;
   try {
-    result = graphStatus(db, { core });
+    result = graphStatus(db, { core, overrides });
   } finally {
     db.close();
   }
@@ -1900,6 +1907,122 @@ async function frictionCommand(args) {
   process.exitCode = 1;
 }
 
+// `hedgehog override add <task-id> --scope <glob> [--scope <glob>...]
+// --reason "<why>"` / `hedgehog override list` — per-task scope
+// exceptions (see src/db/overrides.mjs). Writes
+// .hedgehog/overrides/<task-id>.json; the next `hedgehog plan` (for a
+// not-yet-compiled task) or `hedgehog plan --recompile` (for one already
+// compiled) is what actually widens the task's scope_globs — this command
+// only records the committed intent to do so.
+async function overrideCommand(args) {
+  await ensureDb();
+
+  const sub = args[0];
+
+  if (sub === 'add') {
+    const taskId = args[1];
+    const rest = args.slice(2);
+    const scopeAdd = [];
+    let reason;
+    for (let i = 0; i < rest.length; i++) {
+      const flag = rest[i];
+      const value = rest[i + 1];
+      if (flag === '--scope') {
+        if (!value) {
+          console.error(`${red('--scope requires a glob')}\n`);
+          process.exitCode = 1;
+          return;
+        }
+        scopeAdd.push(value);
+        i++;
+      } else if (flag === '--reason') {
+        if (!value) {
+          console.error(`${red('--reason requires text')}\n`);
+          process.exitCode = 1;
+          return;
+        }
+        reason = value;
+        i++;
+      } else {
+        console.error(`${red('Unknown override flag:')} ${flag}\n`);
+        process.exitCode = 1;
+        return;
+      }
+    }
+
+    if (!taskId || scopeAdd.length === 0 || !reason) {
+      console.error(
+        `${red('Usage:')} hedgehog override add <task-id> --scope <glob> [--scope <glob>...] --reason "<why>"\n`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    let record;
+    try {
+      record = await addOverride({ task: taskId, scope_add: scopeAdd, reason });
+    } catch (err) {
+      console.error(`${red('Failed to add override:')} ${err.message}\n`);
+      process.exitCode = 1;
+      return;
+    }
+
+    console.log(`  ${green('added')}  ${OVERRIDES_DIR}/${record.task.toLowerCase()}.json`);
+    for (const glob of record.scope_add) console.log(`    + ${glob}`);
+    console.log(
+      `  ${dim(`run \`hedgehog plan --recompile\` to widen ${record.task} now, if it's already compiled`)}\n`,
+    );
+    return;
+  }
+
+  if (sub === 'list') {
+    const overrides = await loadOverrides();
+    if (overrides.size === 0) {
+      console.log(`${dim('No overrides recorded.')}\n`);
+      return;
+    }
+
+    // Best-effort: an override file can legitimately exist before `db
+    // init`/`plan` has ever run (e.g. written ahead of the intent it
+    // targets), so a missing DB just skips the orphan check rather than
+    // failing the whole listing.
+    let orphaned = [];
+    if (await exists(DB_PATH)) {
+      const db = openDb({ readOnly: true });
+      try {
+        orphaned = orphanedOverrides(db, overrides);
+      } finally {
+        db.close();
+      }
+    }
+
+    for (const [taskId, records] of overrides) {
+      for (const record of records) {
+        console.log(`${bold(taskId)}`);
+        console.log(`  ${dim(record.reason)}`);
+        for (const glob of record.scope_add) console.log(`  + ${glob}`);
+        console.log('');
+      }
+    }
+
+    if (orphaned.length > 0) {
+      console.log(
+        `${yellow(bold('Orphaned:'))} ${orphaned.join(', ')} — no task with this id exists in the\n` +
+          `build graph yet. A typo'd id, a renamed layer/module, or an intent that hasn't\n` +
+          `compiled yet all look like this; it silently widens nothing until the id matches.\n`,
+      );
+    }
+    return;
+  }
+
+  console.error(
+    `${red('Unknown override subcommand:')} ${sub ?? '(none)'}\n\n` +
+      `Usage: hedgehog override add <task-id> --scope <glob> [--scope <glob>...] --reason "<why>"\n` +
+      `   or: hedgehog override list\n`,
+  );
+  process.exitCode = 1;
+}
+
 // `hedgehog debt add <task-id> "<note>"` / `hedgehog debt list [<task-id>]`
 // — declared debt between tasks. A note recorded against a task is
 // rendered into the INHERITED DEBT section of the packet of every task
@@ -2118,6 +2241,11 @@ async function main() {
 
   if (cmd === 'debt') {
     await debtCommand(args.slice(1));
+    return;
+  }
+
+  if (cmd === 'override') {
+    await overrideCommand(args.slice(1));
     return;
   }
 

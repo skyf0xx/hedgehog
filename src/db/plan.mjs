@@ -18,6 +18,8 @@
 // graph holds. Without it such a layer compiles once per intent and
 // every copy but the first is a replay of the same command.
 
+import { composeScope, loadOverrides } from './overrides.mjs';
+
 export function fillModule(template, module) {
   return template.replaceAll('{module}', module);
 }
@@ -42,8 +44,15 @@ export function onceTaskId(layerId) {
 // rejects one that names {module}) — so this can't share
 // layerTaskFields's body, only its role as the one place drift.mjs and
 // the compiler both read from.
-export function onceLayerTaskFields(layer) {
-  return {
+//
+// `overrides` (a Map from overrides.mjs#loadOverrides, keyed by task id —
+// here always onceTaskId(layer.id)) is composed in last, via
+// composeScope, so a hand-authored .hedgehog/overrides/*.json entry
+// widens scope_globs the same way for a once-task as for a per-intent
+// one. Defaults to an empty Map so every existing caller that doesn't
+// pass one keeps computing the un-widened fields.
+export function onceLayerTaskFields(layer, overrides = new Map()) {
+  const fields = {
     objective: `${layer.id} for the whole build`,
     scope_globs: JSON.stringify(layer.scope),
     verify_command: layer.verify,
@@ -51,6 +60,7 @@ export function onceLayerTaskFields(layer) {
     exclusive: layer.exclusive ? 1 : 0,
     verify_radius: layer.verify_radius === null ? null : JSON.stringify(layer.verify_radius),
   };
+  return composeScope(fields, onceTaskId(layer.id), overrides);
 }
 
 // `tasks.intent_id` is NOT NULL and a foreign key into `intents`, so a
@@ -97,7 +107,7 @@ function layerById(core) {
 // cardinality boundary in either direction are per-intent and belong to
 // compileIntentTasks. Independent of the intent set entirely, which is
 // what makes the result identical on every run.
-function compileOnceTasks(core) {
+function compileOnceTasks(core, overrides) {
   const byId = layerById(core);
   const onceLayers = core.layers.filter((layer) => layer.once);
 
@@ -107,7 +117,7 @@ function compileOnceTasks(core) {
     module: CORE_MODULE,
     layer: layer.id,
     priority: CORE_INTENT_PRIORITY,
-    ...onceLayerTaskFields(layer),
+    ...onceLayerTaskFields(layer, overrides),
   }));
 
   const dependencies = [];
@@ -159,8 +169,13 @@ export const LAYER_DERIVED_FIELDS = [
 
 // The single definition of "what a layer contributes to a task row",
 // shared by the compiler (below) and the drift check (drift.mjs).
-export function layerTaskFields(layer, module) {
-  return {
+//
+// `overrides` mirrors onceLayerTaskFields's parameter: composed in last
+// via composeScope, keyed on taskId(module, layer.id) — for a per-intent
+// task `module` IS the intent id, so this is exactly the id the task row
+// is inserted under.
+export function layerTaskFields(layer, module, overrides = new Map()) {
+  const fields = {
     objective: `${layer.id} for ${module}`,
     scope_globs: JSON.stringify(layer.scope.map((g) => fillModule(g, module))),
     verify_command: fillModule(layer.verify, module),
@@ -171,11 +186,12 @@ export function layerTaskFields(layer, module) {
         ? null
         : JSON.stringify(layer.verify_radius.map((g) => fillModule(g, module))),
   };
+  return composeScope(fields, taskId(module, layer.id), overrides);
 }
 
 // Compiles one intent's tasks + intra-intent dependencies (mirroring the
 // core definition's layer order) without touching the database.
-function compileIntentTasks(intent, core) {
+function compileIntentTasks(intent, core, overrides) {
   const module = intent.id;
   const byId = layerById(core);
   const perIntentLayers = core.layers.filter((layer) => !layer.once);
@@ -186,7 +202,7 @@ function compileIntentTasks(intent, core) {
     module,
     layer: layer.id,
     priority: intent.priority,
-    ...layerTaskFields(layer, module),
+    ...layerTaskFields(layer, module, overrides),
   }));
 
   const dependencies = [];
@@ -422,7 +438,15 @@ const insertTaskRequirement = (db) =>
 // already-compiled intents are skipped and so contribute no edges to the
 // new once-layer. Delete `.hedgehog/hedgehog.db` and `hedgehog db
 // rebuild` to recompile the whole graph against the new definition.
-export function planTasks(db, core) {
+//
+// `overrides` (from overrides.mjs#loadOverrides) is composed into every
+// task's scope_globs at the moment it's compiled, via layerTaskFields /
+// onceLayerTaskFields. A task compiled before its override file existed
+// does NOT pick it up here — planTasks only ever INSERTs — so an
+// override written after the fact needs `hedgehog plan --recompile`
+// (drift.mjs composes the same overrides Map) the same as any other
+// core.yaml-derived field would.
+export function planTasks(db, core, overrides = new Map()) {
   const intents = loadPendingIntents(db);
   const intentDependencies = loadIntentDependencies(db);
   const ordered = orderIntents(intents, intentDependencies);
@@ -459,7 +483,7 @@ export function planTasks(db, core) {
   try {
     if (onceTaskIds.size > 0 && countRealIntents(db) > 0) {
       ensureCoreIntent(db, core);
-      const { tasks, dependencies } = compileOnceTasks(core);
+      const { tasks, dependencies } = compileOnceTasks(core, overrides);
       for (const t of tasks) {
         if (taskExists(db, t.id)) continue;
         runInsert.run(
@@ -489,7 +513,7 @@ export function planTasks(db, core) {
         continue;
       }
 
-      const { tasks, dependencies } = compileIntentTasks(intent, core);
+      const { tasks, dependencies } = compileIntentTasks(intent, core, overrides);
       const requirementIds = loadIntentRequirements(db, intent.id).map((r) => r.id);
       for (const t of tasks) {
         // <INTENT>-<LAYER> colliding with a bare once-layer id would

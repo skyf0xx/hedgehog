@@ -22,6 +22,7 @@ import { normalizeIntent, insertIntentRows, INTENTS_DIR } from './intent.mjs';
 import { planTasks, CORE_MODULE } from './plan.mjs';
 import { loadCore } from './core.mjs';
 import { detectDrift } from './drift.mjs';
+import { loadOverrides, OVERRIDES_DIR } from './overrides.mjs';
 
 // Alphabetical by filename, purely to make the *tie-break* deterministic
 // across machines and runs. It is NOT the replay order — see
@@ -252,27 +253,31 @@ function markCompletedTasks(db, commitSubjects) {
 //
 // `drift` in the return is the honest disclosure this rebuild owes its
 // caller. A rebuild re-derives every task's layer-derived fields from
-// the *current* core.yaml, and the intent files it replays carry no
-// task-level detail at all — so any hand-edit made directly to a task
-// row (the widened scope glob, the patched verify command) has no
-// committed source to replay from and does not survive. Rows that
-// predate this rebuild are left as they are, which is the other half of
-// the same problem: they can be stale against core.yaml and nothing
-// would otherwise say so. Reporting the divergence is what turns both
-// into something the operator sees instead of something they discover
-// three layers later.
-export async function rebuildDb(db, { corePath, intentsDir = INTENTS_DIR } = {}) {
+// the *current* core.yaml (composed with `.hedgehog/overrides/*.json`,
+// which — unlike a hand-edited task row — IS a committed source and so
+// DOES survive), so any hand-edit made directly to a task row that never
+// got written as an override file has no committed source to replay from
+// and does not survive. Rows that predate this rebuild are left as they
+// are, which is the other half of the same problem: they can be stale
+// against core.yaml and nothing would otherwise say so. Reporting the
+// divergence is what turns both into something the operator sees instead
+// of something they discover three layers later.
+export async function rebuildDb(
+  db,
+  { corePath, intentsDir = INTENTS_DIR, overridesDir = OVERRIDES_DIR } = {},
+) {
   applySchema(db);
 
   const intentsReplayed = await replayIntents(db, intentsDir);
 
   const core = await loadCore(corePath);
-  planTasks(db, core);
+  const overrides = await loadOverrides(overridesDir);
+  planTasks(db, core, overrides);
 
   const commitSubjects = loadCommitSubjects();
   const tasksMarkedComplete = markCompletedTasks(db, commitSubjects);
 
-  const drift = detectDrift(db, core);
+  const drift = detectDrift(db, core, { overrides });
 
   return { intentsReplayed, tasksMarkedComplete, drift };
 }

@@ -92,12 +92,17 @@ function loadAttentionTasks(db) {
 // parameter rather than a lookup because status.mjs has no business
 // resolving the project's core path — the CLI already does that, and
 // a project mid-install may not have a core definition at all.
-export function graphStatus(db, { core = null } = {}) {
+//
+// `overrides` (overrides.mjs#loadOverrides) is likewise the CLI's to
+// resolve and pass in — detectDrift needs it composed against `core` or
+// every task widened by `.hedgehog/overrides/*.json` reports permanent,
+// spurious drift here.
+export function graphStatus(db, { core = null, overrides = new Map() } = {}) {
   const counts = countTasksByStatus(db);
   const ready = loadReadyTasks(db);
   const inFlight = loadInFlightTasks(db);
   const attention = loadAttentionTasks(db);
-  const drift = core ? detectDrift(db, core) : [];
+  const drift = core ? detectDrift(db, core, { overrides }) : [];
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return { counts, ready, inFlight, attention, drift, total };
 }

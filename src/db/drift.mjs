@@ -31,6 +31,7 @@ import {
   taskId,
   CORE_MODULE,
 } from './plan.mjs';
+import { loadOverrides } from './overrides.mjs';
 
 // Statuses a field rewrite is safe on: nothing has been built, leased,
 // committed, or failed against these rows yet, so moving their ALLOWED
@@ -109,7 +110,13 @@ function recordedParents(db, task) {
 // than layerTaskFields — using the per-intent path here would compare
 // every once-task against a substitution that never happened and report
 // permanent, unfixable drift on every one.
-export function taskDrift(db, task, core) {
+//
+// `overrides` (overrides.mjs#loadOverrides) has to compose into `expected`
+// here too, or an overridden task's core.yaml-derived scope_globs would
+// never match its widened row and every overridden task would report
+// permanent drift — false positives severe enough to train people to
+// ignore the whole DRIFT section.
+export function taskDrift(db, task, core, overrides = new Map()) {
   const layer = core.layers.find((l) => l.id === task.layer);
   if (!layer) {
     return {
@@ -123,7 +130,9 @@ export function taskDrift(db, task, core) {
   }
 
   const isOnce = task.module === CORE_MODULE;
-  const expected = isOnce ? onceLayerTaskFields(layer) : layerTaskFields(layer, task.module);
+  const expected = isOnce
+    ? onceLayerTaskFields(layer, overrides)
+    : layerTaskFields(layer, task.module, overrides);
   const fields = [];
   for (const field of LAYER_DERIVED_FIELDS) {
     const want = normalize(expected[field]);
@@ -184,10 +193,10 @@ export function isRecompilable(status, { includeBlocked = false } = {}) {
 }
 
 // Every drifted task, in `priority, id` order. Read-only.
-export function detectDrift(db, core, { includeBlocked = false } = {}) {
+export function detectDrift(db, core, { includeBlocked = false, overrides = new Map() } = {}) {
   const drifted = [];
   for (const task of loadTasks(db)) {
-    const drift = taskDrift(db, task, core);
+    const drift = taskDrift(db, task, core, overrides);
     if (!drift) continue;
     drift.recompilable =
       drift.fields.length > 0 && !drift.missingLayer && isRecompilable(task.status, { includeBlocked });
@@ -220,8 +229,18 @@ const UPDATE_SQL = `
 // field list), `skipped` the drifted tasks left alone (with the reason
 // and the fields that stay stale). `dryRun` computes both without
 // writing.
-export function recompileTasks(db, core, { includeBlocked = false, dryRun = false } = {}) {
-  const drifted = detectDrift(db, core, { includeBlocked });
+//
+// `overrides` composes into the rewritten fields the same as it does in
+// detectDrift, so `--recompile` never rewrites an overridden task's
+// scope_globs back down to core.yaml's bare layer scope — that would be
+// exactly the silent-shrink-on-rebuild bug overrides.mjs exists to end,
+// just triggered by `--recompile` instead of `db rebuild`.
+export function recompileTasks(
+  db,
+  core,
+  { includeBlocked = false, dryRun = false, overrides = new Map() } = {},
+) {
+  const drifted = detectDrift(db, core, { includeBlocked, overrides });
   const updated = drifted.filter((d) => d.recompilable);
   const skipped = drifted.filter((d) => !d.recompilable);
 
@@ -241,7 +260,10 @@ export function recompileTasks(db, core, { includeBlocked = false, dryRun = fals
         continue;
       }
       const layer = core.layers.find((l) => l.id === task.layer);
-      const fields = layerTaskFields(layer, task.module);
+      const fields =
+        task.module === CORE_MODULE
+          ? onceLayerTaskFields(layer, overrides)
+          : layerTaskFields(layer, task.module, overrides);
       run.run(
         fields.objective,
         fields.scope_globs,
