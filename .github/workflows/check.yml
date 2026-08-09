@@ -35,10 +35,11 @@ jobs:
       # repo, and until now none of them ran here — `npm run check`
       # validates the payload, not behaviour. They take ~16s in total.
       #
-      # Three of them (first-commit-rejected, commit-gate-fails-open,
-      # commit-failure-recovery) install the pinned lefthook from the
-      # registry into a throwaway directory, which they declare in their
-      # own headers. That install is theirs, not this workflow's — the
-      # `--ignore-scripts` above still applies to this repository's own
-      # dependencies, and the job keeps its read-only token either way.
+      # Two of them (first-commit-rejected, commit-gate-fails-open)
+      # install the pinned lefthook from the registry into a throwaway
+      # directory, which they declare in their own headers. That install
+      # is theirs, not this workflow's — the `--ignore-scripts` above
+      # still applies to this repository's own dependencies, and the job
+      # keeps its read-only token either way. Every other reproduction
+      # is hermetic.
       - run: npm run repro
