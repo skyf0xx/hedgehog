@@ -1,0 +1,36 @@
+name: Tag release
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - package.json
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    if: github.repository == 'skyf0xx/hedgehog'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - id: version
+        run: |
+          before=$(git show HEAD^:package.json | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version' 2>/dev/null || echo "")
+          after=$(node -p 'require("./package.json").version')
+          echo "before=$before" >> "$GITHUB_OUTPUT"
+          echo "after=$after" >> "$GITHUB_OUTPUT"
+
+      - if: steps.version.outputs.before != steps.version.outputs.after
+        env:
+          TAG: v${{ steps.version.outputs.after }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
