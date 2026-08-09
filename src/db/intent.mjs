@@ -25,12 +25,15 @@
 //     re-normalizing an already-written file (which is exactly what a
 //     replay does) yields zero requirements and the rewrite empties the
 //     record.
-//   * the DB insert happens BEFORE the file write, and a write that
-//     would drop a non-empty record to zero requirements is refused
+//   * the DB insert and the file write are all-or-nothing. The inserts
+//     run first (so a record the DB rejects never reaches the file) but
+//     the file write happens before COMMIT (so a failed write rolls the
+//     inserts back). Neither half can outlive the other, and a write
+//     that would drop a non-empty record to zero requirements is refused
 //     outright. Losing a committed intent is strictly worse than failing
 //     loudly.
 
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, rename, rm } from 'node:fs/promises';
 
 export const INTENTS_DIR = '.hedgehog/intents';
 
@@ -152,6 +155,27 @@ const prepareInsertIntentDependency = (db) =>
     VALUES (?, ?)
   `);
 
+// The INSERT statements themselves, with no transaction of their own, so
+// a caller that needs the file write inside the same transaction can
+// supply one. Every constraint that matters here — the intents PRIMARY
+// KEY, the requirements/intent_dependencies FOREIGN KEYs, the kind CHECK
+// — is immediate, not deferred, so a bad record fails on the offending
+// statement rather than at COMMIT. That's what lets addIntent below treat
+// "the inserts returned" as "the DB accepted this intent".
+function runIntentInserts(db, intent) {
+  const runInsertIntent = prepareInsertIntent(db);
+  const runInsertRequirement = prepareInsertRequirement(db);
+  const runInsertDependency = prepareInsertIntentDependency(db);
+
+  runInsertIntent.run(intent.id, intent.goal, intent.outcome, intent.priority);
+  for (const r of intent.requirements) {
+    runInsertRequirement.run(r.id, intent.id, r.kind, r.statement);
+  }
+  for (const dependsOnId of intent.depends_on) {
+    runInsertDependency.run(intent.id, dependsOnId);
+  }
+}
+
 // Writes a normalized intent's rows to `db` — one `intents` row, one
 // `requirements` row per rule/constraint/acceptance item, one
 // `intent_dependencies` row per depends_on entry — in one transaction,
@@ -159,19 +183,9 @@ const prepareInsertIntentDependency = (db) =>
 // replay reconstructs the derived DB from the permanent record and has
 // no business writing that record back out.
 export function insertIntentRows(db, intent) {
-  const runInsertIntent = prepareInsertIntent(db);
-  const runInsertRequirement = prepareInsertRequirement(db);
-  const runInsertDependency = prepareInsertIntentDependency(db);
-
   db.exec('BEGIN IMMEDIATE');
   try {
-    runInsertIntent.run(intent.id, intent.goal, intent.outcome, intent.priority);
-    for (const r of intent.requirements) {
-      runInsertRequirement.run(r.id, intent.id, r.kind, r.statement);
-    }
-    for (const dependsOnId of intent.depends_on) {
-      runInsertDependency.run(intent.id, dependsOnId);
-    }
+    runIntentInserts(db, intent);
     db.exec('COMMIT');
   } catch (err) {
     try {
@@ -236,29 +250,75 @@ export async function assertNonDestructiveWrite(intent, intentsDir = INTENTS_DIR
 
 // Writes the normalized intent to INTENTS_DIR/<id>.json, guarded against
 // emptying an existing record.
+//
+// Written to a sibling temp file and renamed into place: `rename(2)` is
+// atomic within a directory, so a crash or a full disk mid-write can
+// never leave a half-written intent behind. That matters more than usual
+// here, because assertNonDestructiveWrite refuses to overwrite a file it
+// can't parse — a truncated record would otherwise be its own dead end.
 export async function writeIntentFile(intent, intentsDir = INTENTS_DIR) {
   await assertNonDestructiveWrite(intent, intentsDir);
   await mkdir(intentsDir, { recursive: true });
-  await writeFile(intentFilePath(intent.id, intentsDir), JSON.stringify(intent, null, 2));
+
+  const finalPath = intentFilePath(intent.id, intentsDir);
+  const tempPath = `${finalPath}.tmp-${process.pid}`;
+  try {
+    await writeFile(tempPath, JSON.stringify(intent, null, 2));
+    await rename(tempPath, finalPath);
+  } catch (err) {
+    await rm(tempPath, { force: true }).catch(() => {});
+    throw err;
+  }
   return intent;
 }
 
 // Writes a normalized intent (see normalizeIntent) to `db` AND to
-// INTENTS_DIR/<id>.json.
+// INTENTS_DIR/<id>.json, atomically with respect to the DB: the file
+// write happens INSIDE the open transaction, immediately before COMMIT.
 //
-// Order matters: the destructive-write guard runs first (it's read-only,
-// so a refusal costs nothing), then the DB transaction, then the file.
-// The old order — file first, "belt and suspenders" against a failed DB
-// write — meant every failed insert still rewrote the permanent record,
-// which is the more expensive of the two failures by a wide margin. A DB
-// row without its file is recoverable (`intent add` again); a file
-// emptied under a passing command is not.
+// The ordering is load-bearing in both directions:
+//
+//   * The inserts run first, so a record the DB will reject (duplicate
+//     id, unknown depends_on) never reaches the file. The original bug
+//     was the opposite order — write, then insert — which meant every
+//     failed insert had already rewritten the permanent record, and
+//     because normalizeIntent didn't round-trip, rewritten to empty.
+//   * The write happens before COMMIT, so a write that fails rolls the
+//     inserts back. Otherwise the mirror-image failure appears: the
+//     intent exists only in the derived, gitignored DB, the command
+//     reports failure, a retry hits the PRIMARY KEY constraint, and a
+//     rebuild can't recover it because it was never in the permanent
+//     record. Both halves land or neither does.
+//
+// The only remaining failure — COMMIT itself failing after the file
+// landed — leaves the file without the row, which is the recoverable
+// direction: the file IS the source of truth, and `db rebuild` replays
+// it. A retry is fine too, since re-writing an identical record passes
+// the guard.
+//
+// This does hold the write transaction open across one small file write.
+// That's a sub-millisecond window against a 10s busy_timeout, and it buys
+// the invariant that the DB never holds an intent the permanent record
+// doesn't.
 export async function addIntent(db, record, { intentsDir = INTENTS_DIR } = {}) {
   const intent = normalizeIntent(record);
 
+  // Read-only, so a refusal costs nothing and needn't open a transaction.
   await assertNonDestructiveWrite(intent, intentsDir);
-  insertIntentRows(db, intent);
-  await writeIntentFile(intent, intentsDir);
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    runIntentInserts(db, intent);
+    await writeIntentFile(intent, intentsDir);
+    db.exec('COMMIT');
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // Rollback failing must not mask the original error.
+    }
+    throw err;
+  }
 
   return intent;
 }
