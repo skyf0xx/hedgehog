@@ -250,6 +250,19 @@ the one that compiled may run alongside anything else*. Shared
 infrastructure that mutates live state (`terraform apply`, `kubectl
 apply`) usually wants both.
 
+Also ask, separately: **does the design have a seam between two specific
+modules** — module A declares a port it doesn't implement, module B
+binds it; a shared root/composition file; an `exports` list one module
+must extend for another. On a module axis this file sits outside every
+per-module scope by construction, same as shared infra, but the fix
+differs: give it its own `once: true` tail layer, `depends_on` both
+modules, that writes the binding and verifies it — not just a shared
+`join`-style layer that only typechecks. Left unnamed, the module built
+first ships with the port unbound, and whoever needs it later either gets
+blocked or silently duplicates the dependency locally. Record which
+module pairs are dependent and which layer closes each seam in
+`core-design.md`.
+
 ## Step 4b — declare each layer's verify radius
 
 For each layer, ask: does this layer's `verify` command only read files
