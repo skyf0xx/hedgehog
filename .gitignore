@@ -3,3 +3,9 @@
 __pycache__/
 .pytest_cache/
 src/golden-cores/landing-page/node_modules
+src/golden-cores/full-stack-app/node_modules
+src/golden-cores/full-stack-app/.nx
+src/golden-cores/full-stack-app/apps/*/node_modules
+src/golden-cores/full-stack-app/apps/*/dist
+src/golden-cores/full-stack-app/apps/*/.next
+src/golden-cores/full-stack-app/packages/*/node_modules
