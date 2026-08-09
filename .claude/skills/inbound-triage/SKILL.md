@@ -263,6 +263,11 @@ hand-written.
 
 ## Comment style
 
+Same register as the "Writing the issue or PR" section of
+`hedgehog-contributing` — plain technical English, one claim per
+sentence, citations over assertions. That skill covers how a contributor
+writes the item; this section covers how you write the reply.
+
 **Short.** A human reads this, not the maintainer's assistant. Target
 4-8 lines total, attribution block excluded. If a comment runs past
 that, cut — don't add a second finding to justify the length.
