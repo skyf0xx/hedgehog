@@ -622,12 +622,30 @@ export function validateCore(core) {
 // owns the certainties). Returns a list of human-readable strings; empty
 // means nothing detectable is wrong.
 //
-// Two checks. The first is the other half of validateCore's radius rule:
-// where containment between the radius and the scope can be neither
-// proven nor disproven, the author is told to check it rather than the
-// core being rejected on a guess.
+// Three checks. The first is a per-module layer's verify with no
+// evidence it varies by module at all: no {module} token, and no path
+// argument (pathArguments, below) that lands inside the layer's own
+// module-scoped glob (tokenInsideGlob, the same test the radius check
+// below uses). validateCore already requires {module} in a per-module
+// layer's scope (file-level isolation, a certainty); a verify with
+// neither signal is weaker — a command can legitimately vary by module
+// through a flag pathArguments can't see (--filter, -t), so it's a
+// warning, not a throw. A layer that declares verify_radius is exempt:
+// declaring one is the author's on-record statement that this command
+// deliberately reads wider than its own module's scope, a different and
+// already-checked claim from the one this warning is about. Upstream #9:
+// a six-module deploy layer with no verify_radius and a verify of a
+// fixed `kubectl apply -f k8s/` — no {module}, and its only path
+// arguments (`k8s/`, `deployment/app`) sat outside the module's own
+// scope glob — ran byte-identical six times and could not tell deployed
+// from reverted from never-built.
 //
-// The second is the verify-command-versus-verify_radius axis. A
+// The second is the other half of validateCore's radius rule: where
+// containment between the radius and the scope can be neither proven nor
+// disproven, the author is told to check it rather than the core being
+// rejected on a guess.
+//
+// The third is the verify-command-versus-verify_radius axis. A
 // layer's radius is its claim that its verify command reads that whole
 // set, and the scheduler serializes other tasks against the claim. When
 // the command's only path arguments sit inside the layer's own `scope`,
@@ -644,6 +662,26 @@ export function validateCore(core) {
 // hedgehog-core-design carries the question as an authoring rule too.
 export function lintCore(core) {
   const warnings = [];
+  const isModuleAxis = core.layers.some((layer) =>
+    layer.scope.join('').includes('{module}'),
+  );
+  if (isModuleAxis) {
+    for (const layer of core.layers) {
+      if (layer.exclusive || layer.once) continue;
+      if (!layer.scope.join('').includes('{module}')) continue; // validateCore already rejects this
+      if (layer.verify_radius !== null && layer.verify_radius !== undefined) continue;
+      if (layer.verify.includes('{module}')) continue;
+      const paths = pathArguments(layer.verify);
+      const anchored = paths.some((path) =>
+        layer.scope.some((glob) => tokenInsideGlob(path, glob)),
+      );
+      if (anchored) continue;
+      warnings.push(
+        `layer "${layer.id}": scope carries {module} but verify has no {module} token and no path argument inside that scope — this command compiles byte-identical across every module and there's no evidence it distinguishes one module's build from another's.`,
+      );
+    }
+  }
+
   for (const layer of core.layers) {
     if (layer.verify_radius === null || layer.verify_radius === undefined) continue;
 

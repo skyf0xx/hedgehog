@@ -459,6 +459,21 @@ if missed:
   `scope` — but a filter expressed as a flag rather than a path
   (`--testPathPattern={module}`, `-t <name>`) is invisible to it, so on
   those the answer is yours, not the linter's.
+- **A per-module layer's `verify` must distinguish the module it runs
+  for.** A layer whose `scope` carries `{module}` but whose `verify`
+  neither contains a `{module}` token nor a path argument inside that
+  module's own scope compiles byte-identical across every module — it
+  cannot tell one module's build from another's, let alone from a module
+  never built at all. `lintCore` (`src/db/core.mjs`, surfaced by
+  `hedgehog status`) warns on this, and abstains the moment a `{module}`
+  token or a module-scoped path argument shows up, or when the layer
+  declares `verify_radius` — that declaration is already on record as
+  this layer reading wider than its own module on purpose. Sharpest on a
+  `deploy` layer applying manifests or running a rollout check against a
+  fixed path: `kubectl apply -f k8s/` and `kubectl rollout status
+  deployment/app` read the same thing regardless of which module's task
+  is running, so six modules' deploy tasks assert the identical claim six
+  times rather than each module's own deployment.
 - **Declare the binaries `verify` needs, in `requires`.** Optional, an
   inline list alongside `scope`/`verify`/`commit`
   (`requires: ["terraform", "kubectl"]`), and only for tools that come
