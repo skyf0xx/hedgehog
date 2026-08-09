@@ -49,10 +49,40 @@ function windowsCandidates(name, env) {
   return hasExt ? [name] : [name, ...exts.map((ext) => `${name}${ext}`)];
 }
 
+// What a POSIX shell searches when PATH is unset entirely — confstr's
+// _CS_PATH, which is `/bin:/usr/bin` on glibc (`getconf PATH`). An unset
+// PATH is emphatically *not* the same as an empty one: the shell falls
+// back to this list and does not look in the current directory.
+const DEFAULT_POSIX_PATH = '/bin:/usr/bin';
+
+// The directories the verify command's shell would search, in order.
+//
+// A zero-length PATH component means the current working directory —
+// POSIX.1 XBD 8.3 calls it a legacy feature, and both dash and bash
+// honour it, for a leading, trailing, or interior empty component and
+// for PATH="" as a whole. Skipping those components (as this did at
+// first) makes `status` report a binary as missing that the verify shell
+// runs perfectly well, which blocks a build that would have worked — the
+// worse of the two directions to be wrong in.
+//
+// Windows is different in both halves: cmd.exe ignores empty PATH
+// entries, but always searches the current directory first, whatever
+// PATH says. Both are folded in here so callers get one ordered list.
+function searchPath(env) {
+  const raw = env.PATH ?? env.Path;
+
+  if (process.platform === 'win32') {
+    return ['.', ...(raw ?? '').split(delimiter).filter((dir) => dir !== '')];
+  }
+
+  if (raw === undefined) return DEFAULT_POSIX_PATH.split(delimiter);
+  return raw.split(delimiter).map((dir) => (dir === '' ? '.' : dir));
+}
+
 // Resolves `name` the way the verify command's shell would, and returns
-// the absolute path or null. A name containing a path separator (or an
-// absolute path) is checked as given rather than searched for, matching
-// shell behaviour.
+// the path or null. A name containing a path separator (or an absolute
+// path) is checked as given rather than searched for, matching shell
+// behaviour.
 export function findBinary(name, env = process.env) {
   const platform = process.platform;
   const candidates = platform === 'win32' ? windowsCandidates(name, env) : [name];
@@ -64,9 +94,7 @@ export function findBinary(name, env = process.env) {
     return null;
   }
 
-  const pathValue = env.PATH ?? env.Path ?? '';
-  for (const dir of pathValue.split(delimiter)) {
-    if (!dir) continue;
+  for (const dir of searchPath(env)) {
     for (const candidate of candidates) {
       const full = join(dir, candidate);
       if (isExecutableFile(full)) return full;

@@ -9,11 +9,20 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SCRIPTS = ['plan-no-open.mjs', 'requires-missing-binary.mjs', 'core-without-requires.mjs'];
+const SCRIPTS = [
+  'plan-no-open.mjs',
+  'requires-missing-binary.mjs',
+  'core-without-requires.mjs',
+  'path-empty-entry.mjs',
+];
 
 const failed = [];
 for (const script of SCRIPTS) {
-  const res = spawnSync(process.execPath, [join(HERE, script)], { stdio: 'inherit' });
+  // --experimental-sqlite so the scripts that read the build graph via
+  // node:sqlite run without a warning on the Node versions that need it.
+  const res = spawnSync(process.execPath, ['--experimental-sqlite', join(HERE, script)], {
+    stdio: 'inherit',
+  });
   if (res.status !== 0) failed.push(script);
 }
 
