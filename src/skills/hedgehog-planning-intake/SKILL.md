@@ -33,6 +33,13 @@ graph holds no intents yet. When the graph already holds intents, run the
 **Re-entry pass** at the end of this file instead; the shelf does not run
 twice on one project.
 
+Run Phase 0 in the session already talking to the user, never as a
+detached subagent — every skill below can drop into Facilitator or
+Creative Partner mode, a live multi-turn conversation a subagent has no
+channel to hold (`planner.md` states the same constraint). Applies
+regardless of which core invoked this Phase — `hedgehog-landing-loop`
+runs it in full too.
+
 Check `uv` is on PATH before anything else — every skill in the shelf
 below shells out to it (`uv run {bmad-root}/scripts/*.py`) for its
 memlog, customization resolution, and research tooling, so its absence

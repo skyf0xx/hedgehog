@@ -40,6 +40,16 @@ asks for something that's new scope rather than a tweak (routed here by
 `tweaker`), or before a large refactor that might cross module boundaries
 (full-stack-app).
 
+**First run stays inline, not a detached subagent dispatch.** Phase 0's
+BMAD shelf holds a live, multi-turn conversation with the user
+(Facilitator/Creative Partner mode); a subagent has no channel back to
+them mid-run. The root `CLAUDE.md`'s fresh-install greeting follows this
+file directly in the session already talking to the user, through
+Confirm & Lock and the `bootstrap` handoff — only that handoff and what
+follows delegates normally. Re-entry stays a subagent dispatch: its
+questions are short, scoped, and answer-shaped, not a facilitated
+session.
+
 ## Phase 0 — which core applies
 
 Before invoking any planning-intake skill, on a first run only (Workflow

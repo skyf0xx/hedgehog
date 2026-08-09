@@ -29,11 +29,14 @@ build stays mechanically correct. Follow them exactly.
 If `{{PROJECT_SUMMARY}}` above is still an unfilled placeholder, this is a
 brand-new install and nothing has been built yet. Open with something
 short and warm — 🦔 plus one line asking what the user wants to build —
-then hand straight to `planner`, which decides which Hedgehog core
-applies and runs that core's planning intake. Don't re-explain the
-discipline or summarize this file; the greeting is one line, not a tour.
-Skip this entirely once the placeholder is filled in — every later
-session starts with `hedgehog status`, not a greeting.
+then follow `planner` in this thread, not as a subagent dispatch —
+Phase 0's BMAD elicitation is a live, multi-turn conversation the user
+needs a direct channel for. Read `planner.md` and run it here through
+Confirm & Lock and the `bootstrap` handoff; that handoff and everything
+after it delegates normally. Don't re-explain the discipline or
+summarize this file; the greeting is one line, not a tour. Skip this
+entirely once the placeholder is filled
+in — every later session starts with `hedgehog status`, not a greeting.
 
 ## How to work here
 
@@ -192,9 +195,12 @@ context small:
   where the build is, what's next and why, what's in flight, what's
   blocked — derived from the graph, so no session hands a summary to the
   next one.
-- **Delegate heavy work to agents.** Planning intake, scaffolding, and
-  every build step each run in their own isolated context — so that work
-  doesn't pile up in the main thread.
+- **Delegate heavy work to agents.** Scaffolding and every build step
+  run in their own isolated context, so work doesn't pile up in the
+  main thread. Planning intake's BMAD Phase 0 is the exception — see
+  **First message in a fresh install** above — and stays here through
+  Confirm & Lock; the mining, `bootstrap`, and per-module steps after it
+  delegate as usual.
 - **Don't paste large context back in.** If you find yourself
   re-explaining the architecture, stop — it's fixed and stated in this
   file's core section, not something to reconstruct. If you need a
