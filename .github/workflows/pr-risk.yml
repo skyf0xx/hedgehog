@@ -40,16 +40,27 @@ jobs:
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          # Per-file patches, vendor-skills excluded to match the previous
-          # ':!vendor-skills' pathspec. Added lines start with a single
-          # '+'; the '+++' filter drops the file headers. Context width is
-          # irrelevant to that test, so no --unified=0 is needed. `.patch`
-          # is absent for binary/oversized files, hence `// ""`.
-          ADDED=$(gh api --paginate "repos/$REPO/pulls/$PR/files" \
-            --jq '.[] | select((.filename | startswith("vendor-skills/")) | not) | .patch // ""' \
+          FILES=$(gh api --paginate --slurp "repos/$REPO/pulls/$PR/files")
+
+          # Added lines from files whose patch is present, vendor-skills
+          # excluded to match the previous ':!vendor-skills' pathspec.
+          # Added lines start with a single '+'; the '+++' filter drops the
+          # file headers, so context width is irrelevant and no
+          # --unified=0 is needed. (--slurp wraps the paged responses as an
+          # array of arrays, hence '.[][]'.)
+          ADDED=$(echo "$FILES" | jq -r '.[][] | select((.filename | startswith("vendor-skills/")) | not) | .patch // ""' \
             | grep -E '^\+' | grep -vE '^\+\+\+' || true)
-          if echo "$ADDED" | grep -qE 'child_process|execFile|execSync|spawn\(|\bexec\(|\beval\(|new Function\(|Docker(file)?\b'; then
+
+          # GitHub omits `patch` for oversized (or binary) diffs. A text
+          # file with real additions but no patch is one we cannot inspect
+          # — so fail safe and let it count as a match rather than skip it
+          # silently, the way the old whole-tree `git diff` never could.
+          # additions>0 keeps pure deletions/renames from tripping this.
+          BLIND=$(echo "$FILES" | jq -r '.[][] | select((.filename | startswith("vendor-skills/")) | not) | select(.additions > 0 and .patch == null) | .filename')
+
+          if [ -n "$BLIND" ] || echo "$ADDED" | grep -qE 'child_process|execFile|execSync|spawn\(|\bexec\(|\beval\(|new Function\(|Docker(file)?\b'; then
             echo "match=true" >> "$GITHUB_OUTPUT"
+            [ -n "$BLIND" ] && echo "::notice::risk:execution set conservatively — no diff available to scan for: $(echo "$BLIND" | tr '\n' ' ')"
           else
             echo "match=false" >> "$GITHUB_OUTPUT"
           fi
