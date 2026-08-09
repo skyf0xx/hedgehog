@@ -11,7 +11,16 @@
 // functions that print expected vs actual and exit non-zero.
 
 import { execFileSync, execSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  readFileSync,
+  existsSync,
+  openSync,
+  closeSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,23 +74,34 @@ export function runCli(project, args, { env = {} } = {}) {
 
 // execFileSync surfaces stderr only on failure, and the whole point of
 // `hedgehog boundary` is that its two streams carry different things —
-// so the repros read both on every run, via a shell redirect. The
-// capture file lives outside the project: writing it inside would dirty
-// the very working tree the command is being asked about.
+// so the repros read both on every run. stderr goes to a file opened
+// here and handed to the child as fd 2, which keeps the streams apart
+// without a shell. The capture file lives outside the project: writing
+// it inside would dirty the very working tree the command is being
+// asked about.
+//
+// This used to build a `2>` redirect as a shell string, escaping each
+// part with JSON.stringify. That is not an escape: inside double quotes
+// `sh` still expands $(...) and backticks, so a repo checked out under
+// a path containing them executed it. 7450c84 moved the CLI off
+// shell-strung git for the same reason.
 export function runCliCapturingBoth(project, args, { env = {} } = {}) {
   const errPath = join(mkdtempSync(join(tmpdir(), 'hedgehog-repro-err-')), 'stderr.txt');
+  const errFd = openSync(errPath, 'w');
   let status = 0;
   let stdout = '';
   try {
-    stdout = execSync(
-      `${JSON.stringify(process.execPath)} ${JSON.stringify(CLI)} ${args
-        .map((a) => JSON.stringify(a))
-        .join(' ')} 2>${JSON.stringify(errPath)}`,
-      { cwd: project, encoding: 'utf8', env: { ...process.env, NO_COLOR: '1', ...env } },
-    );
+    stdout = execFileSync(process.execPath, [CLI, ...args], {
+      cwd: project,
+      encoding: 'utf8',
+      env: { ...process.env, NO_COLOR: '1', ...env },
+      stdio: ['ignore', 'pipe', errFd],
+    });
   } catch (err) {
     status = err.status ?? 1;
     stdout = err.stdout ?? '';
+  } finally {
+    closeSync(errFd);
   }
   const stderr = existsSync(errPath) ? readFileSync(errPath, 'utf8') : '';
   rmSync(dirname(errPath), { recursive: true, force: true });
