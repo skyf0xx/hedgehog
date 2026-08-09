@@ -1,0 +1,70 @@
+name: PR Policy
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            refactor
+            docs
+            test
+            ci
+            chore
+
+  conflicts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check for merge conflicts with base branch
+        run: |
+          git config user.email "ci@local"
+          git config user.name "ci"
+          if ! git merge --no-commit --no-ff "origin/${{ github.base_ref }}"; then
+            echo "::error::This PR has merge conflicts with ${{ github.base_ref }}. Please rebase."
+            exit 1
+          fi
+
+  forbidden-paths:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Reject direct edits to vendored BMAD tree
+        run: |
+          BASE="origin/${{ github.base_ref }}"
+          CHANGED=$(git diff --name-only "$BASE"...HEAD -- vendor-skills/BMAD)
+          if [ -n "$CHANGED" ]; then
+            echo "::error::vendor-skills/BMAD/ only changes via the bmad-revendor skill against a pinned upstream commit. Direct edits found:"
+            echo "$CHANGED"
+            exit 1
+          fi
+
+      - name: Reject unexpected new package.json files
+        run: |
+          BASE="origin/${{ github.base_ref }}"
+          NEW_MANIFESTS=$(git diff --name-only --diff-filter=A "$BASE"...HEAD -- '**/package.json' ':!package.json')
+          if [ -n "$NEW_MANIFESTS" ]; then
+            echo "::error::New package.json in an unexpected location:"
+            echo "$NEW_MANIFESTS"
+            exit 1
+          fi

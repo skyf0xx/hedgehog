@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an addition or change to the Hedgehog discipline
+labels:
+  - feature
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What's missing or awkward today, and for whom?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: |
+        What would change — a new agent/skill, a change to an existing one, a new
+        core, a template edit? Be as concrete as you can.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false

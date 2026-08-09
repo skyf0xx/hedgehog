@@ -1,0 +1,49 @@
+# Path-based rules for .github/workflows/pr-risk.yml (actions/labeler).
+# Content-based risk (risk:execution) is handled separately in that
+# workflow since it needs to grep diff hunks, not just paths.
+
+"risk:dependencies":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "package.json"
+          - "**/package.json"
+          - "package-lock.json"
+          - "pnpm-lock.yaml"
+          - ".npmrc"
+          - ".nvmrc"
+
+"risk:agents":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".claude/**"
+          - "src/agents/**"
+          - "src/skills/**"
+          - "CLAUDE.md"
+          - "src/templates/CLAUDE*.md"
+
+"risk:ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/**"
+          - ".github/actions/**"
+
+"risk:architecture":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "nx.json"
+          - "*.code-workspace"
+          - "src/db/core.mjs"
+          - "src/golden-cores/**"
+          - "src/hosts/**"
+
+"risk:data":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/migrations/**"
+          - "**/schema.prisma"
+          - "**/seed*.{js,mjs,ts}"
+
+"risk:vendor":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "vendor-skills/BMAD/**"

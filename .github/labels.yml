@@ -1,0 +1,99 @@
+# Label definitions synced to the repo by .github/workflows/labels.yml
+# using EndBug/label-sync. Edit here, not in the GitHub UI — UI edits are
+# overwritten on the next push to master.
+
+- name: "risk:dependencies"
+  color: "c5def5"
+  description: "Adds, removes, or updates a dependency"
+
+- name: "risk:agents"
+  color: "c5def5"
+  description: "Changes Hedgehog's agent/skill payload (.claude/, CLAUDE.md)"
+
+- name: "risk:ci"
+  color: "c5def5"
+  description: "Changes GitHub Actions workflows or their permissions"
+
+- name: "risk:architecture"
+  color: "c5def5"
+  description: "Changes workspace/project configuration or repo structure"
+
+- name: "risk:data"
+  color: "c5def5"
+  description: "Changes database schema, migrations, or seed data"
+
+- name: "risk:execution"
+  color: "d93f0b"
+  description: "Introduces or changes shell/dynamic code execution"
+
+- name: "risk:vendor"
+  color: "d93f0b"
+  description: "Changes vendor-skills/BMAD/ outside the bmad-revendor skill"
+
+- name: "risk:large"
+  color: "e99695"
+  description: "Exceeds the large-PR size threshold"
+
+- name: "size:xs"
+  color: "c2e0c6"
+  description: "Fewer than 10 changed lines"
+
+- name: "size:s"
+  color: "c2e0c6"
+  description: "Fewer than 100 changed lines"
+
+- name: "size:m"
+  color: "fef2c0"
+  description: "Fewer than 500 changed lines"
+
+- name: "size:l"
+  color: "f9d0c4"
+  description: "Fewer than 1,000 changed lines"
+
+- name: "size:xl"
+  color: "e99695"
+  description: "1,000 or more changed lines"
+
+- name: "first-time-contributor"
+  color: "5319e7"
+  description: "First PR from this contributor"
+
+- name: "needs-tests"
+  color: "fbca04"
+  description: "Missing test coverage for the change"
+
+- name: "needs-docs"
+  color: "fbca04"
+  description: "Missing documentation for the change"
+
+- name: "needs-reproduction"
+  color: "fbca04"
+  description: "Issue needs steps to reproduce before triage"
+
+- name: "needs-maintainer-review"
+  color: "fbca04"
+  description: "Needs a maintainer to weigh in before proceeding"
+
+- name: "bug"
+  color: "d73a4a"
+  description: "Something isn't working"
+
+- name: "feature"
+  color: "a2eeef"
+  description: "New feature or request"
+
+- name: "question"
+  color: "d876e3"
+  description: "Further information is requested"
+
+- name: "documentation"
+  color: "0075ca"
+  description: "Improvements or additions to documentation"
+
+- name: "good-first-issue"
+  color: "7057ff"
+  description: "Good for newcomers"
+
+- name: "stale"
+  color: "ededed"
+  description: "No activity for a while; will auto-close if that continues"
