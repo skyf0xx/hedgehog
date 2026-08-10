@@ -6,7 +6,7 @@ Hedgehog stores its build state in one SQLite database:
 .hedgehog/hedgehog.db
 ```
 
-It has five main tables:
+Its core is five tables:
 
 | Table           | Purpose                                           |
 | --------------- | -------------------------------------------------- |
@@ -16,7 +16,25 @@ It has five main tables:
 | `verifications` | The result of each `verify_command` run           |
 | `artifacts`     | The files each completed task produced            |
 
-The rest of the system is built on top of these tables.
+The full schema is laid out in [Schema](#schema) below.
+
+The rest of the system is built on top of these five tables:
+
+```text
+5 tables
+  ↓
+intents → tasks → dependencies
+  ↓
+readiness
+  ↓
+claim → build → verify
+  ↓
+parallel agents
+  ↓
+artifacts + Git
+  ↓
+review checkpoints
+```
 
 ## 1. Intents become tasks
 
@@ -46,19 +64,7 @@ Layers marked `once: true` are created only once rather than once per intent.
 
 Each task also carries the requirements that apply to it: rules, constraints, acceptance criteria, and its allowed scope.
 
-## 2. Tasks have one lifecycle
-
-A task is a row in `tasks`.
-
-```text
-planned → ready → building → verifying → complete
-```
-
-A task can also become `blocked` when verification fails or its scope is violated.
-
-The state is enough to describe where the task is in the build.
-
-## 3. Readiness comes from dependencies
+## 2. Readiness comes from dependencies
 
 Hedgehog does not need a separate scheduler.
 
@@ -80,6 +86,18 @@ task
 ```
 
 The CLI evaluates this directly against SQLite whenever it looks for work.
+
+## 3. Tasks have one lifecycle
+
+A task is a row in `tasks`.
+
+```text
+planned → ready → building → verifying → complete
+```
+
+A task can also become `blocked` when verification fails or its scope is violated.
+
+The state is enough to describe where the task is in the build.
 
 ## 4. Agents claim ready work
 
@@ -145,52 +163,113 @@ Another agent cannot claim the same task while its lease is active.
 
 Because agents claim different ready tasks, several can work concurrently without a separate queue or lock server.
 
-## 7. Git is the durable record
+## 7. Artifacts and Git both record what was built
 
-A completed task produces a Git commit containing its in-scope changes.
+A completed task writes to two places.
 
-This gives Hedgehog two records of the build:
-
-```text
-SQLite → current build state
-Git    → what was actually built
-```
-
-The database can therefore be rebuilt from the commit history.
-
-## 8. Verification is mechanical; review is judgment
-
-`hedgehog verify` runs on every task, but only checks what a machine can
-check: scope and exit code. A separate `reviewer` role covers what it
-can't — boundaries, granularity, contract shape, security — at a few
-checkpoints instead of every commit:
-
-* before Phase B opens for a module
-* when a layer closes on an authored core
-* during the Correction Protocol, when an upstream step turns out wrong
-
-On one module, the two gates sit at different points in the same chain:
+The `artifacts` table records which files the task produced, indexed by task. Git records the same change as a commit containing the task's in-scope diff.
 
 ```text
-schema        verify ✓
-repository    verify ✓
-service       verify ✓
-controller    verify ✓
-              reviewer ── Phase Transition Check
-screen        verify ✓   (Phase B)
+artifacts table → which files belong to which task
+Git commit       → the actual content, with full history
 ```
 
-The reviewer never edits code. It reports findings, and a Block goes back
-through the Correction Protocol to be fixed at its source.
+SQLite tracks current build state; Git holds the durable content. Because every completed task maps to a commit, the database can be rebuilt from the commit history if needed.
 
-The important relationship is:
+## 8. Verification and Review
+
+`hedgehog verify` runs on every task, but only checks what a machine can check: scope and exit code.
+
+A separate `reviewer` role covers more at a few checkpoints instead of every commit:
+
+* Before Phase B opens for a module.
+* When a layer closes on an authored core
+* During the Correction Protocol, when an upstream step turns out wrong.
+
+The reviewer reports findings, and a Block goes back through the Correction Protocol to be fixed at its source.
+
+## Schema
+
+Nine tables in total:
+
+```mermaid
+erDiagram
+    INTENTS ||--o{ REQUIREMENTS : "has"
+    INTENTS ||--o{ INTENT_DEPENDENCIES : "depends_on_intent_id"
+    INTENTS ||--o{ INTENT_DEPENDENCIES : "intent_id"
+    INTENTS ||--o{ TASKS : "has"
+    TASKS ||--o{ TASK_REQUIREMENTS : "has"
+    REQUIREMENTS ||--o{ TASK_REQUIREMENTS : "applies_to"
+    TASKS ||--o{ DEPENDENCIES : "depends_on_task_id"
+    TASKS ||--o{ DEPENDENCIES : "task_id"
+    TASKS ||--o{ ARTIFACTS : "produces"
+    TASKS ||--o{ VERIFICATIONS : "records"
+    TASKS ||--o{ DEBT : "carries"
+    TASKS ||--o{ FRICTION : "logs"
+
+    INTENTS {
+        int id PK
+        string goal
+        string outcome
+        string priority
+        string status "proposed to planned to active to complete"
+        datetime created_at
+    }
+
+    TASKS {
+        int id PK
+        int intent_id FK
+        string module
+        string layer
+        string objective
+        string scope_globs
+        string verify_command
+        string commit_message
+        string priority
+        bool exclusive
+        string verify_radius
+        string status "proposed to planned to ready to building to verifying to complete, or blocked"
+        string blocked_reason "scope_violation, verification_failed, lease_expired"
+        string lease_owner
+        datetime lease_expires_at
+        datetime leased_at
+        string claim_snapshot "dirty-tree fingerprint at claim time, for the scope gate"
+        datetime created_at
+    }
+
+    DEPENDENCIES {
+        int task_id FK
+        int depends_on_task_id FK
+    }
+
+    ARTIFACTS {
+        int id PK
+        int task_id FK
+        string path
+        string kind "created or modified"
+        string commit_sha
+    }
+
+    VERIFICATIONS {
+        int id PK
+        int task_id FK
+        string command
+        int exit_code
+        string output
+        string status "passed or failed"
+        datetime ran_at
+    }
+```
+
+Column detail above is shown for the tables agents read and write most: `intents`, `tasks`, `dependencies`, `artifacts`, `verifications`.
+
+## In short...
 
 ```text
 dependencies → readiness
 leases       → concurrency
-Git commits  → completion
+verification → correctness
+Git          → completion
 ```
-
-The build graph is not a separate scheduler sitting on top of the codebase.
 
 The graph, task ownership, verification, and completion all come from the same small set of primitives.
