@@ -55,9 +55,29 @@ discipline's stance and rationale.
     layer per `hedgehog next` packet via `layer-eng`, the module-axis
     reading, Correction Protocol, and Stop Condition, all driven from
     `.hedgehog/core.yaml`.
+  - `hedgehog-landing-loop` — the same role on the `landing-page` core:
+    the Chain Method's brief → feeling → tokens/element → sequence →
+    artifact pipeline, gated by `hedgehog verify` and committed one phase
+    at a time; also runs that core's own planning intake and Correction
+    Protocol.
+  - `landing-shapes`, `landing-copy-hero`, `landing-copy-problem`,
+    `landing-copy-mechanism`, `landing-copy-proof`,
+    `landing-copy-objection`, `landing-copy-headline`,
+    `landing-copy-cta` — reference procedures the `landing-page` core's
+    chain agents load for a specific construction technique (signature
+    element geometry, icon sourcing) or copy archetype (one skill per
+    section type in the Chain Method's sequence).
   - `conventional-commits` — reconstructs step-shaped, conventional
     commit history when work didn't land cleanly as it went (mainly
     Correction Protocol cleanups).
+  - `no-history-in-output` — keeps project-facing documents (root
+    CLAUDE.md, `.hedgehog/core-design.md`, specs, READMEs) written as a
+    current, as-is snapshot rather than a log of edits or decisions, on
+    first generation and every later revision.
+  - `hedgehog-contributing` — forking, branching, and PR-opening
+    procedure for contributing a fix or `ROADMAP.md` item back to the
+    Hedgehog project itself, as opposed to a consuming project's own
+    code.
   - `nx-generate`, `nx-run-tasks`, `nx-workspace`,
     `link-workspace-packages` — Nx tooling procedures (scaffolding,
     running tasks, read-only workspace exploration, wiring workspace
@@ -70,17 +90,29 @@ discipline's stance and rationale.
   for the pinned source commit; re-vendoring is a deliberate act via the
   `bmad-revendor` skill, not automatic.
 - `src/templates/` — files a consuming project copies (and then edits or
-  deletes) rather than running as-is: `TODO.md`, the live build checklist
-  template (including its `## Add-ons` block); and `CLAUDE.md`, the
-  project-root guide the installer drops in (project-context placeholders
-  the `planner` fills at planning intake, plus the Hedgehog constants —
-  stack, layout, rules, skill/agent pointers, and context-management
-  guidance). One `CLAUDE.core.<core>.md` section per core fills that
-  shell's `{{CORE_SECTION}}` — at install time when `init` is given an
-  explicit core flag, or by the matching bootstrap-core skill when `init`
-  ran with no flag and the shell landed with that placeholder still
-  unfilled. `{{HOST_DISPATCH}}` is filled at install time from the chosen
-  host's `DISPATCH.md`.
+  deletes) rather than running as-is: `CLAUDE.md`, the project-root guide
+  the installer drops in (project-context placeholders the `planner`
+  fills at planning intake, plus the Hedgehog constants — stack, layout,
+  rules, skill/agent pointers, and context-management guidance). One
+  `CLAUDE.core.<core>.md` section per core fills that shell's
+  `{{CORE_SECTION}}` — at install time when `init` is given an explicit
+  core flag, or by the matching bootstrap-core skill when `init` ran with
+  no flag and the shell landed with that placeholder still unfilled.
+  `{{HOST_DISPATCH}}` is filled at install time from the chosen host's
+  `DISPATCH.md`.
+- `src/db/` — the SQLite build graph a consuming project's Bootstrap
+  initializes at `.hedgehog/hedgehog.db`: schema, intents/tasks, `plan`
+  (compiles intents into the task graph), `next`/`ready`/`status`/`claim`
+  (what to work on and lease it), `verify`/`gate` (close a layer, check a
+  phase transition), `friction`, `debt`, `drift`, `boundary`, `why`,
+  `overrides`, `conflict`, `commitLock`, `core`, `rebuild`, and
+  `graph-server` (serves `src/templates/graph.html`'s visualization).
+  This is the live source of truth every loop skill and its agents query
+  and mutate for what's next and what's done.
+- `bin/cli.mjs` — the `hedgehog` CLI installed by `npx @skyf0xx/hedgehog`:
+  `init` (installer) plus the subcommands (`status`, `next`, `verify`,
+  `claim`, `intent add`, `plan`, `friction add`/`list`, …) that read and
+  write `src/db/`'s build graph.
 - `src/hosts/` — one entry per coding agent Hedgehog installs into
   (Claude Code, Cursor, Gemini CLI): where the payload lands, which
   instructions file that agent loads, and how to emit the agent files
