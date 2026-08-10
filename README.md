@@ -50,7 +50,7 @@ The build order is encoded into the project. The AI does not have to remember wh
 
 ## Your build order is a graph
 
-**Every task** Hedgehog generates **is a node** with explicit dependencies in sqlite.
+**Every task** Hedgehog generates **is a node** with [explicit dependencies in sqlite](BUILD_GRAPH.md).
 
 Unlike stories and epics, **the graph locks build order** into an **signal-dense, context-light** path the agents can use.
 
@@ -153,18 +153,6 @@ npx @skyf0xx/hedgehog init --all-hosts           # every supported agent
 Each one gets the discipline in its own native shape — agents and skills
 in the directory it reads, and the instructions file it loads at session
 start (`CLAUDE.md`, `HEDGEHOG.md`, or `GEMINI.md`).
-
-Every install also writes **`AGENTS.md`** at the repo root: an index of
-every agent and skill, when each applies, and the build loop. Coding
-agents that read `AGENTS.md` — Codex, Copilot CLI, OpenCode, and others —
-work from that index, following the same ordered steps and the same
-`hedgehog verify` gate.
-
-Plain `init` (no core flag) installs the agents, skills, and build graph
-that every core shares. Planning intake designs an opinionated build
-order and stack for what you actually describe, then bootstrap generates
-that workspace. Don't pick `--ts-full-stack-app` or `--landing-page` by
-elimination when neither actually fits.
 
 To update:
 
