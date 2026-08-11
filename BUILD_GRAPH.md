@@ -148,6 +148,8 @@ If verification fails, the task is blocked.
 
 If everything passes, Hedgehog commits the allowed changes and marks the task complete.
 
+While any task in the graph is blocked, `hedgehog claim` refuses to hand out any fresh work. `hedgehog next` and `hedgehog status` both report blocked tasks directly.
+
 ## 6. Multiple agents can work at once
 
 The lease is what makes parallel work possible.
@@ -162,6 +164,13 @@ lease_expires_at
 Another agent cannot claim the same task while its lease is active.
 
 Because agents claim different ready tasks, several can work concurrently without a separate queue or lock server.
+
+All agents share one working tree. A changed file counts against a task when:
+
+1. It falls inside that task's own scope.
+2. It wasn't already touched before the task was claimed.
+
+A file inside another in-flight task's scope belongs to that task instead.
 
 ## 7. Artifacts and Git both record what was built
 

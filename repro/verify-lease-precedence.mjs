@@ -161,7 +161,10 @@ try {
   });
 
   // ── control: a caller who does hold the lease still gets the gate ───
-  hedgehog(project, ['claim', '--owner', 'dave', '--count', '1']);
+  // A targeted claim by task id, not `--count` — claim.mjs's stop-the-line
+  // check only gates the fan-out, and ALPHA-INFRA sorts ahead of
+  // BETA-INFRA, so an untargeted claim could hand back the wrong task.
+  hedgehog(project, ['claim', 'BETA-INFRA', '--owner', 'dave']);
   const holder = taskRow('BETA-INFRA');
   check('setup: BETA-INFRA is leased to dave', holder?.status === 'building' && holder?.lease_owner === 'dave', {
     expected: 'building / dave',

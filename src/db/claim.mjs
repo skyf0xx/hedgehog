@@ -180,16 +180,25 @@ function loadTask(db, taskId) {
 // concurrent `claim` call in the interim would otherwise reach `verify`
 // with a technically-expired lease that still matches status/lease_owner
 // and sail through unreaped.
+//
+// Returns the ids it just flipped, as a Set — claimTasks's stop-the-line
+// check uses this to tell a block this very call produced from one that
+// was already sitting there, so a dead agent's lease lapsing doesn't
+// itself become the reason every other module's fan-out refuses.
 export function reapExpiredLeases(db) {
-  db.prepare(
-    `
+  const rows = db
+    .prepare(
+      `
     UPDATE tasks
     SET status = 'blocked', blocked_reason = 'lease_expired',
         lease_owner = NULL, lease_expires_at = NULL, leased_at = NULL,
         claim_snapshot = NULL
     WHERE status IN ('building', 'verifying') AND lease_expires_at < datetime('now')
+    RETURNING id
   `,
-  ).run();
+    )
+    .all();
+  return new Set(rows.map((r) => r.id));
 }
 
 // The atomic claim primitive: the WHERE clause re-checks status and
@@ -204,8 +213,38 @@ const claimOne = (db) =>
     RETURNING id
   `);
 
-// Claims up to `count` ready tasks for `owner`. `count` is a maximum, not
-// a promise — returns however many were actually claimed, possibly zero.
+// Every `blocked` task in the graph, regardless of module or reason —
+// the fan-out claim's stop-the-line check. Ordered the same as the
+// NEEDS ATTENTION list in status.mjs, so the two never disagree about
+// which tasks are outstanding.
+function findBlockedTasks(db) {
+  return db.prepare(`SELECT * FROM tasks WHERE status = 'blocked' ORDER BY priority, id`).all();
+}
+
+// Claims up to `count` ready tasks for `owner`, returning
+// `{ claimed, blocked }`. `count` is a maximum, not a promise — `claimed`
+// may hold fewer tasks than `count`, or none. `blocked` is non-empty only
+// on the stop-the-line refusal below, in which case `claimed` is always
+// empty.
+//
+// Stop-the-line: if any task anywhere in the graph was already `blocked`
+// before this call, the fan-out refuses to claim anything at all, in any
+// module — a blocked task needs a human/agent decision (retry after a
+// fix, or leave it), and handing out fresh work around it makes that easy
+// to ignore indefinitely. Deliberately stricter than dependency-based
+// blocking: an unrelated module isn't literally stuck on the blocked
+// task, but the fan-out stops anyway until it's retried. A targeted
+// `hedgehog claim <task-id>` (claimTask, below) is exempt — that's how
+// the blocked task itself gets reclaimed after `hedgehog retry`.
+//
+// "Already blocked" excludes a lease this same call's reapExpiredLeases
+// just flipped: a dead agent's lease can lapse on an unrelated module,
+// and the first `claim` call after that lapse is whichever one happens to
+// discover it. That call still claims normally; the reaped task still
+// lands in `blocked`/`lease_expired` and still needs `hedgehog retry`
+// before it's claimable — only this one call's refusal is skipped. Every
+// `claim` call after it sees the same task still blocked and stops as
+// usual.
 //
 // Fan-out keeps the batch mutually non-conflicting, and non-conflicting
 // with every task already in flight, per conflict.mjs's
@@ -229,7 +268,12 @@ export function claimTasks(db, { owner, count = 1, leaseMinutes = 45 }) {
   const claimSnapshot = snapshotWorkingTree();
 
   return inTransaction(db, () => {
-    reapExpiredLeases(db);
+    const justReaped = reapExpiredLeases(db);
+
+    const blocked = findBlockedTasks(db).filter((task) => !justReaped.has(task.id));
+    if (blocked.length > 0) {
+      return { claimed: [], blocked };
+    }
 
     const candidates = findClaimableTasks(db);
     const inFlight = findInFlightTasks(db);
@@ -245,7 +289,7 @@ export function claimTasks(db, { owner, count = 1, leaseMinutes = 45 }) {
       claimed.push(loadTask(db, candidate.id));
     }
 
-    return claimed;
+    return { claimed, blocked: [] };
   });
 }
 

@@ -169,14 +169,21 @@ writes `docs/design/<module>.md`, not its own compiled layer — the
    `blocked` with a `blocked_reason` of `scope_violation` or
    `verification_failed`, and nothing downstream unlocks. Fix the work,
    then run `hedgehog retry <task-id>` to return the task to `planned`,
-   claim it again, and verify again — `hedgehog verify` only accepts a
-   task you currently hold in `building`, so a blocked task has to go
-   back through `retry` and `claim` first. Don't hand-commit around it.
+   claim it again (by task id — see below), and verify again —
+   `hedgehog verify` only accepts a task you currently hold in
+   `building`, so a blocked task has to go back through `retry` and
+   `claim` first. Don't hand-commit around it.
 
-   A `blocked` task is not pickable by `hedgehog claim`, so `hedgehog
-   status` lists it under NEEDS ATTENTION with the task id to retry.
-   If `hedgehog claim` returns nothing and the graph isn't actually done,
-   fix that task — don't treat it as "nothing left to do."
+   A `blocked` task anywhere in the graph — in this module or any other —
+   makes `hedgehog claim --count N` refuse to hand out anything at all,
+   with a non-zero exit naming the blocked task(s). `hedgehog status`
+   lists them too, under NEEDS ATTENTION. Fix and `retry` the named
+   task(s) before claiming more. A **targeted** `hedgehog claim <task-id>
+   --owner <owner>` is exempt — that's how the just-retried task gets
+   reclaimed in the step above. A lease the same `claim` call reaps for
+   having just expired is exempt too: that call still claims whatever
+   else is ready, and the reaped task lands in NEEDS ATTENTION for the
+   next `claim` call to stop on.
 5. **Repeat** — `hedgehog claim --count N --owner <owner>` again for the
    next batch.
 

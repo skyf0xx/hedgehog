@@ -1201,11 +1201,28 @@ async function claimCommand(args) {
   }
 
   const db = openDb();
-  let claimed;
+  let claimed, blocked;
   try {
-    claimed = claimTasks(db, { owner, count });
+    ({ claimed, blocked } = claimTasks(db, { owner, count }));
   } finally {
     db.close();
+  }
+
+  // Stop-the-line: claimTasks refuses the whole batch, in any module,
+  // while any task anywhere is blocked — see its own comment in
+  // claim.mjs. A targeted `hedgehog claim <task-id>` is unaffected, which
+  // is how the blocked task itself gets reclaimed after `hedgehog retry`.
+  if (blocked.length > 0) {
+    console.error(`${red(bold('Claim refused.'))} ${blocked.length} task(s) blocked:\n`);
+    for (const task of blocked) {
+      const reason = BLOCKED_REASON_LABELS[task.blocked_reason] ?? task.blocked_reason;
+      console.error(`  ${red('✗')} ${bold(task.id)}   ${task.layer}   ${dim(reason)}`);
+    }
+    console.error(
+      `\nFix the work, then ${bold('hedgehog retry <task-id>')} before claiming more.\n`,
+    );
+    process.exitCode = 1;
+    return;
   }
 
   if (claimed.length === 0) {
