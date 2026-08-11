@@ -53,11 +53,19 @@ jobs:
         run: |
           BASE="origin/${{ github.base_ref }}"
           CHANGED=$(git diff --name-only "$BASE"...HEAD -- vendor-skills/BMAD)
-          if [ -n "$CHANGED" ]; then
-            echo "::error::vendor-skills/BMAD/ only changes via the bmad-revendor skill against a pinned upstream commit. Direct edits found:"
-            echo "$CHANGED"
-            exit 1
+          if [ -z "$CHANGED" ]; then
+            exit 0
           fi
+          # A sanctioned bmad-revendor pass always updates the pin in
+          # ATTRIBUTION.md (see .claude/skills/bmad-revendor/SKILL.md step 6).
+          # Its presence in the diff is the signal this is a real re-vendor,
+          # not a hand-edit of a vendored file.
+          if echo "$CHANGED" | grep -qx "vendor-skills/BMAD/ATTRIBUTION.md"; then
+            exit 0
+          fi
+          echo "::error::vendor-skills/BMAD/ only changes via the bmad-revendor skill against a pinned upstream commit (which updates vendor-skills/BMAD/ATTRIBUTION.md). Direct edits found without an ATTRIBUTION.md pin update:"
+          echo "$CHANGED"
+          exit 1
 
       - name: Reject unexpected new package.json files
         run: |
