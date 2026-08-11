@@ -358,6 +358,61 @@ expressible: it requires a commit before the verify that gates the
 commit. Choose a model that applies directly rather than designing a
 layer around it.
 
+## Step 4d — make the product's own surface reachable
+
+Skip this only if nothing the project publishes is reached through an
+**arbitrator**: an ingress, a router, a gateway, a reverse proxy, a
+process supervisor — anything that decides which backend answers a
+request, and that no layer publishing a surface owns. For every core
+with one, add a `once: true` **reachability layer** at the tail,
+`depends_on` the last per-module layer, whose `verify` makes a real
+request to each intent's primary surface and asserts something specific
+about the answer.
+
+Every other check in this skill judges one layer against its own claim.
+This one exists because the defect it catches belongs to no layer. On a
+module axis each layer's `scope` is a disjoint per-module subtree, so an
+API layer choosing a route and a web layer choosing a screen path make
+independent choices that only ever meet in the arbitrator's config —
+owned by a third layer that knows neither. Each layer is individually
+correct, each verify passes in isolation, and the request 404s. That is
+a whole-graph property, and only a task that runs after the whole graph
+can hold it.
+
+What the layer asserts is the intent's `outcome` read back from outside:
+the route answers, with a status and a body that could not come from the
+wrong backend. Assert something the *other* side of the arbitrator
+cannot produce — a JSON shape, a header, a field the API returns and the
+web app does not. A bare 200 is satisfied by the fall-through app's own
+200, which is the exact confusion this layer exists to detect.
+
+The tail position is doing real work here, and the same three properties
+that make `once: true` right for a composition seam (Step 4) make it
+right here:
+
+- **One task, after everything.** `depends_on` the last per-module layer
+  makes it wait on *every* module's copy, so it runs once, with the
+  whole product standing up.
+- **Re-entrant by construction.** When `planner`'s Re-entry pass adds a
+  module to a finished build, that module's task becomes a prerequisite
+  of this already-complete layer, so `hedgehog plan` reopens it — a new
+  module's surface gets checked for reachability without anyone
+  remembering to ask.
+- **It closes the graph's own claim.** Without it, "every task complete"
+  is a statement about tasks. With it, the last task completing means
+  the product answers.
+
+Two failure modes to design out. The layer must carry no `{module}`
+anywhere — `validateCore` rejects a `once` layer that does — so it
+enumerates the surfaces it checks in one command rather than
+substituting a module in. And it needs the arbitrator's routing to
+already be applied, which makes it strictly later than the deploy layer,
+never merged into it: a deploy layer verifies its own manifests landed,
+which is what six green deploy layers over a 404 already looked like.
+
+Record in `core-design.md` which layer is the reachability gate and what
+each surface it checks is asserting.
+
 ## Step 5 — write `.hedgehog/core.yaml`
 
 The loader parses `id` plus a `layers` list of flat maps. Every layer
@@ -487,6 +542,16 @@ if missed:
   deployment/app` read the same thing regardless of which module's task
   is running, so six modules' deploy tasks assert the identical claim six
   times rather than each module's own deployment.
+- **A reachability layer's `verify` asserts the product answers, not
+  that a layer deployed.** The tail `once: true` layer Step 4d calls for
+  is the one place a `verify` command is about the whole build rather
+  than its own scope, so the usual scope/filter cross-checks above have
+  nothing to say about it. Its command makes a real request through the
+  arbitrator to each intent's primary surface and asserts a response
+  only the intended backend could produce. Its `scope` is whatever
+  fixture or script the check itself lives in — a layer that writes
+  nothing still needs a scope glob it may write, since `hedgehog verify`
+  rejects writes outside it.
 - **Declare the binaries `verify` needs, in `requires`.** Optional, an
   inline list alongside `scope`/`verify`/`commit`
   (`requires: ["terraform", "kubectl"]`), and only for tools that come
@@ -549,6 +614,9 @@ to change only until the file lands. Hard stop.
   (intents × layers tasks, or one task per layer).
 - For any layer that deploys or publishes: where the push happens
   relative to that layer's commit (Step 4c) — or that no layer deploys.
+- Which layer is the reachability gate and what each surface it checks
+  asserts (Step 4d) — or that nothing published is reached through an
+  arbitrator.
 - That this is an authored core: the sequence was designed for this
   project, not battle-tested across many, and it carries the same
   enforcement as a Golden Core but a weaker guarantee.
