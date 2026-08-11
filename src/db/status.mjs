@@ -13,6 +13,7 @@
 
 import { detectDrift, formatDrift } from './drift.mjs';
 import { formatMissingRequirements } from './requires.mjs';
+import { readyTasks, heldBackReason } from './ready.mjs';
 
 // The task lifecycle in order, matching the tasks CHECK constraint in
 // schema.mjs exactly — every status the engine can write, and no others.
@@ -81,11 +82,16 @@ function loadAttentionTasks(db) {
   return db.prepare(ATTENTION_TASKS_SQL).all();
 }
 
-// Returns { counts, ready, inFlight, attention, drift, total } — counts
-// keyed by every status in the tasks CHECK constraint (present even at
-// zero), ready the full list of currently-pickable tasks, inFlight the
-// tasks currently leased (building or verifying), attention the stalled
-// tasks needing a fix, total the sum across all statuses.
+// Returns { counts, ready, heldBack, inFlight, attention, drift, total } —
+// counts keyed by every status in the tasks CHECK constraint (present even
+// at zero), ready the full list of currently-pickable tasks, heldBack the
+// subset of those that `hedgehog claim` would skip over right now because
+// they conflict with in-flight work or another ready task ahead of them
+// (ready.mjs's own simulation, reused rather than reimplemented — without
+// this a task can sit in READY indefinitely with no visible reason, the
+// same invisible-stall shape blocked tasks had before `attention` existed),
+// inFlight the tasks currently leased (building or verifying), attention
+// the stalled tasks needing a fix, total the sum across all statuses.
 //
 // `core` is optional and, when given, adds `drift`: the tasks whose
 // layer-derived fields no longer match core.yaml (drift.mjs). It's a
@@ -100,11 +106,12 @@ function loadAttentionTasks(db) {
 export function graphStatus(db, { core = null, overrides = new Map() } = {}) {
   const counts = countTasksByStatus(db);
   const ready = loadReadyTasks(db);
+  const { heldBack } = readyTasks(db);
   const inFlight = loadInFlightTasks(db);
   const attention = loadAttentionTasks(db);
   const drift = core ? detectDrift(db, core, { overrides }) : [];
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  return { counts, ready, inFlight, attention, drift, total };
+  return { counts, ready, heldBack, inFlight, attention, drift, total };
 }
 
 const BLOCKED_REASON_LABELS = {
@@ -127,6 +134,7 @@ const BLOCKED_REASON_LABELS = {
 export function formatStatus({
   counts,
   ready,
+  heldBack = [],
   inFlight,
   attention,
   drift,
@@ -146,12 +154,18 @@ export function formatStatus({
     lines.push(...missingLines);
     lines.push('');
   }
+  // Each ready task is annotated inline with why `hedgehog claim` would
+  // skip it right now, rather than listed flatly — a task can otherwise
+  // sit in READY indefinitely with no visible reason (see graphStatus).
+  const heldBackById = new Map(heldBack.map(({ task, conflict }) => [task.id, conflict]));
   lines.push('READY');
   if (ready.length === 0) {
     lines.push('  (none)');
   } else {
     for (const task of ready) {
-      lines.push(`  ${task.id}   ${task.layer}   ${task.objective}`);
+      const conflict = heldBackById.get(task.id);
+      const note = conflict ? `   (held back — ${heldBackReason(task, conflict)})` : '';
+      lines.push(`  ${task.id}   ${task.layer}   ${task.objective}${note}`);
     }
   }
 

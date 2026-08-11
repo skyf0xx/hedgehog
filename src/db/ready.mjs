@@ -46,8 +46,10 @@ export function readyTasks(db) {
 // Renders one HELD BACK reason. `exclusive` splits on which side of the
 // pair is exclusive: the candidate itself (runs alone, full stop) vs. the
 // already-CLAIMABLE task it lost the slot to (named, so the reason points
-// at what's actually occupying the batch).
-function formatReason(candidate, conflict) {
+// at what's actually occupying the batch). Exported for status.mjs, which
+// annotates the same held-back tasks inline in its own READY section
+// rather than duplicating this formatting.
+export function heldBackReason(candidate, conflict) {
   const { with: other, kind } = conflict;
 
   if (kind === 'exclusive') {
@@ -86,7 +88,7 @@ export function formatReady({ claimable, heldBack }) {
     lines.push('');
     lines.push('HELD BACK');
     for (const { task, conflict } of heldBack) {
-      lines.push(`  ${task.id.padEnd(20)}${task.layer.padEnd(13)}${formatReason(task, conflict)}`);
+      lines.push(`  ${task.id.padEnd(20)}${task.layer.padEnd(13)}${heldBackReason(task, conflict)}`);
     }
   }
 
