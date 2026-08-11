@@ -933,10 +933,10 @@ async function nextCommand() {
 
   const db = openDb();
   let packet;
-  let stalled = [];
+  let stalled;
   try {
     packet = nextTask(db);
-    if (!packet) stalled = stalledTasks(db);
+    stalled = stalledTasks(db);
   } finally {
     db.close();
   }
@@ -947,10 +947,7 @@ async function nextCommand() {
     // a failed verification.
     if (stalled.length > 0) {
       console.error(`${red(bold('No ready task, but the graph is blocked.'))}\n`);
-      for (const task of stalled) {
-        const reason = BLOCKED_REASON_LABELS[task.blocked_reason] ?? task.blocked_reason;
-        console.error(`  ${red('✗')} ${bold(task.id)}   ${task.layer}   ${dim(reason)}`);
-      }
+      printStalledTasks(stalled);
       // `verify` refuses anything that isn't `building` and leased to
       // the caller, so a blocked task has to go back through the queue
       // — retry, claim, then verify — rather than straight to verify.
@@ -964,7 +961,26 @@ async function nextCommand() {
     return;
   }
 
+  // A blocked task elsewhere in the graph doesn't stop this ready task
+  // from being handed out — leases are scoped to disjoint work, so an
+  // unrelated block is no reason to halt everything else. But it's easy
+  // to miss otherwise: the queue keeps producing ready tasks right up
+  // until it doesn't, and a block can sit unnoticed the whole time. This
+  // warns without withholding the packet.
+  if (stalled.length > 0) {
+    console.error(`${yellow(bold(`${stalled.length} task(s) blocked elsewhere in the graph:`))}`);
+    printStalledTasks(stalled);
+    console.error('');
+  }
+
   console.log(formatNext(packet));
+}
+
+function printStalledTasks(stalled) {
+  for (const task of stalled) {
+    const reason = BLOCKED_REASON_LABELS[task.blocked_reason] ?? task.blocked_reason;
+    console.error(`  ${red('✗')} ${bold(task.id)}   ${task.layer}   ${dim(reason)}`);
+  }
 }
 
 // Mirrors, read-only, the condition verifyTask's own Phase 0
