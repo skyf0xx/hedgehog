@@ -42,7 +42,13 @@ needed.
   module = one table. Cross-module references are FK-by-ID columns
   only — never a foreign schema import.
 - **`contract`**: derive the Zod schema from Drizzle (`drizzle-zod`) and
-  wire the ts-rest contract in `packages/contracts`.
+  wire the ts-rest contract in `packages/contracts`. A `date`-mode
+  `timestamp` column reflected through `createSelectSchema` is overridden
+  to a union of `z.date()` and an ISO datetime string, never left as the
+  derived `z.date()` alone and never narrowed to a string-only schema —
+  the same field is checked server-side against a real `Date` and
+  client-side against JSON's string, and no `.transform()` can satisfy
+  both.
 - **`repository`**: a port (interface) plus a Drizzle adapter in
   `libs/<module>/repository`. A `findById`-shaped miss returns
   `undefined` — plain absence, not a thrown error; the service decides
