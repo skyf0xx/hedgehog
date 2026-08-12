@@ -88,7 +88,7 @@ try {
 
   // ── 5. --open is the opt-in escape hatch ────────────────────────────
   hedgehog(project, ['intent', 'add', '--id', 'gamma', '--goal', 'g', '--outcome', 'o']);
-  const opened = hedgehog(project, ['plan', '--open'], { DISPLAY: '', WAYLAND_DISPLAY: '' });
+  const opened = hedgehog(project, ['plan', '--open'], { HEDGEHOG_FORCE_HEADLESS: '1' });
   settle();
 
   check('plan --open exits 0', opened.status === 0, {

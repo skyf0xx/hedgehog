@@ -1778,7 +1778,13 @@ function openInBrowser(url) {
 // either fails silently or blocks on a text browser. Printing the URL is
 // the useful behaviour in that case — a person on the other end of a
 // port-forward can still open it.
+//
+// HEDGEHOG_FORCE_HEADLESS bypasses the platform check entirely — the
+// repro suite's only way to exercise the no-display branch on macOS/
+// Windows, where DISPLAY/WAYLAND_DISPLAY are never consulted for real
+// users. Not a documented user-facing flag.
 function hasDisplay() {
+  if (process.env.HEDGEHOG_FORCE_HEADLESS) return false;
   if (process.platform === 'darwin' || process.platform === 'win32') return true;
   return Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
 }
