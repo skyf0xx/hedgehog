@@ -198,6 +198,36 @@ regenerating `src/golden-cores/full-stack-app` (see
 way it does, and doesn't reintroduce the
 bug by "cleaning up" what looks like an unnecessary pin or directive.
 
+- **`tsconfig.base.json` uses `esnext`/`bundler` module resolution, not
+  `nodenext`.** Turbopack (Next 16's dev bundler) can't resolve a
+  `nodenext`-style `.js`-extension relative import specifier (`export *
+  from './tasks/index.js'` where only `index.ts` exists) across a pnpm
+  workspace-package boundary — `apps/web` importing a runtime value
+  (not just a type) from `packages/hooks`, `packages/contracts`, or
+  `packages/db` 500s with `Module not found`. `bundler` is TypeScript's
+  mode for exactly this case and is Next's own tsconfig default; nothing
+  in this stack runs raw `tsc` output directly with Node (`apps/api`
+  builds via `webpack-cli`, `apps/web` via Next/Turbopack, tests via
+  Vitest), so `nodenext`'s stricter runtime-accurate extension
+  enforcement isn't load-bearing anywhere here. Every relative import
+  specifier across the template is extensionless accordingly — a
+  `schema`/`contract`/`hook` layer adding a new barrel re-export must
+  match (`export * from './tasks/index'`, not `'./tasks/index.js'`).
+- **`packages/db/src/schema/index.ts` needs `export {};`.** It's an
+  empty barrel-of-barrels (see the schema layer's scope in `core.yaml`)
+  until the first module's schema layer adds a line to it, but a
+  comment-only file with zero import/export statements compiles as an
+  ambient script, not a module, under `isolatedModules` +
+  `declaration`/`composite`. `packages/db/src/index.ts`'s `export *
+  from './schema/index'` fails `db:typecheck` (`TS2306: File ... is not
+  a module`) without it.
+- **`apps/web/package.json` needs `"nx": { "tags": ["scope:web"] }`.**
+  `packages/config/eslint-base.js`'s `depConstraints` already defines a
+  `sourceTag: 'scope:web'` rule, but `@nx/next:app` doesn't tag the
+  project it generates — an untagged project is barred from depending on
+  any tagged library at all under `@nx/enforce-module-boundaries`, so
+  `apps/web` fails lint on its first import from any workspace package
+  without this.
 - **`apps/web-e2e/tsconfig.json` needs an explicit `"types": ["node"]`.**
   `@nx/next:app`'s generated Playwright config (`playwright.config.mts`)
   uses `process.env` and `import.meta.dirname`, but the generator's

@@ -19,5 +19,8 @@
   },
   "devDependencies": {
     "prettier-plugin-tailwindcss": "^0.7.4"
+  },
+  "nx": {
+    "tags": ["scope:web"]
   }
 }

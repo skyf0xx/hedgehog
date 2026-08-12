@@ -1,4 +1,4 @@
-import { envSchema } from './env.schema.js';
+import { envSchema } from './env.schema';
 
 describe('envSchema', () => {
   const valid = {

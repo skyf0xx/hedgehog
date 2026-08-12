@@ -15,7 +15,7 @@ describe('db', () => {
   });
 
   it('lazily constructs a single shared pool', async () => {
-    const { getPool, closeDb } = await import('./db.js');
+    const { getPool, closeDb } = await import('./db');
     const first = getPool();
     const second = getPool();
     expect(first).toBe(second);
@@ -23,7 +23,7 @@ describe('db', () => {
   });
 
   it('returns a drizzle client bound to the shared pool', async () => {
-    const { getDb, closeDb } = await import('./db.js');
+    const { getDb, closeDb } = await import('./db');
     const db = getDb();
     expect(db).toBeDefined();
     await closeDb();
@@ -38,7 +38,7 @@ describe('db', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
 
-    const { getPool } = await import('./db.js');
+    const { getPool } = await import('./db');
     expect(() => getPool()).toThrow('process.exit called');
     expect(exitSpy).toHaveBeenCalledWith(1);
 
