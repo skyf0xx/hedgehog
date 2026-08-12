@@ -12,6 +12,7 @@
 // would pick.
 
 import { detectDrift, formatDrift } from './drift.mjs';
+import { orphanedOverrides } from './overrides.mjs';
 import { formatMissingRequirements } from './requires.mjs';
 import { readyTasks, heldBackReason } from './ready.mjs';
 
@@ -82,16 +83,17 @@ function loadAttentionTasks(db) {
   return db.prepare(ATTENTION_TASKS_SQL).all();
 }
 
-// Returns { counts, ready, heldBack, inFlight, attention, drift, total } —
-// counts keyed by every status in the tasks CHECK constraint (present even
-// at zero), ready the full list of currently-pickable tasks, heldBack the
-// subset of those that `hedgehog claim` would skip over right now because
-// they conflict with in-flight work or another ready task ahead of them
-// (ready.mjs's own simulation, reused rather than reimplemented — without
-// this a task can sit in READY indefinitely with no visible reason, the
-// same invisible-stall shape blocked tasks had before `attention` existed),
-// inFlight the tasks currently leased (building or verifying), attention
-// the stalled tasks needing a fix, total the sum across all statuses.
+// Returns { counts, ready, heldBack, inFlight, attention, drift,
+// orphanedOverrides, total } — counts keyed by every status in the tasks
+// CHECK constraint (present even at zero), ready the full list of
+// currently-pickable tasks, heldBack the subset of those that `hedgehog
+// claim` would skip over right now because they conflict with in-flight
+// work or another ready task ahead of them (ready.mjs's own simulation,
+// reused rather than reimplemented — without this a task can sit in READY
+// indefinitely with no visible reason, the same invisible-stall shape
+// blocked tasks had before `attention` existed), inFlight the tasks
+// currently leased (building or verifying), attention the stalled tasks
+// needing a fix, total the sum across all statuses.
 //
 // `core` is optional and, when given, adds `drift`: the tasks whose
 // layer-derived fields no longer match core.yaml (drift.mjs). It's a
@@ -103,6 +105,15 @@ function loadAttentionTasks(db) {
 // resolve and pass in — detectDrift needs it composed against `core` or
 // every task widened by `.hedgehog/overrides/*.json` reports permanent,
 // spurious drift here.
+//
+// `orphanedOverrides` (overrides.mjs) is the override ids matching no
+// task row. It rides on `status` rather than on `override list` alone
+// because a dead override is invisible by construction — composeScope
+// missing a key is a no-op, so the file widens nothing and raises
+// nothing, and `override list` is a command an operator only runs once
+// they already suspect something. It reads only `tasks`, not core.yaml,
+// so it is computed unconditionally: an override id is stale or it
+// isn't, whether or not a core definition is loadable.
 export function graphStatus(db, { core = null, overrides = new Map() } = {}) {
   const counts = countTasksByStatus(db);
   const ready = loadReadyTasks(db);
@@ -110,8 +121,18 @@ export function graphStatus(db, { core = null, overrides = new Map() } = {}) {
   const inFlight = loadInFlightTasks(db);
   const attention = loadAttentionTasks(db);
   const drift = core ? detectDrift(db, core, { overrides }) : [];
+  const orphaned = orphanedOverrides(db, overrides);
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  return { counts, ready, heldBack, inFlight, attention, drift, total };
+  return {
+    counts,
+    ready,
+    heldBack,
+    inFlight,
+    attention,
+    drift,
+    orphanedOverrides: orphaned,
+    total,
+  };
 }
 
 const BLOCKED_REASON_LABELS = {
@@ -123,7 +144,8 @@ const BLOCKED_REASON_LABELS = {
 // Renders a graphStatus() result into a plain-text overview: counts by
 // status (only non-zero ones, in lifecycle order), any declared binary
 // this environment can't resolve, the ready list, tasks currently in
-// flight, anything needing attention, and core.yaml drift.
+// flight, anything needing attention, core.yaml drift, and overrides
+// pointing at no task.
 //
 // `missingRequirements` comes from the core definition rather than the
 // database (src/db/requires.mjs#coreMissingRequirements), so the caller
@@ -138,6 +160,7 @@ export function formatStatus({
   inFlight,
   attention,
   drift,
+  orphanedOverrides = [],
   total,
   missingRequirements,
 }) {
@@ -191,12 +214,28 @@ export function formatStatus({
     lines.push('  Fix the work, then: hedgehog retry <task-id> && hedgehog claim <task-id> --owner <owner>');
   }
 
-  // Last, because it's a condition of the graph as a whole rather than
-  // of any one task, and because an operator reading top-down should
-  // reach it after knowing what's ready and what's stuck.
+  // Last two, because both are conditions of the graph as a whole rather
+  // than of any one task, and because an operator reading top-down should
+  // reach them after knowing what's ready and what's stuck.
   if (drift && drift.length > 0) {
     lines.push('');
     lines.push(formatDrift(drift));
+  }
+
+  // Below drift because it's the rarer of the two and never blocks the
+  // build: an orphaned override is work the operator asked for that isn't
+  // happening, not work the graph is getting wrong. `hedgehog override
+  // list` carries the full explanation of how an id goes stale; here the
+  // consequence is the whole point, since this is the only place an
+  // operator who doesn't already suspect it will ever see it.
+  if (orphanedOverrides.length > 0) {
+    lines.push('');
+    lines.push('ORPHANED OVERRIDES');
+    for (const taskId of orphanedOverrides) {
+      lines.push(`  ${taskId}   no task with this id in the build graph`);
+    }
+    lines.push('');
+    lines.push('  Each widens nothing until the id matches a real task. See: hedgehog override list');
   }
 
   return lines.join('\n');

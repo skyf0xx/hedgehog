@@ -4,9 +4,13 @@
 // core.yaml that no longer matches the compiled tasks has to show up
 // there, naming the tasks and fields that diverged.
 //
-// Against v4.0.3 `status` prints counts + ready list only, and a
-// divergent core.yaml is completely silent.
+// The same argument covers the other whole-graph condition `status`
+// owns: an override naming a task id that doesn't exist widens nothing,
+// throws nothing, and produces no drift, so `status` is the only place
+// an operator who isn't already suspicious will find it.
 
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   plannedProject,
   cleanupAll,
@@ -16,6 +20,18 @@ import {
   assertNotIncludes,
   CORE_YAML_AFTER,
 } from './drift-lib.mjs';
+
+// Writes one `.hedgehog/overrides/*.json` record directly rather than
+// going through `hedgehog override add`, so a scenario can name a task
+// id that doesn't exist — which is exactly the state under test and the
+// one the CLI's own validation has no opinion about.
+function writeOverride(p, taskId, scopeAdd) {
+  mkdirSync(join(p.dir, '.hedgehog/overrides'), { recursive: true });
+  writeFileSync(
+    join(p.dir, `.hedgehog/overrides/${taskId.toLowerCase()}.json`),
+    JSON.stringify({ task: taskId, scope_add: [scopeAdd], reason: 'repro' }, null, 2),
+  );
+}
 
 let ok = true;
 
@@ -57,6 +73,39 @@ ok =
     const r = mustSucceed(p.run('status'), 'hedgehog status');
     assertIncludes(r.out, 'DRIFT', 'drift on a complete task keeps showing');
     assertIncludes(r.out, 'BILLING-FOUNDATION', 'the complete task is named');
+  }) && ok;
+
+ok =
+  scenario('status is quiet when every override names a real task', () => {
+    const p = plannedProject('billing');
+    writeOverride(p, 'BILLING-FOUNDATION', 'infra/billing.manifest.json');
+    const r = mustSucceed(p.run('status'), 'hedgehog status');
+    assertNotIncludes(r.out, 'ORPHANED OVERRIDES', 'a matching override raises nothing');
+  }) && ok;
+
+ok =
+  scenario('status reports an override whose task id matches nothing', () => {
+    const p = plannedProject('billing');
+    writeOverride(p, 'BILLING-FONUDATION', 'infra/billing.manifest.json');
+
+    const r = mustSucceed(p.run('status'), 'hedgehog status');
+    assertIncludes(r.out, 'ORPHANED OVERRIDES', 'status names the orphaned-override section');
+    assertIncludes(r.out, 'BILLING-FONUDATION', 'status names the typo\'d task id');
+    assertIncludes(r.out, 'widens nothing', 'status states the consequence');
+  }) && ok;
+
+// The orphan check reads task ids out of the database, not core.yaml, so
+// an unreadable core must not suppress it — that gap is what made a dead
+// override reachable only by already knowing to run `override list`.
+ok =
+  scenario('an orphaned override is reported even with no readable core', () => {
+    const p = plannedProject('billing');
+    writeOverride(p, 'BILLING-FONUDATION', 'infra/billing.manifest.json');
+    p.writeCore('id: repro-core\nlayers: [\n');
+
+    const r = mustSucceed(p.run('status'), 'hedgehog status');
+    assertIncludes(r.out, 'ORPHANED OVERRIDES', 'the section survives an unparseable core.yaml');
+    assertIncludes(r.out, 'BILLING-FONUDATION', 'the orphaned id is still named');
   }) && ok;
 
 cleanupAll();

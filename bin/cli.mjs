@@ -1539,7 +1539,27 @@ async function statusCommand() {
     }
   }
 
-  const overrides = core ? await loadOverrides() : new Map();
+  // Loaded whether or not a core resolved: drift is the only consumer
+  // that needs `core` composed against these, and graphStatus already
+  // gates that on `core` itself. The orphan check reads task ids out of
+  // the database, so it is answerable — and worth answering — on a
+  // project whose core.yaml is missing or unparseable. A missing
+  // overrides directory reads as an empty Map (loadOverrides), so this
+  // costs nothing on a project that has never written one.
+  //
+  // A malformed override file throws, and for the same reason an
+  // unparseable core.yaml doesn't take `status` down, neither may this:
+  // status is the command every session starts with, and the report of
+  // the broken file is more useful than an aborted overview.
+  let overrides = new Map();
+  try {
+    overrides = await loadOverrides();
+  } catch (err) {
+    console.error(
+      `${yellow('Override file unreadable:')} ${err.message}\n${dim('Scope overrides are ignored until it parses.')}\n`,
+    );
+  }
+
   const db = openDb();
   let result;
   try {
