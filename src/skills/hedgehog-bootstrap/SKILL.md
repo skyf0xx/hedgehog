@@ -220,9 +220,10 @@ adapter, same pattern repositories use later) with no consumers — usage
 is deferred (see Queue add-on, above). Call `loadEnv()` at the top of
 `apps/worker/src/main.ts`. Tag: `scope:worker`.
 
-Add a `depConstraints` entry for `scope:worker`
-(`onlyDependOnLibsWithTags: ['type:port', 'type:util', 'scope:shared']`)
-— worker only reaches domain logic through ports, same as api.
+`packages/config/eslint-base.js` already ships the `scope:worker`
+`depConstraints` entry — nothing to add here. The BullMQ adapter's file
+name ends in `.adapter.ts`, same convention repositories use, so
+`eslint-base.js`'s port-discipline rules apply to it unchanged.
 
 Commit: `feat(worker): bullmq seam, no consumers`
 

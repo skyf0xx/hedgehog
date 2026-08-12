@@ -32,10 +32,15 @@ Everything lefthook already enforces (typecheck, lint, unit test
 pass/fail) is out of scope — don't re-report a green gate. Check what the
 gate structurally cannot:
 
-- **Port discipline**: does the service import only `type:port` /
-  `type:util`, per the Nx boundary rule — read the actual imports, don't
-  just trust `nx lint` ran. A boundary violation tagged wrong slips past
-  the rule. Use `nx show project <name> --json` (per nrwl's
+- **Port discipline**: a module's port interface and its Drizzle adapter
+  share one lib, so the tag graph has to allow `type:service →
+  type:adapter` and the real check is at the import level: does the
+  service import the port from the repository lib's entry point, or the
+  concrete `*.adapter`? Does anything in `apps/api` outside a
+  `*.module.ts` construct an adapter? `eslint-base.js`'s
+  `no-restricted-imports` rules catch the named cases — read the actual
+  imports anyway, since an adapter file not named `*.adapter.ts` opts
+  itself out of the rule. Use `nx show project <name> --json` (per nrwl's
   [nx-workspace](https://github.com/nrwl/nx-ai-agents-config/tree/main/skills/nx-workspace) skill) to check a project's resolved tags and
   dependencies rather than reading `project.json` directly — it only
   holds partial configuration, not tags inferred by plugins.

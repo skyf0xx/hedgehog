@@ -52,19 +52,29 @@ needed.
 - **`repository`**: a port (interface) plus a Drizzle adapter in
   `libs/<module>/repository`. A `findById`-shaped miss returns
   `undefined` — plain absence, not a thrown error; the service decides
-  what absence means.
-- **`service`**: domain logic in `libs/<module>/service`, importing only
-  its own ports (`type:port`, `type:util` — the Nx boundary rule). Throws
-  typed, domain-named errors (`OrderNotFoundError`, not a bare `Error` or
-  an HTTP exception). No logging, no HTTP, no queue mechanics inside a
-  service method. Multi-write operations wrap in one Drizzle transaction,
-  passed through the port.
+  what absence means. The concrete adapter's file name ends in
+  `.adapter.ts` and the lib's entry point exports the port interface and
+  its DI token; `packages/config/eslint-base.js` keys its port-discipline
+  rule on that suffix, so an adapter named anything else silently opts
+  out of the check.
+- **`service`**: domain logic in `libs/<module>/service`, importing its
+  own module's port interface from the repository lib's entry point —
+  never a `*.adapter` file, never `drizzle-orm` or `packages/db`
+  (`no-restricted-imports` in `eslint-base.js` fails lint on either).
+  Throws typed, domain-named errors (`OrderNotFoundError`, not a bare
+  `Error` or an HTTP exception). No logging, no HTTP, no queue mechanics
+  inside a service method. Multi-write operations wrap in one Drizzle
+  transaction, passed through the port.
 - **`controller`**: thin HTTP in `apps/api`, wiring the contract to the
   service. The only layer that maps domain errors to status codes.
   Validation happens once, at this boundary, via the Zod contract — past
-  it, types are trusted. Bundles queue infra (port + BullMQ adapter in
-  `apps/worker`, same shape as the repository) when the Queue add-on is
-  on and this operation needs it.
+  it, types are trusted. `apps/api` is the composition root: the module's
+  `*.module.ts` is the one file that constructs the concrete adapter and
+  binds it to the port's DI token, and the only file in `apps/api`
+  allowed to import a `*.adapter`. A controller takes the service, or the
+  bound token — never the adapter. Bundles queue infra (port + BullMQ
+  adapter in `apps/worker`, same shape as the repository) when the Queue
+  add-on is on and this operation needs it.
 
 ## Workflow
 

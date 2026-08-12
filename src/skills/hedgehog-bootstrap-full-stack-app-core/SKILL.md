@@ -57,8 +57,14 @@ copied to the repo root:
   scaffolded automatically by `@nx/next:app`) gets its own `e2e` target by
   default — no rename needed, unlike `apps/api-e2e`.
 - The full `@nx/enforce-module-boundaries` `depConstraints` list for
-  exactly these tags — no `scope:auth`/`scope:worker`/`scope:mobile`
-  entries. Those are added live by the matching add-on step in
+  exactly these tags, matching the project shape `core.yaml`'s layer
+  sequence actually produces — plus the `no-restricted-imports` rules that
+  carry port discipline, which a tag constraint can't express because a
+  module's port interface and its Drizzle adapter share one lib
+  (`libs/<module>/repository`). `enforceBuildableLibDependency` is off:
+  `packages/contracts` and `packages/hooks` are source-only by design, and
+  it fails `apps/web` for importing either. `scope:auth`/`scope:worker`/
+  `scope:mobile` entries are added live by the matching add-on step in
   `hedgehog-bootstrap`, only if that add-on turns on.
 - The `@nx/js/typescript` plugin registration (`typecheck` target) with
   `composite`/`declaration` already set on every `tsconfig.lib.json` /

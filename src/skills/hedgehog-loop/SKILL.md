@@ -56,9 +56,10 @@ knows related entities only as an ID.
 - Need the related row? Resolve it at the contract/controller layer
   (parallel calls to each module's own endpoint), or join against the
   other module's *schema* directly inside the repository (Drizzle query).
-- This keeps every service importing only its own ports, so the Nx rule
-  `type:service → onlyDependOnLibsWithTags: ['type:port', 'type:util']`
-  holds uniformly (wired at bootstrap).
+- This keeps every service importing only its own module's port, which is
+  what `eslint-base.js`'s `no-restricted-imports` rule for
+  `libs/*/service/**` enforces (wired at bootstrap) — a service reaching
+  a `*.adapter`, `drizzle-orm`, or `packages/db` fails lint.
 
 A junction table (e.g. `order_items`) is one table, one module, with two
 FK-by-ID columns instead of one, each resolved the same way.
