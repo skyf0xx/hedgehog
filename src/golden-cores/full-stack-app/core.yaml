@@ -52,6 +52,8 @@ layers:
     scope: ["apps/web/src/app/{module}/**", "apps/mobile/src/{module}/**"]
     verify: "pnpm nx test web -- src/app/{module}/ && pnpm nx test mobile -- src/{module}/"
     commit: "feat({module}): screen-web"
+  # Workspace-wide by design: the only gate that can see cross-module
+  # breakage, since every layer above is parallel and module-scoped.
   - id: join
     depends_on: screen
     scope: ["**"]
