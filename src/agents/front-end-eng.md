@@ -61,7 +61,11 @@ don't reach for a second one.
   `apps/mobile` when the Mobile add-on is on), consuming the hook and
   `ux-planner`'s rationale for that module (screen inventory, interaction
   pattern, information hierarchy). No direct data-fetching in the
-  screen — the hook owns that.
+  screen — the hook owns that. If this module's screen is the first one
+  built, wire `apps/web/src/app/page.tsx`'s primary CTA (ShadCN's
+  `asChild` + `next/link`, per `button.tsx`'s existing `asChild` prop)
+  to this module's own route — a compiling, lint-clean button with no
+  `href` or `onClick` still ships silent and unclickable.
 - Translate design specs into components. If a design tool is wired into
   this project's MCP config, use it for tokens/spacing/typography;
   otherwise match existing ShadCN/Tailwind patterns in the repo.
