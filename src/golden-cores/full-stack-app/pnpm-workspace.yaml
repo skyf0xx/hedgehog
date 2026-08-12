@@ -1,3 +1,7 @@
 packages:
   - 'packages/*'
   - 'apps/*'
+  # Domain libs land as libs/<module>/<layer> during Phase A. Declared up
+  # front so the first module through the repository layer doesn't have to
+  # edit this file before pnpm will link its workspace:* deps.
+  - 'libs/*/*'

@@ -99,7 +99,10 @@ needed.
    SCOPE and `hedgehog verify` will leave them uncommitted — stop and say
    so before building, so the scope can be widened for this one task
    (`hedgehog-loop`, "First arrival in a package"). Don't build against a
-   scope you already know won't commit your work.
+   scope you already know won't commit your work. That section also owns
+   the workspace wiring a new package needs (`pnpm install`, `pnpm nx
+   sync`, and its own `chore(workspace):` commit) — follow it rather than
+   leaving the package unlinked for a later layer to trip over.
 3. **Report the work as done; do not commit it yourself.** Per the build
    graph's design, an agent reporting success never moves a task — only
    `hedgehog verify <task-id>`'s passing exit code does. It checks your

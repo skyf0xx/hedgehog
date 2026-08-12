@@ -251,6 +251,25 @@ Never widen a scope to route around a violation the Correction Protocol
 should handle — this is for a package shell the layer genuinely creates,
 nothing else.
 
+**Wire the new package in before reporting the layer done.** A package
+that exists on disk isn't yet part of the workspace:
+
+```bash
+pnpm install          # link the new workspace:* deps
+pnpm nx sync          # regenerate TypeScript project references
+```
+
+`pnpm-workspace.yaml` already globs `packages/*`, `apps/*` and `libs/*/*`,
+so a package under any of those needs no edit there. `nx sync` writes root
+`tsconfig.json`, which sits outside every module-scoped layer's scope — it
+belongs to no layer and is not part of the override above. Commit it
+separately as `chore(workspace): sync project references`, before
+`hedgehog verify` runs, so the layer's own commit stays exactly the layer.
+
+This is the building agent's step rather than a verify post-step on
+purpose: `hedgehog verify` gates the tree it's handed, and a gate that
+mutates that tree would manufacture the scope violation it then reports.
+
 ## Intra-step conventions
 
 The Nx boundaries, phase gate, and lint own the *structural* rules

@@ -93,7 +93,8 @@ don't reach for a second one.
    that package's shell sits outside the packet's ALLOWED SCOPE —
    `hedgehog verify` would leave it uncommitted. Stop and say so before
    building, so the scope can be widened for this one task
-   (`hedgehog-loop`, "First arrival in a package").
+   (`hedgehog-loop`, "First arrival in a package") — that section also
+   owns the workspace wiring the new package needs.
 3. **Report the work as done; do not commit it yourself.** Only
    `hedgehog verify <task-id>`'s passing exit code moves the task to
    `complete` and writes the commit (the packet's exact Conventional

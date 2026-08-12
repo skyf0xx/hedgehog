@@ -67,6 +67,10 @@ cat > pnpm-workspace.yaml <<'EOF'
 packages:
   - 'packages/*'
   - 'apps/*'
+  # Domain libs land as libs/<module>/<layer> during Phase A. Declared up
+  # front so the first module through the repository layer doesn't have to
+  # edit this file before pnpm will link its workspace:* deps.
+  - 'libs/*/*'
 EOF
 
 npx nx g @nx/js:lib packages/config --bundler=none --unitTestRunner=vitest
@@ -101,10 +105,17 @@ EOF
 
 echo ""
 echo "=== Manual steps required here (not scriptable — see hedgehog-bootstrap-core SKILL.md) ==="
-echo "  - packages/config/env.schema.ts: core fields only (DATABASE_URL, NODE_ENV)"
-echo "  - packages/config/eslint-base.js: @nx/enforce-module-boundaries + depConstraints"
-echo "    for scope:api, scope:web, scope:db/type:adapter, scope:contracts,"
-echo "    scope:hooks, scope:shared, type:service, type:port, type:util"
+echo "  - packages/config/env.schema.ts: core fields only (DATABASE_URL, NODE_ENV,"
+echo "    WEB_ORIGIN)"
+echo "  - .env.example at the repo root: DATABASE_URL, NODE_ENV, WEB_ORIGIN"
+echo "    (rsync excludes .env but NOT .env.example — an absent one deletes it)"
+echo "  - packages/config/eslint-base.js: @nx/enforce-module-boundaries with"
+echo "    enforceBuildableLibDependency FALSE (contracts/hooks are source-only),"
+echo "    depConstraints for type:service, type:adapter, type:contract, type:hook,"
+echo "    type:util, scope:web, scope:mobile, scope:worker, scope:api — and the"
+echo "    no-restricted-imports blocks carrying port discipline (libs/*/service"
+echo "    and apps/api minus *.module.ts). There is no type:port project: the"
+echo "    repository layer lands port and adapter in one lib."
 echo "  - packages/config/prettier.js: singleQuote only, NO prettier-plugin-tailwindcss"
 echo "  - @nx/js/typescript plugin registration in nx.json (typecheck target)"
 echo "  - composite/declaration on packages/config's tsconfig.lib.json + tsconfig.spec.json"
@@ -197,7 +208,10 @@ echo "    (Tailwind v4 has no tailwind.config.js to autodetect)"
 echo "  - Do NOT run 'pnpm dlx shadcn@latest init' against apps/web directly —"
 echo "    it has no per-app package.json for the CLI to detect and will"
 echo "    scaffold a corrupted nested create-next-app project instead."
-echo "  - depConstraints: add scope:web -> [scope:contracts, scope:hooks, scope:shared]"
+echo "  - apps/web/.env.example: NEXT_PUBLIC_API_BASE_URL, carrying apps/api's"
+echo "    /api global prefix (http://localhost:3333/api). Next loads env from"
+echo "    the app directory, so the root .env never reaches it. rsync excludes"
+echo "    .env but NOT .env.example — an absent one deletes it."
 echo "==="
 read -r -p "Press enter once apps/web is fully wired: " _
 
