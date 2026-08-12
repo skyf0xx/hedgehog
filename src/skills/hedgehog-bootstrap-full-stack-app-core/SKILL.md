@@ -48,8 +48,11 @@ copied to the repo root:
   `WEB_ORIGIN`, health check only, no domain controllers. `apps/api-e2e`
   already converted to Vitest with an explicit `e2e` target. Tagged
   `scope:api`.
-- `apps/web/` — Next shell, Tailwind v4 (PostCSS plugin, no
-  `tailwind.config.js`), hand-built ShadCN base (`components.json`,
+- `apps/web/` — `.env.example` (`NEXT_PUBLIC_API_BASE_URL`, copied to
+  `apps/web/.env.local` in step 4 — Next loads env files from the app
+  directory, so the root `.env` never reaches it; the value carries
+  `apps/api`'s `/api` global prefix), Next shell, Tailwind v4 (PostCSS
+  plugin, no `tailwind.config.js`), hand-built ShadCN base (`components.json`,
   `cn()` util, CSS variable theme, light/dark toggle via an inline
   pre-hydration script + a client-side `ThemeToggle`), TanStack Query
   provider at the root layout, `prettier-plugin-tailwindcss` scoped to
@@ -113,15 +116,24 @@ this step every file listed in "What lands" above should be on disk.
 ```bash
 pnpm install
 cp .env.example .env
+cp apps/web/.env.example apps/web/.env.local
 docker compose up -d
 ```
 
-`.env` is gitignored and never shipped — `.env.example` is the committed
-template (`DATABASE_URL` matching `docker-compose.yml`'s Postgres
-credentials, `NODE_ENV=development`). Skipping the copy means
-`packages/config`'s `loadEnv()` fails its Zod check the moment `apps/api`
-boots (`DATABASE_URL` missing) — a confusing crash to debug live instead
-of one line here.
+Two env files, because the two apps load env from different places. The
+root `.env` is `apps/api`'s: gitignored and never shipped, with
+`.env.example` as the committed template (`DATABASE_URL` matching
+`docker-compose.yml`'s Postgres credentials, `NODE_ENV=development`,
+`WEB_ORIGIN`). Skipping that copy means `packages/config`'s `loadEnv()`
+fails its Zod check the moment `apps/api` boots (`DATABASE_URL` missing) —
+a confusing crash to debug live instead of one line here.
+
+`apps/web/.env.local` is Next's, loaded from the app directory rather than
+the workspace root, so nothing in the root file reaches the browser.
+Skipping that copy is worse than a crash: `NEXT_PUBLIC_API_BASE_URL` comes
+back `undefined`, the ts-rest client builds a relative URL, and every hook
+404s against Next's own dev server rather than the api — a routing bug in
+appearance, an env bug in fact.
 
 `pnpm install` resolves against the committed `pnpm-lock.yaml` — this
 should be fast and produce no lockfile changes. A lockfile diff here

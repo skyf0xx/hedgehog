@@ -13,6 +13,10 @@ async function bootstrap() {
   // default — enable CORS for that origin rather than rediscovering this
   // per project.
   app.enableCors({ origin: env.WEB_ORIGIN });
+  // Every route lives under /api. apps/web's NEXT_PUBLIC_API_BASE_URL
+  // (apps/web/.env.example) has to carry the same suffix or every request
+  // from the browser lands one path segment short of a route that exists —
+  // change one and change the other.
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
   // Defaults to 3333, not 3000 — `apps/web`'s `next dev` also defaults to

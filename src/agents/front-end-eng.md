@@ -46,17 +46,22 @@ don't reach for a second one.
 
 - **`hook`**: build the TanStack Query hook in `packages/hooks`, wrapping
   the ts-rest contract client. One hook per contract operation, typed end
-  to end from the Zod contract. The client's base URL comes from a
-  `NEXT_PUBLIC_`-prefixed env var (add to `packages/config/env.schema.ts`
-  if missing) — never a hardcoded `http://localhost:<port>` fallback,
-  which silently drifts out of sync with `apps/api`'s dev port (`3333`,
-  per `hedgehog-bootstrap-full-stack-app-core` — chosen to not collide
-  with `apps/web`'s `next dev` default of `3000`) and produces a 404 that
-  looks like a routing bug, not a config bug.
-- **`screen`**: build the screen/component in `apps/web` and/or
-  `apps/mobile`, consuming the hook and `ux-planner`'s rationale for that
-  module (screen inventory, interaction pattern, information hierarchy).
-  No direct data-fetching in the screen — the hook owns that.
+  to end from the Zod contract. The client's base URL is
+  `process.env.NEXT_PUBLIC_API_BASE_URL`, scaffolded in
+  `apps/web/.env.example` and already carrying `apps/api`'s `/api` global
+  prefix. Read it as-is: don't append or strip a path segment (the prefix
+  is in the value), don't add it to `packages/config/env.schema.ts` (that
+  schema is `apps/api`'s server env, and a `NEXT_PUBLIC_` var is inlined
+  into the browser bundle by Next, never parsed at runtime by `loadEnv()`),
+  and never fall back to a hardcoded `http://localhost:<port>`. A wrong or
+  absent base URL 404s against Next's own dev server — a config bug wearing
+  a routing bug's clothes, and one unit tests never see, because they mock
+  the client.
+- **`screen`**: build the screen/component in `apps/web` (plus
+  `apps/mobile` when the Mobile add-on is on), consuming the hook and
+  `ux-planner`'s rationale for that module (screen inventory, interaction
+  pattern, information hierarchy). No direct data-fetching in the
+  screen — the hook owns that.
 - Translate design specs into components. If a design tool is wired into
   this project's MCP config, use it for tokens/spacing/typography;
   otherwise match existing ShadCN/Tailwind patterns in the repo.
