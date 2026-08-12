@@ -47,10 +47,16 @@ layers:
     scope: ["packages/hooks/src/{module}/**"]
     verify: "pnpm nx test hooks -- src/{module}/"
     commit: "feat({module}): hooks"
+  # Web only, because apps/mobile only exists when the Mobile add-on is
+  # on. A layer scoped to a project that was never scaffolded fails its
+  # own verify on every module, so the Mobile clause is added by
+  # hedgehog-bootstrap's Expo step — which is also what creates the Nx
+  # project the extra verify target needs — rather than shipped here and
+  # broken by default.
   - id: screen
     depends_on: hook
-    scope: ["apps/web/src/app/{module}/**", "apps/mobile/src/{module}/**"]
-    verify: "pnpm nx test web -- src/app/{module}/ && pnpm nx test mobile -- src/{module}/"
+    scope: ["apps/web/src/app/{module}/**"]
+    verify: "pnpm nx test web -- src/app/{module}/"
     commit: "feat({module}): screen-web"
   # Workspace-wide by design: the only gate that can see cross-module
   # breakage, since every layer above is parallel and module-scoped.

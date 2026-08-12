@@ -119,9 +119,8 @@ rewrite the wrong thing.
   `worker`, `web`, `mobile`, `config`) for bootstrap/tooling commits.
 - **subject** for a build step: the step name itself — `schema`,
   `contract`, `repository`, `service`, `api`, `queue`, `hooks`,
-  `screen-web`, `screen-mobile` — matching `hedgehog-loop`'s step tables
-  exactly. For non-step commits, imperative and lowercase, under ~70
-  chars.
+  `screen-web` — matching `hedgehog-loop`'s step tables exactly. For
+  non-step commits, imperative and lowercase, under ~70 chars.
 - Body only when the *why* is non-obvious — for a Correction Protocol
   commit, the body is the explanation ("the commit messages are the
   explanation").

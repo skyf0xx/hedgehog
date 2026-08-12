@@ -118,7 +118,7 @@ before frontend work starts.
 |---|---|---|---|
 | 6 | `hook` | `packages/hooks` (TanStack Query) | `feat(<module>): hooks` |
 | 6a | UX rationale | `docs/design/<module>.md`, `ux-planner` agent | bundled into layer 7's commit |
-| 7 | `screen` | `apps/web` and/or `apps/mobile` | `feat(<module>): screen-web` / `feat(<module>): screen-mobile` |
+| 7 | `screen` | `apps/web`, plus `apps/mobile` when the Mobile add-on is on | `feat(<module>): screen-web` |
 
 Phase B starts once Phase A is done for the scope. The frontend is a pure
 consumer of an already-finished API. Delegate each module's Phase B

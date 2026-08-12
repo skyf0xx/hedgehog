@@ -244,10 +244,27 @@ match `apps/web`'s base theme (landed by `hedgehog-bootstrap-full-stack-app-core
 visual identity across platforms, set once here rather than drifting
 per-screen. Tag: `scope:mobile`.
 
-Add a `depConstraints` entry for `scope:mobile`
-(`onlyDependOnLibsWithTags: ['scope:contracts', 'scope:hooks',
-'scope:shared']`) — mobile never imports db or api internals, only
-contracts + hooks, same as web.
+`packages/config/eslint-base.js` already ships the `scope:mobile`
+`depConstraints` entry — nothing to add there.
+
+**Extend the `screen` layer in root `core.yaml` to cover mobile.** The
+shipped layer is web-only, because `apps/mobile` exists only on a project
+that ran this step — which is now. This step is the one place that knows
+both that the Nx `mobile` project exists and that its test target is real:
+
+```yaml
+  - id: screen
+    depends_on: hook
+    scope: ["apps/web/src/app/{module}/**", "apps/mobile/src/{module}/**"]
+    verify: "pnpm nx test web -- src/app/{module}/ && pnpm nx test mobile -- src/{module}/"
+    commit: "feat({module}): screen-web"
+```
+
+Then run `hedgehog plan --recompile`. `planner` already compiled every
+module's tasks before handing over, so the edit reaches the not-yet-started
+`screen` tasks only through a recompile — `hedgehog status`'s DRIFT section
+names them until it runs. Show the recompile output: it should list one
+updated `*-SCREEN` task per module and skip nothing.
 
 Commit: `feat(mobile): expo shell + base theme`
 
