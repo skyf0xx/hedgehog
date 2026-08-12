@@ -1043,6 +1043,49 @@ async function missingBinariesForTask(db, taskId, owner) {
   return missing.length === 0 ? null : { layer: layer.id, missing };
 }
 
+// What an out-of-scope path most likely is, and what to do about it.
+// "Outside allowed scope" is true of every offending path and tells the
+// reader nothing about which of three quite different situations they're
+// in: a package shell the layer itself had to create (widen this one
+// task), shared config a source-level fix touched (commit it separately),
+// or a genuine stray. Each wants a different next move, and working out
+// which costs a beat every time.
+//
+// Evidence-only, like core.mjs's lint: an unrecognised path gets no
+// annotation rather than a guessed one.
+const SCOPE_HINTS = [
+  {
+    // A package root's own scaffolding — package.json, tsconfig*.json,
+    // vitest.config.mts, src/index.ts directly under packages/<pkg>/ or
+    // libs/<a>/<b>/. No {module}-bearing scope glob can cover these, so
+    // the first module through a layer that creates its package always
+    // lands here.
+    test: (p) =>
+      /^(packages\/[^/]+|libs\/[^/]+\/[^/]+)\/(package\.json|tsconfig[^/]*\.json|vitest\.config\.[cm]?ts|project\.json|eslint\.config\.[cm]?js|src\/index\.ts)$/.test(
+        p,
+      ),
+    hint: 'package shell — if this layer is the first to create this package, widen just this task with `hedgehog override add` (see hedgehog-loop, "First arrival in a package") and retry',
+  },
+  {
+    test: (p) =>
+      p === 'pnpm-workspace.yaml' ||
+      p === 'pnpm-lock.yaml' ||
+      p === 'tsconfig.json' ||
+      p === 'nx.json' ||
+      p === 'package.json' ||
+      p.startsWith('packages/config/'),
+    hint: 'shared workspace config — no layer owns it; commit it separately as its own `chore(workspace): …` before retrying',
+  },
+  {
+    test: (p) => p.startsWith('.hedgehog/'),
+    hint: 'build-graph state — intents, overrides and friction are committed by the command that writes them, not by a layer',
+  },
+];
+
+function scopeHintFor(path) {
+  return SCOPE_HINTS.find((h) => h.test(path))?.hint ?? null;
+}
+
 async function verifyCommand(args) {
   await ensureDb();
 
@@ -1093,7 +1136,11 @@ async function verifyCommand(args) {
   if (result.outcome === 'scope_violation') {
     console.error(`${red(bold('Scope violation.'))} Task ${bold(taskId)} is now ${bold('blocked')}.\n`);
     console.error('Touched paths outside allowed scope:');
-    for (const path of result.offending) console.error(`  ${red('✗')} ${path}`);
+    for (const path of result.offending) {
+      console.error(`  ${red('✗')} ${path}`);
+      const hint = scopeHintFor(path);
+      if (hint) console.error(`      ${dim(hint)}`);
+    }
     console.error();
     process.exitCode = 1;
     return;

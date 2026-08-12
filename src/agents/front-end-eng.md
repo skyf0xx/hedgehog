@@ -83,7 +83,12 @@ don't reach for a second one.
    early.
 2. Build the hook against the contract client, matching the packet's
    ALLOWED SCOPE. Run typecheck, lint, and test yourself as a sanity
-   check before reporting back — necessary, not sufficient.
+   check before reporting back — necessary, not sufficient. On the first
+   module through this layer, the hook also creates `packages/hooks`, and
+   that package's shell sits outside the packet's ALLOWED SCOPE —
+   `hedgehog verify` would leave it uncommitted. Stop and say so before
+   building, so the scope can be widened for this one task
+   (`hedgehog-loop`, "First arrival in a package").
 3. **Report the work as done; do not commit it yourself.** Only
    `hedgehog verify <task-id>`'s passing exit code moves the task to
    `complete` and writes the commit (the packet's exact Conventional

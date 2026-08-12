@@ -211,6 +211,46 @@ Correction Protocol. Valid task statuses are `planned`, `ready`,
 also carries a `blocked_reason` (`scope_violation`, `verification_failed`,
 or `lease_expired`).
 
+## First arrival in a package
+
+Every layer scope names a directory *inside* a package
+(`packages/contracts/src/{module}/**`, `libs/{module}/repository/**`), and
+on the first module through that layer the package itself doesn't exist
+yet. Its shell — `package.json`, `tsconfig*.json`, `vitest.config.mts`,
+`src/index.ts` — necessarily lands outside the layer's scope glob, because
+no `{module}`-bearing glob can cover a package root. Left alone those files
+sit on disk uncommitted until the `join` layer's `**` scope sweeps them in,
+so `git log -- packages/contracts/` shows source with no buildable package
+behind it for the whole middle of the build.
+
+Widen that one task, before building it:
+
+```bash
+hedgehog override add TASKS-CONTRACT \
+  --scope 'packages/contracts/*' \
+  --scope 'packages/contracts/src/index.ts' \
+  --reason 'first module through the contract layer also creates the package shell'
+```
+
+`.hedgehog/overrides/*.json` is additive, per-task, committed, and replayed
+by `plan`, `--recompile` and `db rebuild` alike, so the exception survives a
+rebuild and stays reviewable in the diff — unlike a hand-edited task row,
+which the next rebuild silently drops. It widens exactly the one task that
+creates the package, not the layer, so module two's task keeps the narrow
+scope.
+
+Which tasks need it: the first module through `contract`
+(`packages/contracts`) and through `hook` (`packages/hooks`), and every
+module's `repository` and `service`, since `libs/{module}/repository` and
+`libs/{module}/service` are new libs per module — there, the layer's own
+`libs/{module}/repository/**` glob already covers the package root, so no
+override is needed. `packages/db` and `packages/config` ship with core, so
+`schema` never needs one.
+
+Never widen a scope to route around a violation the Correction Protocol
+should handle — this is for a package shell the layer genuinely creates,
+nothing else.
+
 ## Intra-step conventions
 
 The Nx boundaries, phase gate, and lint own the *structural* rules

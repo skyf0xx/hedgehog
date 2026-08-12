@@ -93,7 +93,13 @@ needed.
    dependencies guarantee this); check before writing the FK column.
 2. Build exactly one layer, matching the packet's ALLOWED SCOPE. Run
    typecheck, lint, and test yourself as a sanity check before reporting
-   back — necessary, not sufficient.
+   back — necessary, not sufficient. If this layer also has to create the
+   package it lands in (the first module through `contract` creates
+   `packages/contracts`), its shell files sit outside the packet's ALLOWED
+   SCOPE and `hedgehog verify` will leave them uncommitted — stop and say
+   so before building, so the scope can be widened for this one task
+   (`hedgehog-loop`, "First arrival in a package"). Don't build against a
+   scope you already know won't commit your work.
 3. **Report the work as done; do not commit it yourself.** Per the build
    graph's design, an agent reporting success never moves a task — only
    `hedgehog verify <task-id>`'s passing exit code does. It checks your
