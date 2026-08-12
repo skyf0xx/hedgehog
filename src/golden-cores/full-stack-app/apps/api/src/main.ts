@@ -3,11 +3,16 @@ import { Logger } from 'nestjs-pino';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app/app.module';
 
-loadEnv();
+const env = loadEnv();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
+  // apps/web runs on its own origin in local dev (see the port comment
+  // below), so the browser's fetches to this api are cross-origin by
+  // default — enable CORS for that origin rather than rediscovering this
+  // per project.
+  app.enableCors({ origin: env.WEB_ORIGIN });
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
   // Defaults to 3333, not 3000 — `apps/web`'s `next dev` also defaults to

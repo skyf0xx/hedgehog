@@ -22,4 +22,17 @@ describe('envSchema', () => {
     const result = envSchema.safeParse({ ...valid, NODE_ENV: 'staging' });
     expect(result.success).toBe(false);
   });
+
+  it('defaults WEB_ORIGIN when absent', () => {
+    const result = envSchema.safeParse(valid);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.WEB_ORIGIN).toBe('http://localhost:3000');
+    }
+  });
+
+  it('rejects a non-URL WEB_ORIGIN', () => {
+    const result = envSchema.safeParse({ ...valid, WEB_ORIGIN: 'not-a-url' });
+    expect(result.success).toBe(false);
+  });
 });

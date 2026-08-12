@@ -32,19 +32,22 @@ copied to the repo root:
   --projects=api,web --parallel` — so a fresh clone has one command that
   brings up Postgres and both apps together), `eslint.config.mjs`,
   `docker-compose.yml` (Postgres only — Redis joins later, only if the
-  Queue add-on turns on), `.env.example` (`DATABASE_URL`/`NODE_ENV`,
-  copied to `.env` in step 4), `lefthook.yml`, `commitlint.config.cjs`,
+  Queue add-on turns on), `.env.example`
+  (`DATABASE_URL`/`NODE_ENV`/`WEB_ORIGIN`, copied to `.env` in step 4),
+  `lefthook.yml`, `commitlint.config.cjs`,
   `tools/phase-gate.cjs`, `.github/workflows/phase-gate.yml`,
   `tsconfig.base.json`, `pnpm-lock.yaml`.
 - `packages/config/` — `eslint-base.js`, `prettier.js` (no
   `prettier-plugin-tailwindcss` — that's `apps/web`'s own config, already
-  wired), `env.schema.ts` (core fields only: `DATABASE_URL`, `NODE_ENV`).
-  Tagged `type:util`.
+  wired), `env.schema.ts` (core fields only: `DATABASE_URL`, `NODE_ENV`,
+  and `WEB_ORIGIN` — the origin `apps/api` enables CORS for, defaulted to
+  `apps/web`'s dev origin). Tagged `type:util`.
 - `packages/db/` — Drizzle client/connection wired to `loadEnv()`, no
   domain schema. Tagged `scope:db`, `type:adapter`.
-- `apps/api/` — Nest shell, `nestjs-pino` wired, health check only, no
-  domain controllers. `apps/api-e2e` already converted to Vitest with an
-  explicit `e2e` target. Tagged `scope:api`.
+- `apps/api/` — Nest shell, `nestjs-pino` wired, CORS enabled for
+  `WEB_ORIGIN`, health check only, no domain controllers. `apps/api-e2e`
+  already converted to Vitest with an explicit `e2e` target. Tagged
+  `scope:api`.
 - `apps/web/` — Next shell, Tailwind v4 (PostCSS plugin, no
   `tailwind.config.js`), hand-built ShadCN base (`components.json`,
   `cn()` util, CSS variable theme, light/dark toggle via an inline
