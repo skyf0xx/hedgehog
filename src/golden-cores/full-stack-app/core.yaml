@@ -19,7 +19,7 @@
 id: full-stack-app
 layers:
   - id: schema
-    scope: ["packages/db/src/schema/{module}/**"]
+    scope: ["packages/db/src/schema/{module}/**", "packages/db/src/schema/index.ts"]
     verify: "pnpm nx test db -- src/schema/{module}/"
     commit: "feat({module}): schema"
   - id: contract

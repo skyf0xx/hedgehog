@@ -40,7 +40,11 @@ needed.
 
 - **`schema`**: define the table in `packages/db` (Drizzle). One domain
   module = one table. Cross-module references are FK-by-ID columns
-  only — never a foreign schema import.
+  only — never a foreign schema import. Add one re-export line for the
+  module to `packages/db/src/schema/index.ts` (in scope for this
+  layer) so the table is importable outside `packages/db` — the
+  package's own `src/index.ts` re-exports that barrel and never
+  changes after bootstrap.
 - **`contract`**: derive the Zod schema from Drizzle (`drizzle-zod`) and
   wire the ts-rest contract in `packages/contracts`. A `date`-mode
   `timestamp` column reflected through `createSelectSchema` is overridden

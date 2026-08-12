@@ -43,7 +43,10 @@ copied to the repo root:
   and `WEB_ORIGIN` — the origin `apps/api` enables CORS for, defaulted to
   `apps/web`'s dev origin). Tagged `type:util`.
 - `packages/db/` — Drizzle client/connection wired to `loadEnv()`, no
-  domain schema. Tagged `scope:db`, `type:adapter`.
+  domain schema. `src/index.ts` re-exports `src/schema/index.ts`, an
+  empty barrel-of-barrels a module's `schema` layer adds one re-export
+  line to (in that layer's scope — see `core.yaml`). Tagged `scope:db`,
+  `type:adapter`.
 - `apps/api/` — Nest shell, `nestjs-pino` wired, CORS enabled for
   `WEB_ORIGIN`, health check only, no domain controllers. `apps/api-e2e`
   already converted to Vitest with an explicit `e2e` target. Tagged
