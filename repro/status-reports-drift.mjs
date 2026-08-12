@@ -8,6 +8,13 @@
 // owns: an override naming a task id that doesn't exist widens nothing,
 // throws nothing, and produces no drift, so `status` is the only place
 // an operator who isn't already suspicious will find it.
+//
+// And it covers the two append-only side channels. Declared debt and
+// logged friction are reachable only through `debt list <task>` (which
+// needs a task id the operator has no way to guess) and `friction list`
+// (which needs the operator to already suspect there is something to
+// read), so a graph carrying either looks perfectly healthy from
+// `status` unless `status` says so.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -106,6 +113,84 @@ ok =
     const r = mustSucceed(p.run('status'), 'hedgehog status');
     assertIncludes(r.out, 'ORPHANED OVERRIDES', 'the section survives an unparseable core.yaml');
     assertIncludes(r.out, 'BILLING-FONUDATION', 'the orphaned id is still named');
+  }) && ok;
+
+ok =
+  scenario('status is quiet when nothing has been declared or logged', () => {
+    const p = plannedProject('billing');
+    const r = mustSucceed(p.run('status'), 'hedgehog status');
+    assertNotIncludes(r.out, 'DECLARED DEBT', 'no debt section on a graph with no debt');
+    assertNotIncludes(r.out, 'FRICTION LOGGED', 'no friction section on a graph with none');
+  }) && ok;
+
+ok =
+  scenario('status reports declared debt and names the declaring task', () => {
+    const p = plannedProject('billing');
+    mustSucceed(
+      p.run('debt', 'add', 'BILLING-FOUNDATION', 'manifest is hand-rolled'),
+      'hedgehog debt add',
+    );
+
+    const r = mustSucceed(p.run('status'), 'hedgehog status');
+    assertIncludes(r.out, 'DECLARED DEBT', 'status names the debt section');
+    assertIncludes(r.out, 'BILLING-FOUNDATION', 'status names the declaring task');
+    assertIncludes(r.out, 'hedgehog debt list', 'status points at the listing command');
+    // The count is the altitude here: `debt list` owns the notes, and a
+    // status overview that reprints them is that command with extra steps.
+    assertNotIncludes(r.out, 'manifest is hand-rolled', 'the note text stays in debt list');
+  }) && ok;
+
+// Two rows against one task collapse to one line — the per-task count is
+// what makes `debt list <task>` reachable, and one line per note would
+// turn the overview back into the listing it defers to.
+ok =
+  scenario('multiple debt notes on one task collapse to a count', () => {
+    const p = plannedProject('billing');
+    mustSucceed(p.run('debt', 'add', 'BILLING-FOUNDATION', 'first'), 'hedgehog debt add');
+    mustSucceed(p.run('debt', 'add', 'BILLING-FOUNDATION', 'second'), 'hedgehog debt add');
+
+    const r = mustSucceed(p.run('status'), 'hedgehog status');
+    assertIncludes(r.out, 'DECLARED DEBT  2', 'the section header carries the row total');
+    assertIncludes(r.out, '2 notes', 'the declaring task carries its own count');
+  }) && ok;
+
+ok =
+  scenario('status reports logged friction', () => {
+    const p = plannedProject('billing');
+    mustSucceed(p.run('friction', 'add', 'plan --recompile was hard to find'), 'hedgehog friction add');
+
+    const r = mustSucceed(p.run('status'), 'hedgehog status');
+    assertIncludes(r.out, 'FRICTION LOGGED  1', 'status counts the friction row');
+    assertIncludes(r.out, 'hedgehog friction list', 'status points at the listing command');
+  }) && ok;
+
+// A friction row's task_id is nullable — tweaker's reviewed-marker row
+// has none. The count is whole-project, so a row with no task must land
+// in it rather than being dropped for lacking an id to attribute it to.
+ok =
+  scenario('friction with no task id is still counted', () => {
+    const p = plannedProject('billing');
+    mustSucceed(p.run('friction', 'add', 'attributed', '--task', 'BILLING-FOUNDATION'), 'hedgehog friction add');
+    mustSucceed(p.run('friction', 'add', 'reviewed: 2026-01-01, issues: none filed'), 'hedgehog friction add');
+
+    const r = mustSucceed(p.run('status'), 'hedgehog status');
+    assertIncludes(r.out, 'FRICTION LOGGED  2', 'both rows count, with and without a task');
+  }) && ok;
+
+// Neither table has a resolved column, so the report must not claim a
+// state the schema can't back — nothing here is "open" or "unresolved",
+// only declared and logged.
+ok =
+  scenario('neither section claims an open/unresolved state', () => {
+    const p = plannedProject('billing');
+    mustSucceed(p.run('debt', 'add', 'BILLING-FOUNDATION', 'a note'), 'hedgehog debt add');
+    mustSucceed(p.run('friction', 'add', 'a friction note'), 'hedgehog friction add');
+
+    const r = mustSucceed(p.run('status'), 'hedgehog status');
+    assertIncludes(r.out, 'DECLARED DEBT', 'debt is reported as declared');
+    assertIncludes(r.out, 'FRICTION LOGGED', 'friction is reported as logged');
+    assertNotIncludes(r.out, 'OPEN DEBT', 'debt is declared, not open');
+    assertNotIncludes(r.out, 'UNRESOLVED', 'friction is logged, not unresolved');
   }) && ok;
 
 cleanupAll();
