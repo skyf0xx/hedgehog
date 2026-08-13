@@ -15,15 +15,23 @@ it. It writes `.hedgehog/` and nothing else, ever.
 ## What this is, precisely
 
 Hedgehog on an existing repo is a **permanent discipline for how change
-lands**, not a model of what exists. The build graph covers new work
-only. Pre-existing code is context to read and respect, never a node in
-the graph — no task is ever created to "build" something that's already
-there.
+lands**, not an authority over what exists. The build graph covers new
+work only. Pre-existing code is context to read and respect, never a node
+in the graph — no task is ever created to "build" something that's
+already there, and no artifact record, commit, or task ever claims
+Hedgehog wrote code it didn't. `adoption.md`'s "Repo shape" section (Step
+4) is a separate thing: a dated, prose snapshot of what Step 1 observed,
+refreshable by re-running this skill — never build-graph state, never
+authoritative past the date it was read, and never a substitute for
+reading the actual code.
 
 This is what makes adoption safe to run on a real, live codebase:
 
-- **No repo mapping.** This skill never tries to enumerate or represent
-  the existing architecture as build-graph state.
+- **The build graph never models pre-existing architecture.** Module
+  boundaries, conventions, and shape live in `adoption.md`'s prose as a
+  dated read, not as `core.yaml` state or task history — nothing about
+  the existing repo is ever treated as something Hedgehog built or
+  verified.
 - **No completion backfill.** It never fabricates commits to make
   `hedgehog db rebuild` believe pre-existing files were built by
   Hedgehog. `rebuild.mjs` marks a task complete only when a real commit's
@@ -66,7 +74,8 @@ Two entry shapes:
 - **Later run** — `.hedgehog/core.yaml` already exists and was written by
   this skill (its own record — see Step 5). New change-work entered play.
   Skip straight to "Adding change-work" below; every earlier step is
-  already-locked, write-once state.
+  already-locked state, except `adoption.md`'s "Repo shape" section, which
+  that same later run may refresh on request (see Step 4).
 
 ## Step 1 — read the repo, read-only
 
@@ -86,7 +95,19 @@ Before proposing anything, read enough of the repo to answer:
   fixed order — a schema or migration before the code that reads it, a
   shared type or contract before its consumers, a public API before an
   internal one. Not every repo has these; a repo with no natural
-  ordering constraint gets a single-layer chain (see Step 3).
+  ordering constraint gets a single-layer chain (see Step 3). When a
+  workspace manifest declares structure — `pnpm-workspace.yaml`,
+  `Cargo.toml`'s `[workspace]` table, `go.work`, or equivalent — read it
+  directly for the package list and which packages depend on which; that's
+  evidence for a seam candidate, not a seam itself (see Step 3). Absent a
+  manifest, fall back to reading the repo directly.
+- **Shape.** Module or package boundaries, key entry points, and code
+  conventions actually observed — naming patterns, error-handling idiom,
+  where tests live relative to source. Note only what's actually visible
+  in the files read for the other bullets above; skip this bullet outright
+  if the repo is too small or too inconsistent to show a real pattern.
+  This becomes `adoption.md`'s "Repo shape" section (Step 4) — calibration
+  for how new code gets written, not an architecture model.
 
 This step is entirely read-only. Never write, edit, or run anything that
 mutates the working tree here — no `npm install`, no formatter, nothing.
@@ -125,7 +146,11 @@ real seam (e.g. a shared package other packages depend on) gets that
 seam as an earlier layer, `depends_on` chaining the rest after it — the
 same pattern `landing-page`'s brief → feeling → tokens → sequence →
 artifact chain already establishes for a linear, no-module-axis core
-(`src/golden-cores/landing-page/core.yaml`).
+(`src/golden-cores/landing-page/core.yaml`). When Step 1 found a
+workspace manifest, its declared packages and dependency direction are
+candidate seams, shown to the user with the manifest as their source —
+same as Step 2's verify-command candidates, confirmed before anything is
+written, never assumed straight into the chain.
 
 Linear chain is not a simplification made for this skill's convenience —
 it's what sidesteps `core.mjs`'s module-axis uniformity rule
@@ -148,14 +173,25 @@ Conventional Commits otherwise.
 
 ## Step 4 — write `.hedgehog/adoption.md`
 
-The rationale, write-once, archival — same stance as `core-design.md` on
-an authored core: what the repo's own commands are and their source,
-why the layers are ordered the way they are (or why there's only one,
-for a repo with no natural seam), and what was deliberately left out
-(repo mapping, stack migration, legacy review — name these explicitly so
-a later reader doesn't wonder whether they were forgotten). No nested
-YAML-shaped content — this file is prose, `core.yaml` is the only file
-the engine parses.
+The rationale, same stance as `core-design.md` on an authored core: what
+the repo's own commands are and their source, why the layers are ordered
+the way they are (or why there's only one, for a repo with no natural
+seam), and what was deliberately left out (stack migration, legacy
+review — name these explicitly so a later reader doesn't wonder whether
+they were forgotten). No nested YAML-shaped content — this file is
+prose, `core.yaml` is the only file the engine parses.
+
+Add a **"Repo shape, as of adoption"** section from Step 1's Shape
+bullet: module/package boundaries, entry points, and conventions
+observed, headed with the date and git ref it was read at. Label it
+plainly as a snapshot — what the repo looked like when read, not a
+live model — and say how to refresh it: re-run this skill (see "Adding
+the first (or next) change-work" below), never a hand edit.
+
+Only this section is refreshable. Everything else in `adoption.md` — the
+commands, the layer rationale, what was left out — is locked the same as
+`core.yaml`, written once at Step 5 and changed only by the Correction
+Protocol path described there.
 
 ## Step 5 — Confirm & Lock
 
@@ -168,9 +204,11 @@ the engine parses.
   layers don't.
 - Plainly, in these words or equivalent: *"This adds Hedgehog's
   discipline to how change lands on this repo from here forward. It
-  never touches your existing code, never converts your stack, and never
-  tries to model what's already here — only new work goes through this
-  graph. Coverage will always be partial by design."*
+  never touches your existing code and never converts your stack — only
+  new work goes through this build graph, and coverage will always be
+  partial by design. `adoption.md` will also hold a dated snapshot of
+  this repo's shape, refreshable on request — never build-graph state,
+  never treated as current past the date it was read."*
 
 Wait for explicit go-ahead. On confirmation, write `.hedgehog/core.yaml`
 (exact format `src/db/core.mjs` parses — see any shipped core.yaml for
@@ -192,15 +230,34 @@ directly since there is no bootstrap step on this path to do it.
 
 ## Adding the first (or next) change-work
 
-Once `core.yaml` is locked, add intents the same way any other core does
-— `hedgehog intent add --id <id> --goal <goal> --outcome <outcome>`, one
-per distinct unit of change, each `id` naming the change rather than a
-domain module (`fix-auth-timeout`, `add-rate-limiting`, not a table or
-screen name — there's no module axis here). Then `hedgehog plan` compiles
-it through the locked chain. This is the same shape whether it's the
-first intent on a freshly adopted repo or the fifth one three months
-later — adoption has no first-run-only intent step the way planning
-intake does; every entry is the same mechanical add.
+Before adding an intent, judge the request the same way `planner`'s
+Phase 0 judges which core fits: a clear, bounded ask ("fix the auth
+timeout bug") goes straight to `hedgehog intent add` below. A large or
+under-specified one ("add billing," "support multi-tenancy") gets
+`hedgehog-adopt-elicit` first — a short, targeted clarifying pass on
+what's in scope, what's explicitly out, and any constraints the user
+already knows — not `hedgehog-planning-intake`'s BMAD shelf (that
+shelf's product-driver questions don't fit a change to a repo that
+already exists, whatever the change's size). Fold the answers directly
+into the intent's own `--goal`/`--outcome` text; nothing new gets archived or
+locked.
+
+Once `core.yaml` is locked and any elicitation above is done, add intents
+the same way any other core does — `hedgehog intent add --id <id> --goal
+<goal> --outcome <outcome>`, one per distinct unit of change, each `id`
+naming the change rather than a domain module (`fix-auth-timeout`,
+`add-rate-limiting`, not a table or screen name — there's no module axis
+here). Then `hedgehog plan` compiles it through the locked chain. This is
+the same shape whether it's the first intent on a freshly adopted repo or
+the fifth one three months later — adoption has no first-run-only intent
+step the way planning intake does; every entry is the same mechanical
+add, sized as above.
+
+An adoption re-run can also refresh `adoption.md`'s "Repo shape" section
+on request — when the user or `planner` flags that the repo's changed
+enough since the last read to be worth re-scanning. Re-run Step 1's Shape
+bullet and Step 4's write for that section only; the commands, layer
+chain, and rest of `adoption.md` stay locked and untouched.
 
 Commit this as `chore(planning): adopt` (first run, alongside the
 Confirm & Lock commit) or `chore(planning): adopt change` (every later
@@ -254,11 +311,14 @@ could be misread as a percentage of the whole.
 
 - **Never touch working code, at adoption time or ever, as this skill.**
   The only writes this skill makes are `.hedgehog/core.yaml`,
-  `.hedgehog/adoption.md`, root `CLAUDE.md`'s `{{CORE_SECTION}}`
-  placeholder (first run only), and the build graph via `hedgehog intent
-  add`/`hedgehog plan`. Everything else — the actual change-work — is
-  `layer-eng`'s job through `hedgehog-authored-loop`, gated the same as
-  any other layer.
+  `.hedgehog/adoption.md` (Step 4's rationale and its "Repo shape"
+  section), root `CLAUDE.md`'s `{{CORE_SECTION}}` placeholder (first run
+  only), and the build graph via `hedgehog intent add`/`hedgehog plan`.
+  `hedgehog-adopt-elicit`'s clarifying pass writes nothing of its own —
+  its output only ever becomes `--goal`/`--outcome` text on an
+  `hedgehog intent add` call. Everything else — the actual change-work —
+  is `layer-eng`'s job through `hedgehog-authored-loop`, gated the same
+  as any other layer.
 - **Never propose converting the repo's stack, structure, or conventions
   toward any Golden Core's** — not Nx, not a particular ORM, not a
   particular framework. Not even phrased as a suggestion. This is the one
@@ -277,10 +337,12 @@ could be misread as a percentage of the whole.
 - **Always end the chain with an `exclusive: true`, `scope: ["**"]` join
   layer.** This is the cross-cutting net that catches what a narrower
   layer's verify can't see.
-- **`.hedgehog/core.yaml` and `.hedgehog/adoption.md` are locked once
-  written**, the same as an authored core's two files. A layer chain that
+- **`.hedgehog/core.yaml` is locked once written, and so is everything in
+  `adoption.md` except its "Repo shape" section.** A layer chain that
   turns out wrong is a re-run of this skill to add or adjust a layer via
   a fresh Confirm & Lock, not a silent edit — and never touches tasks
   already compiled or completed (see `hedgehog-authored-loop`'s
   "core.yaml vs. the packet" for the drift/reconcile mechanics, which
-  apply here unchanged).
+  apply here unchanged). "Repo shape" is the one section a later run may
+  regenerate on request (see "Adding the first (or next) change-work"),
+  and even then only by re-running Step 1/4, never a hand edit.
