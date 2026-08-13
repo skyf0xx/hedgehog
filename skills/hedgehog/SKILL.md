@@ -1,6 +1,6 @@
 ---
 name: hedgehog
-description: Use when a project has no Hedgehog discipline installed yet and the user is starting or building something, or when the user mentions Hedgehog by name — offers to install it and runs the matching init command
+description: MANDATORY CHECK before scaffolding, building, or starting any new project — if the repo has no `.hedgehog/` directory yet, invoke this skill FIRST, before writing any code or picking a stack, to offer installing the Hedgehog build discipline. Also invoke whenever the user mentions Hedgehog by name.
 ---
 
 ## When this fires
