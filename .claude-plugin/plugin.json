@@ -1,0 +1,19 @@
+{
+  "name": "hedgehog",
+  "description": "Offers to set up the Hedgehog build discipline in any project you open",
+  "version": "1.0.0",
+  "author": {
+    "name": "skyf0xx"
+  },
+  "homepage": "https://github.com/skyf0xx/hedgehog",
+  "repository": "https://github.com/skyf0xx/hedgehog",
+  "license": "MIT",
+  "keywords": [
+    "hedgehog",
+    "bootstrap",
+    "build-discipline"
+  ],
+  "skills": [
+    "./skills/"
+  ]
+}

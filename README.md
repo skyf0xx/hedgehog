@@ -152,20 +152,30 @@ Hedgehog onto it.
 
 ## Install
 
-From an empty project folder, ask Claude or your Agent to run:
+Install the Hedgehog plugin for your coding agent. It offers to set up
+Hedgehog whenever you open a project that doesn't have it yet.
+
+### Claude Code
 
 ``` bash
-# Full-stack app
-npx @skyf0xx/hedgehog init --ts-full-stack-app
-
-# Landing page
-npx @skyf0xx/hedgehog init --landing-page
-
-# Anything else (CLI, library, browser extension, data pipeline, etc.)
-npx @skyf0xx/hedgehog init
+claude plugin marketplace add skyf0xx/hedgehog
+claude plugin install hedgehog
 ```
 
-Then open your coding agent and describe what you want to build.
+### Gemini CLI
+
+``` bash
+gemini extensions install https://github.com/skyf0xx/hedgehog
+```
+
+### Cursor
+
+``` bash
+git clone https://github.com/skyf0xx/hedgehog ~/.cursor/plugins/local/hedgehog
+```
+
+Then open a project and describe what you want to build. Hedgehog offers
+to set itself up, and takes it from there once you say yes.
 
 The golden cores print a `pnpm install` step as part of their next steps.
 On a fresh project with no warm pnpm store, that first install can take
@@ -173,22 +183,6 @@ several minutes — it's pulling a full monorepo toolchain (Nx, webpack,
 sass-embedded, Playwright, etc.) and, on first commit, running the commit
 gate against the whole workspace. A quiet stretch of output during that
 step is expected, not a hang.
-
-### Coding agents
-
-Hedgehog installs for **Claude Code** by default. Add a host flag to
-install for another one, or several at once:
-
-``` bash
-npx @skyf0xx/hedgehog init --cursor              # Cursor
-npx @skyf0xx/hedgehog init --gemini              # Gemini CLI
-npx @skyf0xx/hedgehog init --host=claude,cursor  # both
-npx @skyf0xx/hedgehog init --all-hosts           # every supported agent
-```
-
-Each one gets the discipline in its own native shape — agents and skills
-in the directory it reads, and the instructions file it loads at session
-start (`CLAUDE.md`, `HEDGEHOG.md`, or `GEMINI.md`).
 
 To update:
 

@@ -1,0 +1,21 @@
+{
+  "name": "hedgehog",
+  "description": "Marketplace for the Hedgehog plugin",
+  "owner": {
+    "name": "skyf0xx"
+  },
+  "plugins": [
+    {
+      "name": "hedgehog",
+      "description": "Offers to set up the Hedgehog build discipline in any project you open",
+      "version": "1.0.0",
+      "source": "./",
+      "skills": [
+        "./skills/"
+      ],
+      "author": {
+        "name": "skyf0xx"
+      }
+    }
+  ]
+}
