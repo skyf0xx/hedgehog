@@ -111,12 +111,17 @@ don't reach for a second one.
    sits outside the packet's ALLOWED SCOPE — `hedgehog verify` would leave
    it uncommitted. Stop and say so before building, so the scope can be
    widened for this one task (`hedgehog-loop`, "First arrival in a
-   package"); `hedgehog-loop`'s "Scaffolding a layer" section owns the
-   workspace wiring the new package needs.
+   package"); run `pnpm install` and `pnpm nx sync` yourself
+   (`hedgehog-loop`, "Scaffolding a layer") to wire the new package into
+   the workspace, and name the shared files that changed (typically
+   `pnpm-lock.yaml`, root `tsconfig.json`) in your report — the
+   orchestrating session commits them separately (next step).
 3. **Report the work as done; do not commit it yourself.** Only
    `hedgehog verify <task-id>`'s passing exit code moves the task to
    `complete` and writes the commit (the packet's exact Conventional
-   Commit message).
+   Commit message). Any shared workspace files you flagged in step 2 are a
+   separate commit the orchestrating session makes before dispatching
+   `hedgehog verify`, not something you commit.
 4. Build the screen consuming the hook the same way — packet, build,
    report, `hedgehog verify`.
 5. One layer at a time — `hook` fully `complete` before the `screen`

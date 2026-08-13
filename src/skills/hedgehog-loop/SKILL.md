@@ -263,8 +263,9 @@ depend on. Never register a module by editing `app.module.ts` — a shared
 file no module-scoped task can safely touch. Validation is ts-rest + Zod,
 so this core has no Nest DTOs and no class-validator.
 
-**Wire a new package in before reporting the layer done.** A package that
-exists on disk isn't yet part of the workspace:
+**A new package needs wiring into the workspace before `hedgehog verify`
+runs on it.** A package that exists on disk isn't yet part of the
+workspace:
 
 ```bash
 pnpm install          # link the new workspace:* deps
@@ -272,14 +273,40 @@ pnpm nx sync          # regenerate TypeScript project references
 ```
 
 `pnpm-workspace.yaml` already globs `packages/*`, `apps/*` and `libs/*/*`,
-so a package under any of those needs no edit there. `nx sync` writes root
-`tsconfig.json`, which sits outside every module-scoped layer's scope — it
-belongs to no layer, and no override covers it. Commit it separately as
-`chore(workspace): sync project references`, before `hedgehog verify`
-runs, so the layer's own commit stays exactly the layer.
+so a package under any of those needs no edit there. This is the common
+case, not an edge case: any layer that is the first arrival in a package
+(`contract`, `hook`, each module's `repository` and `service`) or that
+wires a new package into an existing one (`controller`, adding the
+module's `contracts`/`repository`/`service` packages to `apps/api`) needs
+it — on a module's first pass through Phase A/B that is most of the
+layers, not an occasional one.
 
-This is the building agent's step rather than a verify post-step on
-purpose: `hedgehog verify` gates the tree it's handed, and a gate that
+The building agent runs `pnpm install` / `pnpm nx sync` and reports back
+which shared files changed (typically `pnpm-lock.yaml`, root
+`tsconfig.json`, and — on a `controller` layer — `apps/api/package.json`,
+`apps/api/tsconfig.app.json`), because it has the shell access to run
+them, but it never commits: no agent reporting success moves a task or
+touches git, only `hedgehog verify`'s passing exit code does (see the
+building agents' own Workflow step on this). Committing those shared
+files is the orchestrating session's job, done between dispatch and
+`hedgehog verify` on every layer where the agent flagged a change: expect
+it, don't wait to be reminded.
+
+```bash
+git add pnpm-lock.yaml tsconfig.json   # plus apps/*/package.json,
+                                        # apps/*/tsconfig.app.json on a
+                                        # controller layer
+git commit -m "chore(workspace): sync project references"
+```
+
+These files are mechanically derived by `pnpm install` and `pnpm nx
+sync`, not authored content, and sit outside every module-scoped layer's
+scope — they belong to no layer, and no override covers them. Committing
+them separately, before `hedgehog verify` runs, keeps the layer's own
+commit exactly the layer.
+
+This is the orchestrating session's step rather than a verify post-step
+on purpose: `hedgehog verify` gates the tree it's handed, and a gate that
 mutates that tree would manufacture the scope violation it then reports.
 
 ## First arrival in a package
@@ -294,14 +321,24 @@ sit on disk uncommitted until the `join` layer's `**` scope sweeps them in,
 so `git log -- packages/contracts/` shows source with no buildable package
 behind it for the whole middle of the build.
 
+A generator can also drop shared, package-wide source at the `src/` root
+alongside the module's own files on that same first pass — the `contract`
+generator's `timestamp.ts` is one (a shared Zod util every module in the
+package imports, written once, sibling to `src/index.ts`). That file needs
+the same widening as the shell itself.
+
 Widen that one task, before building it:
 
 ```bash
 hedgehog override add TASKS-CONTRACT \
   --scope 'packages/contracts/*' \
-  --scope 'packages/contracts/src/index.ts' \
+  --scope 'packages/contracts/src/*' \
   --reason 'first module through the contract layer also creates the package shell'
 ```
+
+`packages/contracts/src/*` is non-recursive, so it covers `src/index.ts`
+and `src/timestamp.ts` without also granting the module subdirectory the
+layer's own `packages/contracts/src/{module}/**` scope already covers.
 
 `.hedgehog/overrides/*.json` is additive, per-task, committed, and replayed
 by `plan`, `--recompile` and `db rebuild` alike, so the exception survives a

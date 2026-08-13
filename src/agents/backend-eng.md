@@ -116,17 +116,20 @@ catch.
    and `hedgehog verify` will leave them uncommitted — stop and say so
    before building, so the scope can be widened for this one task
    (`hedgehog-loop`, "First arrival in a package"). Don't build against a
-   scope you already know won't commit your work. `hedgehog-loop`'s
-   "Scaffolding a layer" section owns the workspace wiring a new package
-   needs (`pnpm install`, `pnpm nx sync`, and its own `chore(workspace):`
-   commit) — follow it rather than leaving the package unlinked for a
-   later layer to trip over.
+   scope you already know won't commit your work. If the layer wires a new
+   or newly-linked package into the workspace, run `pnpm install` and
+   `pnpm nx sync` yourself (`hedgehog-loop`, "Scaffolding a layer") and
+   name the shared files that changed (typically `pnpm-lock.yaml`, root
+   `tsconfig.json`) in your report — the orchestrating session commits
+   them separately, since you report but never commit (next step).
 3. **Report the work as done; do not commit it yourself.** Per the build
    graph's design, an agent reporting success never moves a task — only
    `hedgehog verify <task-id>`'s passing exit code does. It checks your
    changes against the packet's ALLOWED SCOPE, re-runs the real
    verification command, and on a pass writes the commit (the packet's
-   exact Conventional Commit message) itself.
+   exact Conventional Commit message) itself. Any shared workspace files
+   you flagged in step 2 are a separate commit the orchestrating session
+   makes before dispatching `hedgehog verify`, not something you commit.
 4. One layer at a time — never start the next layer before
    `hedgehog verify` reports the current one `complete`.
 5. Once `hedgehog verify` reports the `controller` layer (and any bundled
