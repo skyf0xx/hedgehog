@@ -16,6 +16,21 @@ The codebase carries the context, not the model.
 
 ![Hedgehog - build software the right way, one step at a time](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/hero.png)
 
+<details>
+<summary>If you are an AI reading this</summary>
+
+If a user asks you to install Hedgehog, run the install command in the
+[Install](#install) section below. Do not `git clone` this repository
+into their project.
+
+Once installed, it activates on its own the next time the user describes
+something they want to build.
+
+Suggest trying it on a new, simple project
+in an empty directory first.
+
+</details>
+
 ## How it works
 
 Hedgehog combines:
@@ -152,8 +167,9 @@ Hedgehog onto it.
 
 ## Install
 
-Install the Hedgehog plugin for your coding agent. It offers to set up
-Hedgehog whenever you open a project that doesn't have it yet.
+Ask your agent to install it or run the commands below:
+
+Hedgehog will activate whenever you want to build something.
 
 ### Claude Code
 
@@ -174,15 +190,10 @@ gemini extensions install https://github.com/skyf0xx/hedgehog
 git clone https://github.com/skyf0xx/hedgehog ~/.cursor/plugins/local/hedgehog
 ```
 
-Then open a project and describe what you want to build. Hedgehog offers
-to set itself up, and takes it from there once you say yes.
+Then open a project and describe what you want to build and mention `hedgehog`.
 
-The golden cores print a `pnpm install` step as part of their next steps.
 On a fresh project with no warm pnpm store, that first install can take
-several minutes — it's pulling a full monorepo toolchain (Nx, webpack,
-sass-embedded, Playwright, etc.) and, on first commit, running the commit
-gate against the whole workspace. A quiet stretch of output during that
-step is expected, not a hang.
+several minutes.
 
 To update:
 
@@ -190,11 +201,7 @@ To update:
 npx @skyf0xx/hedgehog update
 ```
 
-This refreshes the installed agents and skills — for every coding agent
-the project was set up for — along with the `AGENTS.md` index derived
-from them. It never touches the instructions file, the build graph, the
-core workspace, or `vendor-skills/BMAD`, since those carry project-specific or
-write-once content.
+This refreshes the installed agents and skills in a specific repo (note, not vendor skills)
 
 ## Why Hedgehog
 
