@@ -68,6 +68,19 @@ Every dependency is explicit, so Hedgehog knows which tasks can run in parallel.
 
 Agents fan out to give you great outcomes at **faster speeds**.
 
+## Deterministic Code Generation
+
+Where a piece of code has one correct shape, Hedgehog generates it instead of asking the AI to write it freehand.
+
+![Deterministic code generation](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/deterministic.png)
+
+- **Generators over freehand**: schemas, boilerplate, and scaffolding come from generators that create the code
+- **Faster**: no reasoning required to produce a known shape
+- **More correct**: the same input always produces the same, tested output
+- **Fewer tokens**: nothing spent generating code that a template already covers
+
+The AI is reserved for the parts a generator can't cover.
+
 ## What Hedgehog builds
 
 ### Full-stack applications
