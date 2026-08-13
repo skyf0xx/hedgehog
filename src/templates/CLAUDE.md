@@ -119,8 +119,9 @@ state.
 below — it checks nothing-in-flight, a clean tree, and a closed intent
 together), the build session is complete. The permanent record is the committed
 intents (`.hedgehog/intents/*.json`), the friction log
-(`.hedgehog/friction/*.md`), `core.yaml`, and the git commit history
-itself — not the database. `.hedgehog/hedgehog.db` is gitignored: a
+(`.hedgehog/friction/*.md`), the core definition (root `core.yaml` for a
+shipped core, `.hedgehog/core.yaml` for an authored one), and the git
+commit history itself — not the database. `.hedgehog/hedgehog.db` is gitignored: a
 derived index, rebuildable at any time via `hedgehog db rebuild`, which
 replays those committed sources against git history. That rebuild also
 runs automatically on a fresh clone when the DB is missing but

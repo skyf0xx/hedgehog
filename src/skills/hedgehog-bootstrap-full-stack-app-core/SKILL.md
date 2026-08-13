@@ -36,7 +36,11 @@ copied to the repo root:
   (`DATABASE_URL`/`NODE_ENV`/`WEB_ORIGIN`, copied to `.env` in step 4),
   `lefthook.yml`, `commitlint.config.cjs`,
   `tools/phase-gate.cjs`, `.github/workflows/phase-gate.yml`,
-  `tsconfig.base.json`, `pnpm-lock.yaml`.
+  `tsconfig.base.json`, `pnpm-lock.yaml`, and `core.yaml` — the shipped
+  layer sequence `hedgehog plan`/`verify`/`next` read for this project.
+  This root `core.yaml` is a different file from `.hedgehog/core.yaml`,
+  which only exists on an authored core (see `hedgehog-core-design`) —
+  the two never coexist on the same project.
 - `packages/config/` — `eslint-base.js`, `prettier.js` (no
   `prettier-plugin-tailwindcss` — that's `apps/web`'s own config, already
   wired), `env.schema.ts` (core fields only: `DATABASE_URL`, `NODE_ENV`,

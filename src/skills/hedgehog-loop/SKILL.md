@@ -514,8 +514,10 @@ question and wait.
 On the former (a real build completion, not an ambiguity stop), offer a
 fresh-context handoff before doing anything else: tell the user the
 build is complete, and that clearing context now costs nothing. The
-permanent record is the committed intents, friction log, `core.yaml`,
-and the commit history itself — not `.hedgehog/hedgehog.db`, which is
+permanent record is the committed intents, friction log, root
+`core.yaml` (the shipped core definition — not `.hedgehog/core.yaml`,
+which only exists on an authored core), and the commit history itself —
+not `.hedgehog/hedgehog.db`, which is
 gitignored and derived, rebuildable at any time via `hedgehog db
 rebuild`. That's what makes the next session cheap.
 

@@ -284,7 +284,7 @@ the ones that were designed.
 Same fresh-context handoff as `hedgehog-loop`'s Stop Condition (offer it
 once every task is `complete`, `hedgehog boundary` exits 0, and
 scope isn't genuinely ambiguous; the permanent record is the committed
-intents, friction log, and `core.yaml`, not `.hedgehog/hedgehog.db`,
+intents, friction log, and `.hedgehog/core.yaml`, not `.hedgehog/hedgehog.db`,
 which is gitignored and derived; a `tweaker` session in a *new* chat
 window handles adjustments, using the same paste-in prompt that skill's
 Stop Condition gives). On a module axis, "every task complete" means
