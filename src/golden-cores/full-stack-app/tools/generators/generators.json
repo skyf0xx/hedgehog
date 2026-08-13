@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "name": "hedgehog",
+  "version": "0.0.1",
+  "generators": {
+    "schema": {
+      "factory": "./schema/generator",
+      "schema": "./schema/schema.json",
+      "description": "Drizzle table + drizzle-zod pair for one domain module (core.yaml's schema layer)."
+    },
+    "contract": {
+      "factory": "./contract/generator",
+      "schema": "./contract/schema.json",
+      "description": "ts-rest router + error schemas for one domain module (core.yaml's contract layer)."
+    },
+    "repository": {
+      "factory": "./repository/generator",
+      "schema": "./repository/schema.json",
+      "description": "Port interface, DI token, and Drizzle adapter lib for one domain module (core.yaml's repository layer)."
+    },
+    "service": {
+      "factory": "./service/generator",
+      "schema": "./service/schema.json",
+      "description": "Domain service lib with typed domain errors for one domain module (core.yaml's service layer)."
+    },
+    "controller": {
+      "factory": "./controller/generator",
+      "schema": "./controller/schema.json",
+      "description": "NestJS module + ts-rest controller for one domain module (core.yaml's controller layer)."
+    },
+    "hook": {
+      "factory": "./hook/generator",
+      "schema": "./hook/schema.json",
+      "description": "TanStack Query hook set for one domain module (core.yaml's hook layer)."
+    },
+    "screen": {
+      "factory": "./screen/generator",
+      "schema": "./screen/schema.json",
+      "description": "Screen skeleton wired to the hook layer for one domain module (core.yaml's screen layer)."
+    }
+  }
+}

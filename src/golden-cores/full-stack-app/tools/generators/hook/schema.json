@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "$id": "HedgehogHookLayer",
+  "title": "TanStack Query hook set for one domain module",
+  "type": "object",
+  "properties": {
+    "module": {
+      "type": "string",
+      "description": "Domain module name, plural kebab-case (e.g. tasks, order-items).",
+      "$default": { "$source": "argv", "index": 0 },
+      "x-prompt": "Domain module name (plural kebab-case)?"
+    },
+    "toggleField": {
+      "type": "string",
+      "description": "A boolean field from the schema layer to expose as a dedicated toggle mutation. Omit when the module has none."
+    }
+  },
+  "required": ["module"]
+}
