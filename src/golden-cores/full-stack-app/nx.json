@@ -6,7 +6,10 @@
     },
     "test": {
       "cache": true,
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "generate-feature-modules"]
+    },
+    "typecheck": {
+      "dependsOn": ["generate-feature-modules"]
     },
     "lint": {
       "cache": true
