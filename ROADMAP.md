@@ -24,18 +24,6 @@ does. Scope: a pre-built, pre-verified workspace under `src/golden-cores/`,
 a `--mobile` install flag, and the phase/layer build order that goes with
 it — modeled on `src/golden-cores/full-stack-app/`.
 
-### Onboarding onto an existing codebase
-
-`init` assumes a greenfield-ish start. Retrofitting Hedgehog's discipline
-onto a live codebase with existing architecture, existing tests (or none),
-and existing drift is a different problem: bootstrap has nothing to
-generate, and the build graph has no clean layer boundaries to inherit.
-Scope: an intake path that reads an existing repo's structure, proposes
-module boundaries and phase gates that fit what's already there, and lands
-`.hedgehog/` state without touching working code. Worth scoping as its own
-design discussion before a PR — this is closer in size to a new bootstrap
-skill than a single change.
-
 ### Add-ons beyond Auth, Queue, and Mobile
 
 `full-stack-app`'s Add-ons step (`hedgehog-bootstrap`) currently offers

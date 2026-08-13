@@ -44,6 +44,13 @@ discipline's stance and rationale.
   - `hedgehog-bootstrap-authored-core` — generates the workspace for the
     stack `hedgehog-core-design` chose, one pass, closing Bootstrap on an
     authored core.
+  - `hedgehog-adopt` — brings Hedgehog's discipline to an existing repo
+    without bootstrapping a workspace: reads the repo read-only, proposes
+    a linear-chain `.hedgehog/core.yaml` whose `verify` commands are the
+    repo's own, confirmed with the user, and writes only `.hedgehog/`.
+    Invoked by `planner` as Phase 0's fourth outcome, in place of any
+    bootstrap skill — the graph this produces is change-scoped only, and
+    `hedgehog-authored-loop` runs it unmodified once it's locked.
   - `hedgehog-bootstrap-landing-page-core` — lands the pre-verified
     Astro + Tailwind v4 workspace for the `landing-page` core, one pass,
     with no add-on step after it. Invoked automatically by `planner`

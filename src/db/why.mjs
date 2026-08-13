@@ -70,9 +70,20 @@ function formatVerification(verification) {
 
 // Renders whyPath()'s chain into the artifact → task → requirement →
 // intent shape from the spec's "Traceability" diagram.
+//
+// An empty chain means exactly one thing regardless of core: no task
+// this build graph ever ran wrote or touched this path. On a brownfield
+// adoption (hedgehog-adopt) that's the ordinary case for almost every
+// file in the repo — the graph is change-scoped by design and never
+// backfills a record for code that predates adoption — so the message
+// says that plainly rather than reading as a broken lookup.
 export function formatWhy(path, chain) {
   if (chain.length === 0) {
-    return `${path}\n  (no artifact recorded for this path)`;
+    return (
+      `${path}\n  (no artifact recorded for this path — no task in this build graph ` +
+      `ever wrote it; on an adopted repo this is expected for any file that predates ` +
+      `Hedgehog, not an error)`
+    );
   }
 
   const lines = [];

@@ -100,6 +100,21 @@ and the scaffolded workspace.
   and eliciting a full intake for it is ceremony on top of ceremony. This
   is a real bail-out, not a formality — don't soften it into forcing a
   core that doesn't fit.
+- **An existing repo, ongoing adoption** — the description is about
+  bringing Hedgehog's discipline to a codebase that already exists,
+  rather than building something new (the repo you're running in already
+  has real source files, or the user says so explicitly: "adopt this
+  repo", "add Hedgehog to my existing project", "I want scope/verify
+  enforcement on my changes here"). This is a distinct question from the
+  three above: it's not about which core fits new work, because no new
+  workspace gets built at all. Route straight to `hedgehog-adopt` —
+  bootstrap and every other Phase 0 outcome are skipped entirely, since
+  there is no workspace to scaffold and no golden stack to adopt toward.
+  `hedgehog-adopt` runs its own read-only intake and writes its own
+  `.hedgehog/core.yaml`; don't run `hedgehog-planning-intake`'s BMAD shelf
+  first — the drivers that skill elicits (persistence, stack, deployment
+  target) are already settled facts of the existing repo, not open
+  decisions.
 
 This is a distinct question from project *size*. A single-table, single-
 user tool (one person's task list, a personal habit tracker) is still
@@ -209,17 +224,35 @@ accounts get added where there were none).
   build graph, not a file this agent owns.
 - **landing-page**: owns `.hedgehog/BMAD/` and
   `.hedgehog/chain/00-brief.md` as artifacts.
+- **brownfield adoption**: owns nothing here — `hedgehog-adopt` owns
+  `.hedgehog/core.yaml` and `.hedgehog/adoption.md`, the same way an
+  authored core's design is `hedgehog-core-design`'s.
 
 ## Workflow
 
 1. **Read the requirement** fully before doing anything.
 2. **Run `hedgehog status` and decide which path you're on.** This is a
    branch, not a survey — the rest of the workflow depends on its answer:
-   - **No intents in the graph → first run.** Continue at step 3.
-   - **One or more intents → re-entry.** Skip steps 3, 4, and 9 entirely
-     and go to step 5's re-entry branch. The core is already chosen and
-     its workspace already scaffolded; re-deciding either is destructive,
-     not a fresh start.
+   - **No intents in the graph, and the request is new work → first
+     run.** Continue at step 3.
+   - **No intents in the graph, and the request is adoption onto an
+     existing repo → brownfield first run.** Skip Phase 0's core
+     selection and every step below through step 9 — go straight to
+     `hedgehog-adopt`. It runs its own intake and Confirm & Lock, writes
+     `.hedgehog/core.yaml` and `.hedgehog/adoption.md`, and adds the
+     first intent(s) itself. Return the summary (step 10) once it's done.
+   - **One or more intents, on `.hedgehog/core.yaml` written by
+     `hedgehog-adopt` → adoption re-entry.** New change-work on a repo
+     already under adoption. Skip steps 3, 4, and 9. At step 5, add the
+     new intent(s) directly via `hedgehog intent add` (goal, outcome,
+     scope inferred from the change being requested) rather than running
+     `hedgehog-planning-intake`'s Re-entry pass — there is no BMAD
+     archive to read as context on this path, since adoption never runs
+     one. Then run `hedgehog plan` as step 7 does.
+   - **One or more intents, on any other core → re-entry.** Skip steps 3,
+     4, and 9 entirely and go to step 5's re-entry branch. The core is
+     already chosen and its workspace already scaffolded; re-deciding
+     either is destructive, not a fresh start.
 
    Read the commit log alongside it for what's already built —
    full-stack-app: `feat(<module>): api` commits and each task's status in
@@ -266,26 +299,31 @@ accounts get added where there were none).
    `complete` tasks keep their status.
 8. **Commit planning intake's output as one commit** —
    `chore(planning): intake` on a first run, `chore(planning): extend
-   scope` on re-entry, so the two passes are distinguishable in the log.
-   It carries the committed `.hedgehog/hedgehog.db` (its new intent and
-   task rows on full-stack-app), `.hedgehog/addons.yaml` (full-stack-app
-   only, and on re-entry only if a trigger actually changed), this core's
-   own archival planning output (`.hedgehog/BMAD/` or `.hedgehog/chain/`,
-   first run only), the authored core's `.hedgehog/core.yaml` and
+   scope` on re-entry (adoption re-entry: `chore(planning): adopt
+   change`), so the passes are distinguishable in the log. It carries the
+   committed `.hedgehog/hedgehog.db` (its new intent and task rows on
+   full-stack-app and on adoption re-entry), `.hedgehog/addons.yaml`
+   (full-stack-app only, and on re-entry only if a trigger actually
+   changed), this core's own archival planning output (`.hedgehog/BMAD/`
+   or `.hedgehog/chain/`, first run only, not written on the brownfield
+   path at all), the authored core's `.hedgehog/core.yaml` and
    `.hedgehog/core-design.md` if step 4 ran, and root `CLAUDE.md`'s filled
-   placeholders (first run only). Write these with the `no-history-in-output`
-   skill: current state only, no narration of the intake conversation.
-   This is planning intake's own unit of work, landed before `bootstrap`
-   touches anything.
-9. **First run only — hand off to the `bootstrap` agent** once the
-   commit lands. It scaffolds the chosen core's workspace (and, for
-   full-stack-app, whichever add-ons are on) before any build step
-   starts. On re-entry the workspace already exists: hand straight to
-   this core's loop skill instead, which picks the new work up from
-   `hedgehog next`.
-10. **Return a summary**: which core (naming it as authored, if it is),
-    the intents added (or subject statement, for landing-page), any open
-    questions.
+   placeholders (first run only, not on the brownfield path — adoption
+   never touches root `CLAUDE.md`). Write these with the
+   `no-history-in-output` skill: current state only, no narration of the
+   intake conversation. This is planning intake's own unit of work,
+   landed before `bootstrap` touches anything.
+9. **First run only, and not on the brownfield path — hand off to the
+   `bootstrap` agent** once the commit lands. It scaffolds the chosen
+   core's workspace (and, for full-stack-app, whichever add-ons are on)
+   before any build step starts. On re-entry (any core, including
+   adoption) the workspace already exists or was never meant to:  hand
+   straight to this core's loop skill instead (`hedgehog-authored-loop`
+   for an adopted repo — see `hedgehog-adopt`), which picks the new work
+   up from `hedgehog next`.
+10. **Return a summary**: which core (naming it as authored or adopted,
+    if it is), the intents added (or subject statement, for
+    landing-page), any open questions.
 
 ## Constraints
 
@@ -293,12 +331,20 @@ accounts get added where there were none).
   codebase; you may write `.hedgehog/addons.yaml` (full-stack-app only —
   see "The Add-ons decision" below), `.hedgehog/core.yaml` and
   `.hedgehog/core-design.md` (authored cores only, via
-  `hedgehog-core-design`), this core's own archival planning
+  `hedgehog-core-design`), `.hedgehog/core.yaml` and
+  `.hedgehog/adoption.md` (brownfield adoption only, via
+  `hedgehog-adopt`), this core's own archival planning
   output (`.hedgehog/BMAD/` or `.hedgehog/chain/` — write-once, never
-  edited after it's written), and — first run only — root `CLAUDE.md`'s
-  `{{PROJECT_NAME}}`/`{{PROJECT_SUMMARY}}` placeholders and its installer
-  comment block. `hedgehog intent add` and `hedgehog plan` are how you
-  write the build graph itself — not a file you edit directly.
+  edited after it's written), and — first run only, and not on the
+  brownfield path — root `CLAUDE.md`'s `{{PROJECT_NAME}}`/
+  `{{PROJECT_SUMMARY}}` placeholders and its installer comment block.
+  `hedgehog intent add` and `hedgehog plan` are how you write the build
+  graph itself — not a file you edit directly.
+- On the brownfield path, never route toward converting the host repo's
+  existing stack, structure, or conventions toward any Golden Core's —
+  not even as a suggestion. `hedgehog-adopt` designs `verify` commands
+  and layer order around what the repo already uses; it doesn't propose
+  Nx, Drizzle, or any other opinionated choice a shipped core would make.
 - Never touch root `CLAUDE.md` outside those placeholders. Every other
   line is a Hedgehog constant for this project's core (stack, layout,
   rules, agent/skill pointers) shared verbatim across every Hedgehog

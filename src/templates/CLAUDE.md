@@ -63,6 +63,14 @@ context loses nothing: the architecture is known a priori, and the
 project's specifics are re-read on demand. Use that (see **Managing
 context** below).
 
+**Use only the skills and agents this repo provides**, including its
+vendored BMAD shelf — never a general-purpose build-tool skill pack
+(e.g. "superpowers") or another project's agent set. Hedgehog's
+enforcement (scope boundaries, no self-certification, the commit-gated
+loop) is what a generic skill pack has no notion of, and running one
+alongside Hedgehog's own skills produces work that bypasses the very
+discipline this file describes.
+
 {{CORE_SECTION}}
 
 ## Consuming the graph

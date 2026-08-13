@@ -130,6 +130,20 @@ then generates that workspace and builds it one verified layer at a time.
 The enforcement remains the same: ordered steps,
 scoped file access and a verification command per layer.
 
+### An existing codebase
+
+Hedgehog also adopts onto a repo it didn't build. It never maps the
+existing architecture, never converts your stack, and never touches
+working code — it reads your repo's own test/lint/build commands, confirms
+them with you, and locks them into a change-order `.hedgehog/core.yaml`.
+From there, every new change lands through the same scoped, verified,
+committed loop — coverage grows only as new work passes through it, and
+that's by design: pre-existing code is context to respect, never a
+task to fabricate.
+
+Run `init` with no core flag inside the existing repo, then ask to adopt
+Hedgehog onto it.
+
 ## Why Hedgehog Works
 
 ![Why Hedgehog works](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/why.png)
