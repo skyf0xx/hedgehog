@@ -79,6 +79,9 @@
     "zod": "^4.4.3"
   },
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "lefthook"
+    ],
     "overrides": {
       "esbuild": "0.25.12",
       "axios": "^1.18.0",
