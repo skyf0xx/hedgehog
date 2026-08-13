@@ -138,6 +138,13 @@ npx @skyf0xx/hedgehog init
 
 Then open your coding agent and describe what you want to build.
 
+The golden cores print a `pnpm install` step as part of their next steps.
+On a fresh project with no warm pnpm store, that first install can take
+several minutes — it's pulling a full monorepo toolchain (Nx, webpack,
+sass-embedded, Playwright, etc.) and, on first commit, running the commit
+gate against the whole workspace. A quiet stretch of output during that
+step is expected, not a hang.
+
 ### Coding agents
 
 Hedgehog installs for **Claude Code** by default. Add a host flag to

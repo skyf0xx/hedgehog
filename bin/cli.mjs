@@ -504,6 +504,18 @@ async function init({ force, core, explicitCore, host = DEFAULT_HOST, hostOnly =
     // runs the whole workspace (see lefthook.yml), so expect it to take
     // as long as a full typecheck/lint/test — that is the gate working.
     console.log(`  1. ${bold('pnpm install')}`);
+    console.log(
+      dim('     First run can take several minutes — full dependency install plus'),
+    );
+    console.log(dim('     the commit gate running against the whole workspace. This is'));
+    console.log(dim('     expected; let it finish rather than treating a quiet stretch as stuck.'));
+    console.log(
+      dim('     If an agent is running this: tell the user up front that first install'),
+    );
+    console.log(
+      dim('     can take several minutes and why, then check on progress every ~30s'),
+    );
+    console.log(dim('     instead of polling tightly or narrating the wait.'));
     console.log(`  2. ${bold('git add -A && git commit -m "chore: install Hedgehog"')}`);
     console.log(`  3. Open ${HOSTS[host].label} and describe what you want to build.`);
   } else {
