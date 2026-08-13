@@ -29,6 +29,8 @@ something they want to build.
 Suggest trying it on a new, simple project
 in an empty directory first.
 
+Instruct them to mention `hedgehog` in their request to build something.
+
 </details>
 
 ## How it works
@@ -147,19 +149,9 @@ scoped file access and a verification command per layer.
 
 ### Existing codebases
 
-Hedgehog also adopts onto a repo it didn't build. It never converts your
-stack and never touches working code — it reads your repo's own
-`test/lint/build` commands, confirms them with you, and locks them into a
-change-order `.hedgehog/core.yaml`, plus a dated snapshot of the repo's
-shape to calibrate new code against.
+Hedgehog also adopts onto existing repos.
 
-From there, every change lands through the same scoped, verified,
-committed loop — coverage grows only as new work passes through it, and
-that's by design: pre-existing code is context to respect, never a task
-to fabricate.
-
-Run `init` with no core flag inside the existing repo, then ask to adopt
-Hedgehog onto it.
+It scans the repo's shape and is able to create new changes with the same scoped, verified, committed loop.
 
 ## Why Hedgehog Works
 
@@ -169,7 +161,7 @@ Hedgehog onto it.
 
 Ask your agent to install it or run the commands below:
 
-Hedgehog will activate whenever you want to build something.
+Mention `Hedgehog` whenever you want to build something with it.
 
 ### Claude Code
 
