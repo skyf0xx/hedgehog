@@ -653,6 +653,20 @@ async function resolveCorePath() {
   return null;
 }
 
+// The active core's `id` (e.g. `full-stack-app`), or null when no core has
+// landed yet or it fails to parse — packet rendering degrades gracefully
+// either way (see next.mjs's layerShapeLines), so a caller only asking for
+// the id doesn't need its own try/catch.
+async function resolveCoreId() {
+  const corePath = await resolveCorePath();
+  if (!corePath) return null;
+  try {
+    return (await loadCore(corePath)).id;
+  } catch {
+    return null;
+  }
+}
+
 // `hedgehog plan --recompile` — the reconciliation path for a core.yaml
 // edited after `plan` already compiled it.
 //
@@ -973,7 +987,7 @@ async function nextCommand() {
     console.error('');
   }
 
-  console.log(formatNext(packet));
+  console.log(formatNext(packet, await resolveCoreId()));
 }
 
 function printStalledTasks(stalled) {
@@ -1192,14 +1206,15 @@ async function verifyCommand(args) {
 // doesn't print the packet here, the STATUS/ALLOWED SCOPE/VERIFICATION an
 // agent is supposed to be dispatched with is no longer reachable from any
 // command. (`hedgehog show <task-id>` reprints it later.)
-function printPackets(tasks) {
+async function printPackets(tasks) {
+  const coreId = await resolveCoreId();
   const db = openDb();
   try {
     for (const task of tasks) {
       const packet = taskPacket(db, task.id);
       if (!packet) continue;
       console.log();
-      console.log(formatPacket(packet, taskStatusLine(packet.task)));
+      console.log(formatPacket(packet, taskStatusLine(packet.task), coreId));
     }
   } finally {
     db.close();
@@ -1286,7 +1301,7 @@ async function claimCommand(args) {
     if (claimed.length > 1) console.log(`  ${bold(task.id)}`);
     console.log(`  ${dim('expires')}  ${task.lease_expires_at}`);
   }
-  printPackets(claimed);
+  await printPackets(claimed);
 }
 
 // The targeted half of `claim`: one named task, or a non-zero exit
@@ -1305,7 +1320,7 @@ async function claimOneCommand(taskId, owner) {
   if (result.claimed) {
     console.log(`${green(bold('Claimed.'))} Task ${bold(taskId)} leased to ${bold(owner)}.`);
     console.log(`  ${dim('expires')}  ${result.task.lease_expires_at}`);
-    printPackets([result.task]);
+    await printPackets([result.task]);
     return;
   }
 
@@ -1429,7 +1444,7 @@ async function showCommand(args) {
     return;
   }
 
-  console.log(formatPacket(packet, taskStatusLine(packet.task)));
+  console.log(formatPacket(packet, taskStatusLine(packet.task), await resolveCoreId()));
 }
 
 // `hedgehog release <task-id> --owner <owner>` — hands a claimed task

@@ -251,6 +251,33 @@ Never widen a scope to route around a violation the Correction Protocol
 should handle — this is for a package shell the layer genuinely creates,
 nothing else.
 
+**Generate the shell — never hand-author it.** `@nx/js:lib` produces a
+correct, non-buildable, Vitest-wired `package.json`/`tsconfig*.json`/
+`vitest.config.mts`/`src/index.ts` in one deterministic step; hand-copying
+a sibling package invites exactly the kind of drift (missing `nx.tags`,
+missing project references) `hedgehog verify`'s lint step then has to
+catch. Run the generator for the layer that's first-arriving, then add its
+tags — the pair `eslint-base.js`'s `depConstraints` expects (see its own
+tag reference table) — to the generated `package.json`'s `"nx".tags`:
+
+```bash
+# contract — first module through this layer only
+npx nx g @nx/js:lib packages/contracts --bundler=none --unitTestRunner=vitest
+# then set "nx": { "tags": ["scope:contracts", "type:contract"] } in packages/contracts/package.json
+
+# hook — first module through this layer only
+npx nx g @nx/js:lib packages/hooks --bundler=none --unitTestRunner=vitest
+# then set "nx": { "tags": ["scope:hooks", "type:hook"] } in packages/hooks/package.json
+
+# repository — every module, new lib each time
+npx nx g @nx/js:lib libs/{module}/repository --bundler=none --unitTestRunner=vitest
+# then set "nx": { "tags": ["scope:{module}", "type:adapter"] } in libs/{module}/repository/package.json
+
+# service — every module, new lib each time
+npx nx g @nx/js:lib libs/{module}/service --bundler=none --unitTestRunner=vitest
+# then set "nx": { "tags": ["scope:{module}", "type:service"] } in libs/{module}/service/package.json
+```
+
 **Wire the new package in before reporting the layer done.** A package
 that exists on disk isn't yet part of the workspace:
 

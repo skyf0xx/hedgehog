@@ -32,7 +32,9 @@ before the next starts.
 Use `nx-run-tasks` (build/lint/test/typecheck), `nx-workspace` (inspecting
 project/target config), `nx-generate` (scaffolding a new library/app), and
 `link-workspace-packages` (wiring a new package into a consumer) as
-needed.
+needed. The `hook` layer's first-arrival package shell is a generator
+call, not a hand-copy of a sibling package — `hedgehog-loop`'s "First
+arrival in a package" section names the exact command and tags.
 
 If the screen step calls for animation or motion — entrances, sequencing,
 scroll-driven effects, drag, SVG/morph effects — use GSAP, loading the

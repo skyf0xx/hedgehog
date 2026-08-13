@@ -234,6 +234,47 @@ export function taskStatusLine(task) {
   return task.status.toUpperCase();
 }
 
+// full-stack-app's own layer → Nx tag shape, mirroring the tag reference
+// table `src/golden-cores/full-stack-app/packages/config/eslint-base.js`
+// ships as a comment. A layer's `depConstraints` failure is a mechanical
+// consequence of this table crossed with `core.yaml`'s `depends_on` chain
+// — printing it in the packet turns that failure into a pre-flight fact
+// instead of something `nx lint` teaches the agent after the fact. Keyed
+// by layer id, not module, since the shape is the same for every module.
+const FULL_STACK_APP_LAYER_TAGS = {
+  schema: { tags: ['scope:db', 'type:adapter'], dependsOnTags: [] },
+  contract: { tags: ['scope:contracts', 'type:contract'], dependsOnTags: ['type:adapter', 'type:util'] },
+  repository: { tags: ['scope:{module}', 'type:adapter'], dependsOnTags: ['type:adapter', 'type:contract', 'type:util'] },
+  service: { tags: ['scope:{module}', 'type:service'], dependsOnTags: ['type:adapter', 'type:contract', 'type:util'] },
+  controller: { tags: ['scope:api'], dependsOnTags: ['type:adapter', 'type:service', 'type:contract', 'type:util'] },
+  hook: { tags: ['scope:hooks', 'type:hook'], dependsOnTags: ['type:contract', 'type:util'] },
+  screen: { tags: ['scope:web'], dependsOnTags: ['scope:contracts', 'scope:hooks', 'scope:shared', 'type:util'] },
+};
+
+// A LAYER SHAPE section for full-stack-app tasks only (`coreId ===
+// 'full-stack-app'`) — an authored core has no equivalent tag scheme
+// (layer-eng.md already points that agent at reading .hedgehog/core.yaml
+// directly instead), and `join` has no fixed tag shape of its own to
+// state, so both fall through to null and print nothing.
+function layerShapeLines(task, coreId) {
+  if (coreId !== 'full-stack-app') return null;
+  const shape = FULL_STACK_APP_LAYER_TAGS[task.layer];
+  if (!shape) return null;
+  const tags = shape.tags.map((t) => t.replace('{module}', task.module));
+  const lines = ['LAYER SHAPE', `  this layer's tags:      ${tags.join(', ')}`];
+  if (shape.dependsOnTags.length === 0) {
+    lines.push('  may depend on tags:     (nothing in-workspace — floor layer)');
+  } else {
+    lines.push(`  may depend on tags:     ${shape.dependsOnTags.join(', ')}`);
+  }
+  lines.push(
+    "  Confirm against packages/config/eslint-base.js's depConstraints before",
+    "  writing an import — a mismatch here is a pre-flight fact, not a lint",
+    '  failure to discover later.',
+  );
+  return lines;
+}
+
 // The standing honesty requirement, appended to every packet.
 //
 // Every other section is task-specific — this one is constant, which is
@@ -264,8 +305,8 @@ const HONESTY = [
 ];
 
 // Renders a packet into the STATUS / INTENT / RELEVANT RULES /
-// INHERITED DEBT / WHY NOW / BLOCKED DOWNSTREAM / ALLOWED SCOPE /
-// VERIFICATION / HONESTY format. The spec
+// INHERITED DEBT / WHY NOW / BLOCKED DOWNSTREAM / ALLOWED SCOPE / LAYER
+// SHAPE / VERIFICATION / HONESTY format. The spec
 // splits this across two examples — the `hedgehog next` display and "The
 // task packet" (which carries the intent and its rules) — but an agent
 // receives one thing, so the packet is one thing: everything the worker
@@ -273,12 +314,15 @@ const HONESTY = [
 //
 // `statusLine` is what goes on the STATUS row. `next` passes READY
 // literally, as it always has; `show` passes taskStatusLine(task), which
-// names the task's real state.
+// names the task's real state. `coreId` is the active core's `id` (from
+// `core.yaml`) — optional, since a caller with no core resolved yet (a
+// deferred install) still has to be able to render *something*; LAYER
+// SHAPE only ever appears for a recognised full-stack-app layer.
 //
 // HONESTY is last deliberately: it's the one section that qualifies the
 // gate above it, so it reads as the answer to "and what if I can't clear
 // VERIFICATION honestly" rather than as preamble.
-export function formatPacket(packet, statusLine) {
+export function formatPacket(packet, statusLine, coreId = null) {
   const { task, intent, requirements, dependents, incompleteDeps = [], inheritedDebt = [] } = packet;
   const scopeGlobs = JSON.parse(task.scope_globs);
 
@@ -346,6 +390,11 @@ export function formatPacket(packet, statusLine) {
   lines.push('ALLOWED SCOPE');
   for (const glob of scopeGlobs) lines.push(`  ${glob}`);
   lines.push('');
+  const shapeLines = layerShapeLines(task, coreId);
+  if (shapeLines) {
+    lines.push(...shapeLines);
+    lines.push('');
+  }
   lines.push('VERIFICATION');
   lines.push(`  ${task.verify_command}`);
   lines.push('');
@@ -354,8 +403,8 @@ export function formatPacket(packet, statusLine) {
   return lines.join('\n');
 }
 
-// `hedgehog next`'s rendering, unchanged: its task always came out of the
-// readiness SELECT, so STATUS is READY by construction.
-export function formatNext(packet) {
-  return formatPacket(packet, 'READY');
+// `hedgehog next`'s rendering: its task always came out of the readiness
+// SELECT, so STATUS is READY by construction.
+export function formatNext(packet, coreId = null) {
+  return formatPacket(packet, 'READY', coreId);
 }
