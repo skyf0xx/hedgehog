@@ -70,7 +70,12 @@ jobs:
       - name: Reject unexpected new package.json files
         run: |
           BASE="origin/${{ github.base_ref }}"
-          NEW_MANIFESTS=$(git diff --name-only --diff-filter=A "$BASE"...HEAD -- '**/package.json' ':!package.json')
+          # src/golden-cores/full-stack-app/tools/generators/package.json is
+          # Nx's own discovery mechanism for a local generator collection —
+          # its "generators" field points at generators.json, which is how
+          # `nx g ./tools/generators:<layer>` resolves at all. Not a manifest
+          # a package manager installs against; excluded on that basis.
+          NEW_MANIFESTS=$(git diff --name-only --diff-filter=A "$BASE"...HEAD -- '**/package.json' ':!package.json' ':!src/golden-cores/full-stack-app/tools/generators/package.json')
           if [ -n "$NEW_MANIFESTS" ]; then
             echo "::error::New package.json in an unexpected location:"
             echo "$NEW_MANIFESTS"

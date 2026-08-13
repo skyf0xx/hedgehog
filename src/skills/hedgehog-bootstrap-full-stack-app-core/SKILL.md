@@ -48,9 +48,16 @@ copied to the repo root:
   line to (in that layer's scope — see `core.yaml`). Tagged `scope:db`,
   `type:adapter`.
 - `apps/api/` — Nest shell, `nestjs-pino` wired, CORS enabled for
-  `WEB_ORIGIN`, health check only, no domain controllers. `apps/api-e2e`
-  already converted to Vitest with an explicit `e2e` target. Tagged
-  `scope:api`.
+  `WEB_ORIGIN`, health check only, no domain controllers. Vitest wired
+  (`vitest.config.mts`, `tsconfig.spec.json` with
+  `experimentalDecorators`/`emitDecoratorMetadata` for `Test.createTestingModule`),
+  with a smoke test (`app.module.spec.ts`) instantiating `AppModule`.
+  `apps/api/src/app/feature-modules.ts` is a generated barrel — see
+  **The controller barrel** below — that `AppModule` imports and spreads
+  into its `imports`, so no domain module's controller layer ever edits
+  `app.module.ts`. Depends on `packages/db` (the controller layer imports
+  it by construction). `apps/api-e2e` already converted to Vitest with an
+  explicit `e2e` target. Tagged `scope:api`.
 - `apps/web/` — `.env.example` (`NEXT_PUBLIC_API_BASE_URL`, copied to
   `apps/web/.env.local` in step 4 — Next loads env files from the app
   directory, so the root `.env` never reaches it; the value carries
@@ -59,9 +66,14 @@ copied to the repo root:
   `cn()` util, CSS variable theme, light/dark toggle via an inline
   pre-hydration script + a client-side `ThemeToggle`), TanStack Query
   provider at the root layout, `prettier-plugin-tailwindcss` scoped to
-  its own `.prettierrc.js`. Tagged `scope:web`. `apps/web-e2e` (Playwright,
-  scaffolded automatically by `@nx/next:app`) gets its own `e2e` target by
-  default — no rename needed, unlike `apps/api-e2e`.
+  its own `.prettierrc.js`. Vitest wired for jsdom (`vitest.config.mts`
+  with the `@vitejs/plugin-react` plugin and the `@/*` -> `./src/*` alias
+  apps/web/tsconfig.json already declares, `tsconfig.spec.json`,
+  `src/test-setup.ts` loading `@testing-library/jest-dom`'s matchers),
+  with a smoke test (`theme-toggle.spec.tsx`) rendering and clicking
+  `ThemeToggle` via Testing Library. Tagged `scope:web`. `apps/web-e2e`
+  (Playwright, scaffolded automatically by `@nx/next:app`) gets its own
+  `e2e` target by default — no rename needed, unlike `apps/api-e2e`.
 - The full `@nx/enforce-module-boundaries` `depConstraints` list for
   exactly these tags, matching the project shape `core.yaml`'s layer
   sequence actually produces — plus the `no-restricted-imports` rules that
@@ -79,6 +91,46 @@ copied to the repo root:
 `node_modules` is not part of the copy — `pnpm install` regenerates it
 from the committed `pnpm-lock.yaml`, which is a fast resolve against a
 locked graph, not a fresh solve.
+
+## The controller barrel
+
+`apps/api/src/app/app.module.ts` never takes a per-module edit.
+`core.yaml`'s controller layer scope is `apps/api/src/app/{module}/**` —
+module-disjoint by construction, so two modules' controller tasks never
+touch the same file — but `app.module.ts` itself sits outside every
+module's scope, and `src/db/core.mjs`'s `validateCore` rejects a
+non-exclusive layer whose scope omits `{module}` on a module-axis core,
+so the controller layer's scope can't be widened to include it either. A
+file two concurrent module builds both hand-edited would also be
+invisible to the scheduler's conflict check (`src/db/conflict.mjs` only
+compares each task's own declared scope globs), so even a single shared
+line to append to would race undetected.
+
+`apps/api/src/app/feature-modules.ts` solves this by never being
+hand-edited at all: `tools/generate-feature-modules.cjs` globs
+`apps/api/src/app/*/*.module.ts` and writes it as a generated barrel — a
+literal `import { XModule } from './x/x.module'` per domain module found,
+plus an exported `featureModules` array — every time the
+`generate-feature-modules` Nx target runs. `AppModule` imports that one
+generated file and spreads `featureModules` into its own `imports`. A
+module's controller layer only ever creates its own `{module}.module.ts`
+inside its own `apps/api/src/app/{module}/` directory — always in scope,
+never colliding with any other module's controller task. In the shipped
+core, no domain module exists yet, so the glob finds nothing and
+`feature-modules.ts` exports an empty array.
+
+`generate-feature-modules` is wired as an explicit Nx target on `apps/api`
+(`apps/api/package.json`'s `nx.targets`), cached, with `build` declaring
+it as a `dependsOn`; `test` and `typecheck` pick it up the same way
+through `nx.json`'s `targetDefaults` (a project with no matching target,
+such as `db` or `web`, silently skips a missing `dependsOn` entry rather
+than failing). Static imports rather than a runtime directory scan:
+`apps/api` builds through `NxAppWebpackPlugin`, which bundles by
+statically walking `main.ts`'s import graph — a file never reached by a
+static `import`/`require` is dropped from the bundle entirely, so a
+runtime `fs.readdirSync` scan for sibling files would find nothing in the
+built output even though the same scan works when Vitest runs the same
+source directly. Generating literal imports keeps both paths identical.
 
 ## Steps
 
@@ -271,6 +323,15 @@ bug by "cleaning up" what looks like an unnecessary pin or directive.
   connection error — easy to mistake for a routing bug in the api
   itself). Keep `apps/api`'s fallback at `3333` and don't let it drift
   back to matching Next's default.
+- **`apps/web/vitest.config.mts` needs `environment: 'jsdom'`, the
+  `@vitejs/plugin-react` plugin, and the `@/*` -> `./src/*` alias resolved
+  explicitly.** `@nx/next:app --unitTestRunner=vitest` generates a
+  Node-flavored config with no JSX plugin and no alias resolution — wrong
+  for a React app, and Vitest doesn't read `tsconfig.json`'s `paths` on
+  its own. `apps/web/src/test-setup.ts` (loading
+  `@testing-library/jest-dom/vitest`) is wired as the config's
+  `setupFiles` entry so `toBeInTheDocument()` and friends resolve in every
+  spec without a per-file import.
 - **No `NODE_ENV=production` build-target override needed** (Nx
   23.1.0, Next 16.1.7). Targets are inferred from
   `package.json`/`next.config.js` via the `@nx/next` plugin, with no

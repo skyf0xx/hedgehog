@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/schema",
+  "$id": "HedgehogRepositoryLayer",
+  "title": "Port, DI token, and Drizzle adapter for one domain module",
+  "type": "object",
+  "properties": {
+    "module": {
+      "type": "string",
+      "description": "Domain module name, plural kebab-case (e.g. tasks, order-items).",
+      "$default": { "$source": "argv", "index": 0 },
+      "x-prompt": "Domain module name (plural kebab-case)?"
+    }
+  },
+  "required": ["module"]
+}

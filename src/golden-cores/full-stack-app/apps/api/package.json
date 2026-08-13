@@ -4,8 +4,25 @@
   "private": true,
   "nx": {
     "targets": {
+      "generate-feature-modules": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "{projectRoot}/src/app/*/*.module.ts"
+        ],
+        "outputs": [
+          "{projectRoot}/src/app/feature-modules.ts"
+        ],
+        "options": {
+          "command": "node tools/generate-feature-modules.cjs",
+          "cwd": "{workspaceRoot}"
+        }
+      },
       "build": {
         "executor": "nx:run-commands",
+        "dependsOn": [
+          "generate-feature-modules"
+        ],
         "options": {
           "command": "webpack-cli build",
           "env": {
@@ -91,7 +108,8 @@
     "tslib": "^2.3.0",
     "nestjs-pino": "^4.6.1",
     "pino-http": "^11.0.0",
-    "config": "workspace:*"
+    "config": "workspace:*",
+    "db": "workspace:*"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.0.0"

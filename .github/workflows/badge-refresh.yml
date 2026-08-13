@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BADGE_REFRESH_TOKEN }}
 
       - name: Fetch npm downloads badge
         run: |

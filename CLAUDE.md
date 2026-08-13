@@ -138,3 +138,14 @@ and any shared config or generators the discipline references.
 - A fact restated across multiple agents/skills (e.g. the commit-message
   format, the domain module shape) has exactly one owning file; others
   reference it by name rather than restating the substance.
+- Where a deterministic generator (e.g. an Nx generator or template) can
+  produce a piece of code — tests, modules, boilerplate — prefer it over
+  having an agent write that code freehand, in golden cores and
+  elsewhere. Generated output is cheaper, faster, and more consistent
+  than LLM-authored equivalents; reach for an agent only for the parts a
+  generator can't cover. Building the generator costs more up front than
+  writing the one-off by hand, but pays that back many times over across
+  every future use — treat that up-front cost as worth paying, not a
+  reason to skip the generator. When work reveals a repeatable shape that
+  has no generator yet, propose building one rather than writing the
+  code by hand again.
