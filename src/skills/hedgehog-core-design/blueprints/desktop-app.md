@@ -17,7 +17,7 @@ renderer — the UI, reaching the privileged process only through ipc
 - Merge `domain` into `main` for an app whose logic is mostly OS
   orchestration (a launcher, a sync daemon with a thin window) — there's
   no separable domain to isolate.
-- Add a `persistence` layer between `domain` and `main`, depending on
+- Add a `persistence` layer between `main` and `domain`, depending on
   `domain`, when the app owns a real local store (SQLite, a document
   format) rather than plain preference files.
 - On a native stack (Swift/AppKit, C#/WinUI) the `ipc` layer disappears —
