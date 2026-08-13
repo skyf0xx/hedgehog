@@ -34,10 +34,19 @@ build exactly what its ALLOWED SCOPE names, one layer at a time, gated by
 Use `nx-run-tasks` (build/lint/test/typecheck), `nx-workspace` (inspecting
 project/target config), `nx-generate` (scaffolding a new library/app), and
 `link-workspace-packages` (wiring a new package into a consumer) as
-needed. A layer's first-arrival package shell (`contract`, `repository`,
-`service`) is a generator call, not a hand-copy of a sibling package —
-`hedgehog-loop`'s "First arrival in a package" section names the exact
-command and tags for each.
+needed.
+
+**Every layer you own starts from its generator in `tools/generators/`** —
+one per layer (`schema`, `contract`, `repository`, `service`,
+`controller`), each landing that layer's package shell, `nx.tags`,
+port-discipline file suffixes, Nest module/controller pair, and barrel
+wiring in one step. The claimed packet's LAYER SHAPE section prints the
+exact command for the layer you're on; `hedgehog-loop`'s "Scaffolding a
+layer" section owns the full flag contract and the workspace wiring a new
+package needs. Generate first, then author this entity's delta — the field
+list and its types, and the business rules below — on top. A hand-copy of
+a sibling module is the drift `hedgehog verify`'s lint step then has to
+catch.
 
 ## Core Responsibilities
 
@@ -98,18 +107,20 @@ command and tags for each.
    `complete` — no need to re-derive that by hand. Cross-module FK
    targets should already have their own schema landed (the packet's
    dependencies guarantee this); check before writing the FK column.
-2. Build exactly one layer, matching the packet's ALLOWED SCOPE. Run
-   typecheck, lint, and test yourself as a sanity check before reporting
-   back — necessary, not sufficient. If this layer also has to create the
-   package it lands in (the first module through `contract` creates
-   `packages/contracts`), its shell files sit outside the packet's ALLOWED
-   SCOPE and `hedgehog verify` will leave them uncommitted — stop and say
-   so before building, so the scope can be widened for this one task
+2. Build exactly one layer, matching the packet's ALLOWED SCOPE: run its
+   generator, then author this entity's delta. Run typecheck, lint, and
+   test yourself as a sanity check before reporting back — necessary, not
+   sufficient. If this layer also has to create the package it lands in
+   (the first module through `contract` creates `packages/contracts`), the
+   shell files its generator lands sit outside the packet's ALLOWED SCOPE
+   and `hedgehog verify` will leave them uncommitted — stop and say so
+   before building, so the scope can be widened for this one task
    (`hedgehog-loop`, "First arrival in a package"). Don't build against a
-   scope you already know won't commit your work. That section also owns
-   the workspace wiring a new package needs (`pnpm install`, `pnpm nx
-   sync`, and its own `chore(workspace):` commit) — follow it rather than
-   leaving the package unlinked for a later layer to trip over.
+   scope you already know won't commit your work. `hedgehog-loop`'s
+   "Scaffolding a layer" section owns the workspace wiring a new package
+   needs (`pnpm install`, `pnpm nx sync`, and its own `chore(workspace):`
+   commit) — follow it rather than leaving the package unlinked for a
+   later layer to trip over.
 3. **Report the work as done; do not commit it yourself.** Per the build
    graph's design, an agent reporting success never moves a task — only
    `hedgehog verify <task-id>`'s passing exit code does. It checks your

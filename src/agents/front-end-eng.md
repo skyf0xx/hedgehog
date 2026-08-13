@@ -32,9 +32,20 @@ before the next starts.
 Use `nx-run-tasks` (build/lint/test/typecheck), `nx-workspace` (inspecting
 project/target config), `nx-generate` (scaffolding a new library/app), and
 `link-workspace-packages` (wiring a new package into a consumer) as
-needed. The `hook` layer's first-arrival package shell is a generator
-call, not a hand-copy of a sibling package — `hedgehog-loop`'s "First
-arrival in a package" section names the exact command and tags.
+needed.
+
+**Both layers you own start from their generator in `tools/generators/`** —
+`hook` lands `packages/hooks`'s shell, `nx.tags`, the query hook set, and
+its barrel wiring; `screen` lands the route, the screen component wired to
+that hook, and its test file. The claimed packet's LAYER SHAPE section
+prints the exact command for the layer you're on; `hedgehog-loop`'s
+"Scaffolding a layer" section owns the full flag contract and the
+workspace wiring a new package needs. Generate first, then author this
+entity's delta on top. The `screen` generator is skeleton-only by
+design — placeholders for the list, filter shell, empty state, and form,
+with layout, information hierarchy, and interaction pattern left to
+`ux-planner`'s rationale and your build, so no two modules' screens come
+out identical before anyone decided they should.
 
 If the screen step calls for animation or motion — entrances, sequencing,
 scroll-driven effects, drag, SVG/morph effects — use GSAP, loading the
@@ -93,14 +104,15 @@ don't reach for a second one.
    no such confirmation, stop — you're being asked to build Phase B
    early.
 2. Build the hook against the contract client, matching the packet's
-   ALLOWED SCOPE. Run typecheck, lint, and test yourself as a sanity
-   check before reporting back — necessary, not sufficient. On the first
-   module through this layer, the hook also creates `packages/hooks`, and
-   that package's shell sits outside the packet's ALLOWED SCOPE —
-   `hedgehog verify` would leave it uncommitted. Stop and say so before
-   building, so the scope can be widened for this one task
-   (`hedgehog-loop`, "First arrival in a package") — that section also
-   owns the workspace wiring the new package needs.
+   ALLOWED SCOPE: run its generator, then author this entity's delta. Run
+   typecheck, lint, and test yourself as a sanity check before reporting
+   back — necessary, not sufficient. On the first module through this
+   layer, the hook also creates `packages/hooks`, and that package's shell
+   sits outside the packet's ALLOWED SCOPE — `hedgehog verify` would leave
+   it uncommitted. Stop and say so before building, so the scope can be
+   widened for this one task (`hedgehog-loop`, "First arrival in a
+   package"); `hedgehog-loop`'s "Scaffolding a layer" section owns the
+   workspace wiring the new package needs.
 3. **Report the work as done; do not commit it yourself.** Only
    `hedgehog verify <task-id>`'s passing exit code moves the task to
    `complete` and writes the commit (the packet's exact Conventional

@@ -241,14 +241,50 @@ export function taskStatusLine(task) {
 // — printing it in the packet turns that failure into a pre-flight fact
 // instead of something `nx lint` teaches the agent after the fact. Keyed
 // by layer id, not module, since the shape is the same for every module.
+//
+// `scaffold` is the same kind of fact one step earlier: the generator in
+// `tools/generators/` every layer starts from (hedgehog-loop, "Scaffolding
+// a layer", which owns the flag contract these lines instantiate). It sits
+// here rather than in RELEVANT RULES because that section is per-intent —
+// identical across every layer of an intent, by plan.mjs's requirement
+// linkage — while the command differs per layer, which is exactly what
+// LAYER SHAPE already keys on.
 const FULL_STACK_APP_LAYER_TAGS = {
-  schema: { tags: ['scope:db', 'type:adapter'], dependsOnTags: [] },
-  contract: { tags: ['scope:contracts', 'type:contract'], dependsOnTags: ['type:adapter', 'type:util'] },
-  repository: { tags: ['scope:{module}', 'type:adapter'], dependsOnTags: ['type:adapter', 'type:contract', 'type:util'] },
-  service: { tags: ['scope:{module}', 'type:service'], dependsOnTags: ['type:adapter', 'type:contract', 'type:util'] },
-  controller: { tags: ['scope:api'], dependsOnTags: ['type:adapter', 'type:service', 'type:contract', 'type:util'] },
-  hook: { tags: ['scope:hooks', 'type:hook'], dependsOnTags: ['type:contract', 'type:util'] },
-  screen: { tags: ['scope:web'], dependsOnTags: ['scope:contracts', 'scope:hooks', 'scope:shared', 'type:util'] },
+  schema: {
+    tags: ['scope:db', 'type:adapter'],
+    dependsOnTags: [],
+    scaffold: "nx g ./tools/generators:schema --module={module} --fields='<name:type,...>'",
+  },
+  contract: {
+    tags: ['scope:contracts', 'type:contract'],
+    dependsOnTags: ['type:adapter', 'type:util'],
+    scaffold: "nx g ./tools/generators:contract --module={module} --fields='<the schema layer's list>'",
+  },
+  repository: {
+    tags: ['scope:{module}', 'type:adapter'],
+    dependsOnTags: ['type:adapter', 'type:contract', 'type:util'],
+    scaffold: 'nx g ./tools/generators:repository --module={module}',
+  },
+  service: {
+    tags: ['scope:{module}', 'type:service'],
+    dependsOnTags: ['type:adapter', 'type:contract', 'type:util'],
+    scaffold: 'nx g ./tools/generators:service --module={module}',
+  },
+  controller: {
+    tags: ['scope:api'],
+    dependsOnTags: ['type:adapter', 'type:service', 'type:contract', 'type:util'],
+    scaffold: "nx g ./tools/generators:controller --module={module} --fields='<the schema layer's list>'",
+  },
+  hook: {
+    tags: ['scope:hooks', 'type:hook'],
+    dependsOnTags: ['type:contract', 'type:util'],
+    scaffold: 'nx g ./tools/generators:hook --module={module} [--toggleField=<boolField>]',
+  },
+  screen: {
+    tags: ['scope:web'],
+    dependsOnTags: ['scope:contracts', 'scope:hooks', 'scope:shared', 'type:util'],
+    scaffold: 'nx g ./tools/generators:screen --module={module}   (skeleton only — UX is yours)',
+  },
 };
 
 // A LAYER SHAPE section for full-stack-app tasks only (`coreId ===
@@ -267,10 +303,12 @@ function layerShapeLines(task, coreId) {
   } else {
     lines.push(`  may depend on tags:     ${shape.dependsOnTags.join(', ')}`);
   }
+  lines.push(`  scaffold from:          ${shape.scaffold.replace('{module}', task.module)}`);
   lines.push(
     "  Confirm against packages/config/eslint-base.js's depConstraints before",
     "  writing an import — a mismatch here is a pre-flight fact, not a lint",
-    '  failure to discover later.',
+    '  failure to discover later. Start from the generator and author only',
+    "  this entity's delta on top of what it lands.",
   );
   return lines;
 }
