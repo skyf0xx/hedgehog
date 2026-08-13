@@ -30,7 +30,13 @@ depends on how this core came to exist:
 
 Either way, `.hedgehog/core.yaml` is what the compiler and every command
 below actually read. Read the rationale file at the start of a session to
-know what this project (or this adopted repo's discipline) is.
+know what this project (or this adopted repo's discipline) is —
+`layer-eng` reads it before writing any layer, the same standing
+`core-design.md` has on a designed core. On an adopted core,
+`adoption.md`'s "Repo shape" section is a dated snapshot, not a live
+model — treat it as calibration for how new code should look, and read
+the actual files it describes when precision matters more than a snapshot
+can offer.
 
 ### core.yaml vs. the packet
 
@@ -107,7 +113,8 @@ runtime detail.
    claimable/held-back split without claiming anything.
 2. **Dispatch each claimed packet to its own `layer-eng` subagent** — in
    ONE message with parallel tool calls when there's more than one — along
-   with the reminder to read `.hedgehog/core-design.md` for what its
+   with the reminder to read this core's rationale file
+   (`.hedgehog/core-design.md` or `.hedgehog/adoption.md`) for what its
    layer owns.
 3. Each agent **runs the packet's VERIFICATION command on its own work**
    as a sanity check before reporting back — necessary, not sufficient.
@@ -195,8 +202,8 @@ with what's there.
 
 Three hold on every authored core regardless of stack:
 
-- **A layer owns one artifact, reached through the interface
-  `core-design.md` named.** The layer below is consumed through that
+- **A layer owns one artifact, reached through the interface the
+  rationale file named.** The layer below is consumed through that
   interface, not reached around — the boundary is what makes the layer
   independently verifiable.
 - **Errors carry their meaning.** A failure surfaces as the stack's
@@ -232,10 +239,10 @@ built output.
 
 When the correction is to the **layer sequence itself** — a layer in the
 wrong place, a missing layer, a scope glob that never fits — that's a
-`planner` case, not a patch: `.hedgehog/core.yaml` and
-`.hedgehog/core-design.md` are locked, and changing them re-shapes every
-task the graph compiles. Stop, say what the design got wrong, and hand to
-`planner`.
+`planner` case (or, on an adopted core, a `hedgehog-adopt` re-run), not a
+patch: `.hedgehog/core.yaml` and the rationale file are locked outside
+that path, and changing them re-shapes every task the graph compiles.
+Stop, say what the design got wrong, and hand to `planner`.
 
 Once `planner` has changed `core.yaml`, the edit still has to be pushed
 into the already-compiled graph — run `hedgehog plan --recompile` (see
@@ -260,7 +267,7 @@ by hand after an interruption.
 
 Use the `reviewer` agent at the point a layer closes for the last intent
 on a module axis, or at the last layer on a linear chain — it checks what
-the mechanical gate can't: whether the layer boundary `core-design.md`
+the mechanical gate can't: whether the layer boundary the rationale file
 described actually held, and whether the interfaces between layers stayed
 the ones that were designed.
 
@@ -280,9 +287,10 @@ the ones that were designed.
 - **Scope is the boundary.** A layer writes inside its ALLOWED SCOPE and
   nowhere else; a change that needs to land elsewhere is a correction,
   not a wider write.
-- **`.hedgehog/core.yaml` and `.hedgehog/core-design.md` are locked.**
-  Changing either is a `planner` decision through the Correction
-  Protocol.
+- **`.hedgehog/core.yaml` and the rationale file are locked** (except
+  `adoption.md`'s "Repo shape" section on an adopted core, refreshable via
+  `hedgehog-adopt`). Changing anything else is a `planner` decision
+  through the Correction Protocol.
 
 ## Stop Condition
 
