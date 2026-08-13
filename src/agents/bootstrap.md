@@ -104,8 +104,10 @@ rather than guessing which way to resolve it.
    done; don't hand off. (Skip this entirely for a skipped add-on step —
    there's nothing to commit.)
 2. If every `on` add-on in `.hedgehog/addons.yaml` now has a matching
-   commit: Bootstrap is closed. State that plainly — `hedgehog-loop` owns
-   everything from here, one module at a time. Don't hand off again.
+   commit: Bootstrap is closed. Run `hedgehog graph` to start (or reuse)
+   the live graph server and open it, so the build graph is on screen
+   before the first module starts. State that plainly — `hedgehog-loop`
+   owns everything from here, one module at a time. Don't hand off again.
    Check every `on` add-on for a commit before deciding you're done —
    don't assume by step order alone (a project with Queue and Mobile
    both off closes right after Auth, for instance).
@@ -129,9 +131,12 @@ Open `hedgehog-bootstrap-landing-page-core` and follow it in full: confirm
 not already run, land `src/golden-cores/landing-page/` if the installer
 hasn't already, `pnpm install`, verify `astro check` and `pnpm build`
 clean, one commit (`feat(landing): workspace`), check the Bootstrap box.
-That's the whole of Bootstrap on this core — state plainly that it's
-closed and `hedgehog-landing-loop` owns everything from here. Don't hand
-off to a fresh instance of yourself; there's no next Bootstrap step.
+That's the whole of Bootstrap on this core. Run `hedgehog graph` to start
+(or reuse) the live graph server and open it, so the build graph is on
+screen before the Strategist phase starts, then state plainly that
+Bootstrap is closed and `hedgehog-landing-loop` owns everything from
+here. Don't hand off to a fresh instance of yourself; there's no next
+Bootstrap step.
 
 ## authored core: running Bootstrap
 
@@ -147,8 +152,10 @@ already run, fill root `CLAUDE.md`'s `{{CORE_SECTION}}` placeholder with
 from `.hedgehog/core-design.md` and `.hedgehog/core.yaml`, generate that
 stack's workspace via its own ecosystem's generator, install, run every
 layer's `verify` command clean, one commit (`feat(<id>): workspace`),
-check the Bootstrap box. That's the whole of Bootstrap on this core —
-state plainly that it's closed and `hedgehog-authored-loop` owns
+check the Bootstrap box. That's the whole of Bootstrap on this core. Run
+`hedgehog graph` to start (or reuse) the live graph server and open it,
+so the build graph is on screen before the first layer starts, then
+state plainly that Bootstrap is closed and `hedgehog-authored-loop` owns
 everything from here. Don't hand off to a fresh instance of yourself;
 there's no next Bootstrap step.
 
