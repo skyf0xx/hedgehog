@@ -243,12 +243,16 @@ accounts get added where there were none).
      first intent(s) itself. Return the summary (step 10) once it's done.
    - **One or more intents, on `.hedgehog/core.yaml` written by
      `hedgehog-adopt` → adoption re-entry.** New change-work on a repo
-     already under adoption. Skip steps 3, 4, and 9. At step 5, add the
-     new intent(s) directly via `hedgehog intent add` (goal, outcome,
-     scope inferred from the change being requested) rather than running
-     `hedgehog-planning-intake`'s Re-entry pass — there is no BMAD
-     archive to read as context on this path, since adoption never runs
-     one. Then run `hedgehog plan` as step 7 does.
+     already under adoption. Skip steps 3 through 9 — route straight to
+     `hedgehog-adopt` again instead, same as brownfield first run above.
+     It owns everything the other path's steps 5, 7, 8, and 9 would
+     otherwise do: it sizes the request (a large or ambiguous one gets its
+     own short clarifying pass, a clear small one doesn't), adds the
+     intent(s), runs `hedgehog plan`, and commits its own work as `chore
+     (planning): adopt change`. Don't run `hedgehog-planning-intake`'s
+     Re-entry pass here — there is no BMAD archive to read as context on
+     this path, since adoption never runs one. Return the summary (step
+     10) once `hedgehog-adopt` is done.
    - **One or more intents, on any other core → re-entry.** Skip steps 3,
      4, and 9 entirely and go to step 5's re-entry branch. The core is
      already chosen and its workspace already scaffolded; re-deciding
@@ -297,30 +301,26 @@ accounts get added where there were none).
    tasks. On re-entry this is append-only: `plan` only reads intents still
    `proposed`/`planned`, so already-compiled work is untouched and its
    `complete` tasks keep their status.
-8. **Commit planning intake's output as one commit** —
+8. **Commit planning intake's output as one commit** — not on the
+   adoption re-entry path, where `hedgehog-adopt` already committed its
+   own work as `chore(planning): adopt change` (step 2). Elsewhere:
    `chore(planning): intake` on a first run, `chore(planning): extend
-   scope` on re-entry (adoption re-entry: `chore(planning): adopt
-   change`), so the passes are distinguishable in the log. It carries the
-   committed `.hedgehog/hedgehog.db` (its new intent and task rows on
-   full-stack-app and on adoption re-entry), `.hedgehog/addons.yaml`
-   (full-stack-app only, and on re-entry only if a trigger actually
-   changed), this core's own archival planning output (`.hedgehog/BMAD/`
-   or `.hedgehog/chain/`, first run only, not written on the brownfield
-   path at all), the authored core's `.hedgehog/core.yaml` and
-   `.hedgehog/core-design.md` if step 4 ran, and root `CLAUDE.md`'s filled
-   placeholders (first run only, not on the brownfield path — adoption
-   never touches root `CLAUDE.md`). Write these with the
-   `no-history-in-output` skill: current state only, no narration of the
-   intake conversation. This is planning intake's own unit of work,
-   landed before `bootstrap` touches anything.
+   scope` on re-entry, so the passes are distinguishable in the log. It
+   carries the committed `.hedgehog/hedgehog.db` (its new intent and task
+   rows), `.hedgehog/addons.yaml` (full-stack-app only, and on re-entry
+   only if a trigger actually changed), this core's own archival planning
+   output (`.hedgehog/BMAD/` or `.hedgehog/chain/`, first run only), the
+   authored core's `.hedgehog/core.yaml` and `.hedgehog/core-design.md` if
+   step 4 ran, and root `CLAUDE.md`'s filled placeholders (first run
+   only). Write these with the `no-history-in-output` skill: current
+   state only, no narration of the intake conversation. This is planning
+   intake's own unit of work, landed before `bootstrap` touches anything.
 9. **First run only, and not on the brownfield path — hand off to the
    `bootstrap` agent** once the commit lands. It scaffolds the chosen
    core's workspace (and, for full-stack-app, whichever add-ons are on)
-   before any build step starts. On re-entry (any core, including
-   adoption) the workspace already exists or was never meant to:  hand
-   straight to this core's loop skill instead (`hedgehog-authored-loop`
-   for an adopted repo — see `hedgehog-adopt`), which picks the new work
-   up from `hedgehog next`.
+   before any build step starts. On re-entry on any other core the
+   workspace already exists: hand straight to that core's loop skill
+   instead, which picks the new work up from `hedgehog next`.
 10. **Return a summary**: which core (naming it as authored or adopted,
     if it is), the intents added (or subject statement, for
     landing-page), any open questions.
