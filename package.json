@@ -27,7 +27,15 @@
     "src/templates",
     "src/golden-cores",
     "vendor-skills/BMAD",
-    "vendor-skills/GSAP"
+    "vendor-skills/GSAP",
+    "!src/golden-cores/full-stack-app/node_modules/**",
+    "!src/golden-cores/full-stack-app/.nx/**",
+    "!src/golden-cores/full-stack-app/apps/*/node_modules/**",
+    "!src/golden-cores/full-stack-app/apps/*/dist/**",
+    "!src/golden-cores/full-stack-app/apps/*/.next/**",
+    "!src/golden-cores/full-stack-app/apps/*/out-tsc/**",
+    "!src/golden-cores/full-stack-app/packages/*/node_modules/**",
+    "!src/golden-cores/full-stack-app/packages/*/dist/**"
   ],
   "engines": {
     "node": ">=22.5.0"
