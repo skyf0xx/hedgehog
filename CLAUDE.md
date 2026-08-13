@@ -47,10 +47,16 @@ discipline's stance and rationale.
   - `hedgehog-adopt` — brings Hedgehog's discipline to an existing repo
     without bootstrapping a workspace: reads the repo read-only, proposes
     a linear-chain `.hedgehog/core.yaml` whose `verify` commands are the
-    repo's own, confirmed with the user, and writes only `.hedgehog/`.
-    Invoked by `planner` as Phase 0's fourth outcome, in place of any
-    bootstrap skill — the graph this produces is change-scoped only, and
-    `hedgehog-authored-loop` runs it unmodified once it's locked.
+    repo's own, confirmed with the user, and writes only `.hedgehog/`
+    (`core.yaml`, plus `adoption.md`'s rationale and its dated, refreshable
+    repo-shape snapshot). Invoked by `planner` as Phase 0's fourth
+    outcome, in place of any bootstrap skill — the graph this produces is
+    change-scoped only, and `hedgehog-authored-loop` runs it unmodified
+    once it's locked.
+  - `hedgehog-adopt-elicit` — a short clarifying pass for a large or
+    under-specified change request on an already-adopted repo, run by
+    `hedgehog-adopt` before adding that intent; a clear, bounded request
+    skips it.
   - `hedgehog-bootstrap-landing-page-core` — lands the pre-verified
     Astro + Tailwind v4 workspace for the `landing-page` core, one pass,
     with no add-on step after it. Invoked automatically by `planner`

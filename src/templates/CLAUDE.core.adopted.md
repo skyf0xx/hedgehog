@@ -1,23 +1,30 @@
 ## This project's core: adopted (brownfield)
 
 Hedgehog was adopted onto this repo's existing codebase by
-`hedgehog-adopt` rather than building a workspace from scratch. The graph
-here covers **new change only** — it is not a map of this repo, and it
-never will be. Pre-existing code is context to read and respect, never a
-node in the build graph.
+`hedgehog-adopt` rather than building a workspace from scratch. The build
+graph here covers **new change only**, and no task, commit, or artifact
+record in it is ever fabricated for code Hedgehog didn't touch — that's
+absolute. Pre-existing code is context to read and respect, never a node
+in the build graph.
 
 - **`.hedgehog/core.yaml`** — a linear chain of change-order layers (no
   module axis), each `verify` command drawn from this repo's own
   test/lint/typecheck commands, confirmed at adoption time. `hedgehog
   plan` compiles the build graph from it.
 - **`.hedgehog/adoption.md`** — the rationale: what the repo's own
-  commands are, why the layers are ordered the way they are, and what
-  `hedgehog-adopt` deliberately chose not to model.
+  commands are, why the layers are ordered the way they are, what
+  `hedgehog-adopt` deliberately chose not to do (stack migration, legacy
+  review), and a "Repo shape" section — module boundaries, entry points,
+  and conventions observed, dated to when it was read. That section is a
+  snapshot, refreshable by re-running `hedgehog-adopt`, never build-graph
+  state and never treated as current past its date.
 
-Read `adoption.md` to know what each layer covers and why. There is no
-`core-design.md` on this core — `hedgehog-adopt` never designs a stack or
-proposes converting this repo toward one; it only wraps the commands and
-seams already here.
+Read `adoption.md` to know what each layer covers and why, and to get
+your bearings in this repo's shape before writing new code — then confirm
+against the actual files, since the snapshot ages and the code doesn't
+wait for a refresh. There is no `core-design.md` on this core —
+`hedgehog-adopt` never designs a stack or proposes converting this repo
+toward one; it only wraps the commands and seams already here.
 
 **Coverage is partial, always.** `hedgehog status` and `hedgehog boundary`
 describe the state of work under discipline, not the state of this repo.
@@ -39,9 +46,11 @@ they apply here unchanged.
   this core's Stop Condition (per-change here, not whole-graph — see
   below).
 - **`hedgehog-adopt`** — run again whenever new change-work enters play:
-  adds one or more intents for the change (goal, outcome, which seam it
-  touches) and runs `hedgehog plan`. Never re-reads the whole repo and
-  never re-proposes the layer chain — that was fixed at adoption time.
+  sizes the request (a large or ambiguous one gets a short clarifying
+  pass first), adds one or more intents for the change (goal, outcome,
+  which seam it touches), and runs `hedgehog plan`. Never re-proposes the
+  layer chain — that was fixed at adoption time. Can also refresh
+  `adoption.md`'s "Repo shape" section on request, but only that section.
 
 ### The agents — delegate the judgment calls
 
@@ -72,7 +81,7 @@ command in `.hedgehog/core.yaml` is one of this repo's own commands.
 .hedgehog/
   hedgehog.db      the build graph — intents, compiled tasks, verifications, committed to git
   core.yaml        the change-order layer chain, scope, verification, commit messages — locked
-  adoption.md      the rationale behind core.yaml, and this repo's own commands — write-once
+  adoption.md      the rationale behind core.yaml, this repo's own commands, and a dated repo-shape snapshot — locked except that snapshot
 ```
 
 ### Core rules
