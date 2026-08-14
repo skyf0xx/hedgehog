@@ -50,6 +50,7 @@ import { rebuildDb } from '../src/db/rebuild.mjs';
 import { loadOverrides, addOverride, orphanedOverrides, OVERRIDES_DIR } from '../src/db/overrides.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
+import { recordVersion, checkForUpdate, installedVersion } from '../src/hosts/version.mjs';
 
 const AUTHORED_CORE_PATH = '.hedgehog/core.yaml';
 
@@ -64,6 +65,12 @@ const PKG_ROOT = resolve(__dirname, '..');
 const DEST_ROOT = process.cwd();
 const CORES_ROOT = join(PKG_ROOT, 'src/golden-cores');
 const DEFAULT_CORE = 'full-stack-app';
+
+// The version of the payload this CLI carries — what `init` and
+// `update` stamp into the project they write to.
+const PKG_VERSION = JSON.parse(
+  await readFile(join(PKG_ROOT, 'package.json'), 'utf8'),
+).version;
 
 // One install flag per core, named for what a user is asking to build
 // rather than the internal src/golden-cores/<name> directory — the two
@@ -384,6 +391,7 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog init --all-hosts          install for every supported coding agent
   npx @skyf0xx/hedgehog init --force              overwrite existing files
   npx @skyf0xx/hedgehog update                    refresh the installed agents + skills
+  npx @skyf0xx/hedgehog update --check            report whether a newer release is published
   npx @skyf0xx/hedgehog db init                   create .hedgehog/hedgehog.db if absent
   npx @skyf0xx/hedgehog db rebuild                re-derive the build graph from committed intents + git history
   npx @skyf0xx/hedgehog plan                      compile pending intents into tasks + dependencies
@@ -449,6 +457,15 @@ those directories. The instructions file, the build graph, the core
 workspace, and vendor-skills/BMAD and vendor-skills/GSAP stay as they
 are — those are project-specific or updated deliberately, not by this
 command.
+
+Both ${bold('init')} and ${bold('update')} stamp the version they wrote into
+.hedgehog/version.json. ${bold('update --check')} compares that stamp against
+the newest published release and exits 1 when a newer one exists, without
+writing anything. The same comparison rides on ${bold('status')} and
+${bold('next')} as a one-line notice, from a once-a-day cached lookup, so a
+stale project surfaces itself; set HEDGEHOG_NO_UPDATE_CHECK=1 to silence it.
+Run ${bold('npx @skyf0xx/hedgehog@latest update')} to pull a newer release —
+the @latest tag matters, since a bare npx may reuse a cached older CLI.
 `);
 }
 
@@ -500,6 +517,7 @@ async function init({ force, core, explicitCore, host = DEFAULT_HOST, hostOnly =
   // Recorded before anything is written: the routing doc is generated
   // from this list, so it has to already name the host being installed.
   await recordHosts(DEST_ROOT, [host]);
+  await recordVersion(DEST_ROOT, PKG_VERSION);
 
   let written = 0;
   let overwritten = 0;
@@ -588,6 +606,42 @@ async function init({ force, core, explicitCore, host = DEFAULT_HOST, hostOnly =
   }
 }
 
+// `update --check` answers the question without acting on it: what's
+// installed, what's published, and whether they differ. Exit code 0 when
+// current or unknown, 1 when an update is available, so a script or a
+// host's own tooling can branch on it without parsing the output.
+async function updateCheck() {
+  const { installed, latest, stale } = await checkForUpdate(DEST_ROOT, {
+    force: true,
+  });
+
+  if (!installed) {
+    console.log(
+      `${yellow('Installed version unknown.')} ${dim(
+        'This project predates version stamping — run `hedgehog update` to refresh and stamp it.',
+      )}\n`,
+    );
+    return;
+  }
+  if (!latest) {
+    console.log(
+      `Installed: ${bold(installed)}\n${dim(
+        "Couldn't reach the npm registry — no update check performed.",
+      )}\n`,
+    );
+    return;
+  }
+  if (stale) {
+    console.log(
+      `${yellow(bold('Update available.'))} installed ${bold(installed)} → latest ${bold(latest)}\n\n` +
+        `  Run ${bold('npx @skyf0xx/hedgehog@latest update')} to refresh this project's agents and skills.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`${green('Up to date.')} ${dim(`installed ${installed}, latest ${latest}`)}\n`);
+}
+
 async function update({ hosts }) {
   const targets = hosts?.length ? hosts : await installedHosts(DEST_ROOT);
 
@@ -614,10 +668,19 @@ async function update({ hosts }) {
     }
   }
 
+  // Stamped after the writes land, so the recorded version always
+  // describes the payload actually on disk.
+  const previous = await installedVersion(DEST_ROOT);
+  await recordVersion(DEST_ROOT, PKG_VERSION);
+
   const label = targets.map((h) => HOSTS[h].label).join(', ');
+  const versionNote =
+    previous && previous !== PKG_VERSION
+      ? `${previous} → ${PKG_VERSION}`
+      : PKG_VERSION;
   console.log(
     `\n${green(bold('Hedgehog agents/skills updated.'))} ${dim(
-      `${written} files written for ${label}`,
+      `${versionNote} — ${written} files written for ${label}`,
     )}\n`,
   );
   console.log('Next steps:');
@@ -1104,6 +1167,34 @@ function warnSingularModuleIdsAtPlan(core, db) {
   );
 }
 
+// The passive half of update detection. Printed to stderr, after a
+// command's real output, on the commands every host's loop runs anyway —
+// so a stale project surfaces itself without anyone thinking to ask.
+//
+// This lives in the CLI rather than in any one host's hook because every
+// host drives the same binary: Claude Code, Cursor, and Gemini CLI all
+// reach it through `hedgehog next`, and one implementation here covers
+// all of them.
+//
+// Never throws and never blocks: the answer comes from a day-long cache,
+// a missing or unreachable registry reads as "no news", and the notice is
+// skipped entirely when output isn't a terminal so it can't corrupt
+// anything parsing stdout.
+async function noteAvailableUpdate() {
+  if (process.env.HEDGEHOG_NO_UPDATE_CHECK) return;
+  try {
+    const { installed, latest, stale } = await checkForUpdate(DEST_ROOT);
+    if (!stale) return;
+    console.error(
+      `\n${yellow(bold('Hedgehog update available.'))} ${dim(
+        `${installed} → ${latest}. Run \`npx @skyf0xx/hedgehog@latest update\` to refresh this project's agents and skills.`,
+      )}`,
+    );
+  } catch {
+    // Advisory only — a failed check is never worth failing a command over.
+  }
+}
+
 async function nextCommand() {
   await ensureDb();
 
@@ -1140,6 +1231,7 @@ async function nextCommand() {
       return;
     }
     console.log(`${dim('No ready task.')} Nothing is planned with all dependencies complete.\n`);
+    await noteAvailableUpdate();
     return;
   }
 
@@ -1156,6 +1248,7 @@ async function nextCommand() {
   }
 
   console.log(formatNext(packet, await resolveCoreId(), packetExists));
+  await noteAvailableUpdate();
 }
 
 function printStalledTasks(stalled) {
@@ -1825,6 +1918,8 @@ async function statusCommand() {
 
   const warningLines = await coreWarningLines();
   if (warningLines.length > 0) console.log(warningLines.join('\n'));
+
+  await noteAvailableUpdate();
 }
 
 // `hedgehog ready` — read-only preview of what a `hedgehog claim` call
@@ -2441,6 +2536,10 @@ async function main() {
   }
 
   if (cmd === 'update') {
+    if (args.includes('--check')) {
+      await updateCheck();
+      return;
+    }
     await update({ hosts });
     return;
   }
