@@ -217,9 +217,14 @@ Procedure:
    `{module}` into every layer's scope glob and verify command, and the
    generators each layer's packet names take the module plural, so a
    singular id compiles a graph scoped to a directory the generator will
-   never write. This is the only moment that choice is cheap: it is one
+   never write. This is the moment that choice is cheapest: it is one
    string here, and a Correction Protocol case across every compiled task
-   three layers later.
+   three layers later. `hedgehog intent add` and `hedgehog plan` both
+   report an id that looks singular — `plan` for as long as none of that
+   intent's tasks has been started, since every route into the graph
+   (`--file`, a hand-written intent file, `db rebuild`) converges there.
+   Both are advisory: `billing` and `search` are legitimately singular, so
+   read the report and decide, rather than renaming on sight.
 2. **Walk that Feature's FRs.** Each FR's "Consequences (testable)" list
    items become that intent's `requirements` with `kind='acceptance'`,
    one per item, verbatim or lightly tightened — no rephrasing that

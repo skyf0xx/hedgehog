@@ -19,7 +19,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { dbInit, DB_PATH, dbAbsPath, openDb } from '../src/db/init.mjs';
 import { loadCore, lintCore, isModuleAxis } from '../src/db/core.mjs';
-import { planTasks } from '../src/db/plan.mjs';
+import { planTasks, CORE_INTENT_ID } from '../src/db/plan.mjs';
 import { addIntent, INTENTS_DIR } from '../src/db/intent.mjs';
 import {
   nextTask,
@@ -866,6 +866,7 @@ async function planCommand(args = []) {
   const driftDb = openDb({ readOnly: true });
   let drifted;
   try {
+    warnSingularModuleIdsAtPlan(core, driftDb);
     drifted = detectDrift(driftDb, core, { overrides });
   } finally {
     driftDb.close();
@@ -1017,6 +1018,18 @@ async function intentCommand(args) {
 // rejecting correct ids. Raised here because this is the last moment the
 // fix is one file rename — three layers later it is a Correction Protocol
 // case across every compiled task.
+//
+// The convention is a heuristic, not a checkable property of the graph:
+// `tasks` and `task` are both structurally valid, and nothing downstream
+// knows which one the generator wants. So this only ever reports.
+function looksSingular(id) {
+  return !/(s|ae|ia|people|children)$/i.test(id);
+}
+
+// `intent add` is one route to the compiler among several — `--file`, a
+// hand-written intents/*.json, and `db rebuild` all reach it without
+// passing through here — so `plan` re-raises the same check where every
+// route converges. See planCommand.
 async function warnSingularModuleId(intent) {
   const corePath = await resolveCorePath();
   if (!corePath) return;
@@ -1030,7 +1043,7 @@ async function warnSingularModuleId(intent) {
     return;
   }
   if (!isModuleAxis(core)) return;
-  if (/(s|ae|ia|people|children)$/i.test(intent.id)) return;
+  if (!looksSingular(intent.id)) return;
 
   console.log(
     `\n${yellow(bold('Module id looks singular.'))} On this core the intent id is ${bold('{module}')} in\n` +
@@ -1040,6 +1053,63 @@ async function warnSingularModuleId(intent) {
       `  ${dim(`git mv ${INTENTS_DIR}/${intent.id}.json ${INTENTS_DIR}/${intent.id}s.json`)}\n` +
       `  ${dim(`# edit "id" and every ${intent.id.toUpperCase()}-* requirement id, then:`)}\n` +
       `  ${dim('hedgehog db rebuild')}\n`,
+  );
+}
+
+// The same advisory at `plan`, where `--file`, a hand-written intent
+// file, and `db rebuild` all converge — none of them passes through
+// `intent add`, so on those routes this is the first and last cheap
+// warning before a whole graph is compiled against the id. It reports
+// while every one of an intent's tasks is still unstarted; once work has
+// landed the fix is a Correction Protocol case rather than a rename, and
+// repeating the `git mv` advice would point at the wrong recovery.
+//
+// One block for however many ids trip it, rather than repeating the
+// per-intent explanation: the reasoning is identical every time, and
+// stacking it once per intent buries the list of names under it. The
+// recovery is still per-id, so those lines are listed one per name.
+function warnSingularModuleIdsAtPlan(core, db) {
+  if (!isModuleAxis(core)) return;
+
+  // Every intent whose tasks have all yet to start, not just the ones
+  // this run compiled. `db rebuild` replays the committed intent files
+  // *and* compiles their tasks, so a `plan` after it compiles nothing —
+  // and that is precisely the route where nothing else has ever looked at
+  // the id. The cheap-fix window is "no work has landed yet", which
+  // outlasts any single `plan` invocation.
+  const singular = db
+    .prepare(
+      `SELECT i.id FROM intents i
+        WHERE i.id <> ?
+          AND NOT EXISTS (
+            SELECT 1 FROM tasks t
+             WHERE t.intent_id = i.id
+               AND t.status NOT IN ('proposed','planned','ready')
+          )
+        ORDER BY i.id`,
+    )
+    .all(CORE_INTENT_ID)
+    .map((row) => row.id)
+    .filter(looksSingular);
+  if (singular.length === 0) return;
+
+  const many = singular.length > 1;
+  console.log(
+    `${yellow(bold(many ? `${singular.length} module ids look singular.` : 'Module id looks singular.'))} ` +
+      `On this core an intent id is ${bold('{module}')} in\n` +
+      `every layer's scope, and the generators take it plural — so ${many ? 'each of these compiles' : 'this compiles'}\n` +
+      `scope for a directory the scaffold command will never write:\n` +
+      singular.map((id) => `  ${bold(id)} ${dim(`— scope ${id}/, scaffold writes ${id}s/`)}`).join('\n') +
+      `\n\nThis is a naming convention, not a rule — ${bold('billing')} and ${bold('search')} are ` +
+      `legitimately\nsingular. If the plural is what you meant, it is still cheap to fix:\n` +
+      singular
+        .map(
+          (id) =>
+            `  ${dim(`git mv ${INTENTS_DIR}/${id}.json ${INTENTS_DIR}/${id}s.json`)}\n` +
+            `  ${dim(`# edit "id" and every ${id.toUpperCase()}-* requirement id`)}`,
+        )
+        .join('\n') +
+      `\n  ${dim('hedgehog db rebuild')}\n`,
   );
 }
 
