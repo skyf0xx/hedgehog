@@ -12,7 +12,7 @@
     },
     "fields": {
       "type": "string",
-      "description": "Comma-separated name:type pairs; a trailing ? marks the column nullable. Types: string, text, boolean, integer, timestamp. Example: title:string,done:boolean,dueDate:timestamp?",
+      "description": "Comma-separated name:type pairs; a trailing ? marks the column nullable, and string takes an optional length in parentheses (default 255). Types: string, text, boolean, integer, timestamp. Example: title:string(500),done:boolean,dueDate:timestamp?",
       "x-prompt": "Fields (name:type, comma-separated)?"
     }
   },
