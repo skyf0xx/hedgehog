@@ -134,6 +134,16 @@ Procedure:
    `outcome` drawn directly from the Feature's description (split the
    description across the two if it names both the capability and the
    result; otherwise the same sentence can serve both).
+
+   On a module-axis core (`full-stack-app`, and any authored core whose
+   layers scope by `{module}`), **name the id plural** — `tasks`, not
+   `task`; `order-items`, not `order-item`. The id is substituted as
+   `{module}` into every layer's scope glob and verify command, and the
+   generators each layer's packet names take the module plural, so a
+   singular id compiles a graph scoped to a directory the generator will
+   never write. This is the only moment that choice is cheap: it is one
+   string here, and a Correction Protocol case across every compiled task
+   three layers later.
 2. **Walk that Feature's FRs.** Each FR's "Consequences (testable)" list
    items become that intent's `requirements` with `kind='acceptance'`,
    one per item, verbatim or lightly tightened — no rephrasing that

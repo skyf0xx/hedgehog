@@ -480,6 +480,14 @@ function tokenInsideGlob(token, glob) {
   return false;
 }
 
+// True when the core compiles one task per domain module rather than one
+// per layer — i.e. some layer's scope varies by {module}. The single
+// owner of that question: validateCore, lintCore, and `intent add`'s
+// plural-id check all read it from here.
+export function isModuleAxis(core) {
+  return core.layers.some((layer) => layer.scope.join('').includes('{module}'));
+}
+
 // Enforces the interview's rule (spec: "Authored cores") — a layer without
 // scope or without a verify command is rejected. Applied uniformly to
 // shipped and authored cores alike; the loader has no shipped-core-only
@@ -600,10 +608,7 @@ export function validateCore(core) {
   // is nothing for a {module} in its scope to isolate — and requiring one
   // would reject exactly the cross-cutting layers `once` exists to
   // express.
-  const isModuleAxis = core.layers.some((layer) =>
-    layer.scope.join('').includes('{module}'),
-  );
-  if (isModuleAxis) {
+  if (isModuleAxis(core)) {
     for (const layer of core.layers) {
       if (layer.exclusive || layer.once) continue;
       if (!layer.scope.join('').includes('{module}')) {
@@ -662,10 +667,7 @@ export function validateCore(core) {
 // hedgehog-core-design carries the question as an authoring rule too.
 export function lintCore(core) {
   const warnings = [];
-  const isModuleAxis = core.layers.some((layer) =>
-    layer.scope.join('').includes('{module}'),
-  );
-  if (isModuleAxis) {
+  if (isModuleAxis(core)) {
     for (const layer of core.layers) {
       if (layer.exclusive || layer.once) continue;
       if (!layer.scope.join('').includes('{module}')) continue; // validateCore already rejects this
