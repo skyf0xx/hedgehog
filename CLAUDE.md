@@ -148,7 +148,13 @@ discipline's stance and rationale.
   recorded in the install path against the marketplace clone's
   `origin/<branch>` manifest, read locally with no network wait — which
   is independent of that gate and so is the one thing it emits into an
-  already-installed project. `hooks.json` (Claude Code) and `hooks-cursor.json`
+  already-installed project. Updating a plugin takes two commands
+  (`claude plugin marketplace update <marketplace>`, then `claude plugin
+  update hedgehog@<marketplace>`): the first fetches the new version, the
+  second installs it, and `update` resolves only the qualified
+  `plugin@marketplace` id — a bare plugin name fails. The notice reads
+  the marketplace name from the install path so a fork's own name comes
+  through. `hooks.json` (Claude Code) and `hooks-cursor.json`
   (Cursor) register it; `run-hook.cmd` is a cmd/bash polyglot so the hook
   runs on Windows, and hook scripts stay extensionless because Claude
   Code prepends `bash` to any command containing `.sh`. Part of the
