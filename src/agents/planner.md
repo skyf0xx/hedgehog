@@ -61,6 +61,17 @@ present bypassing it as an equally-weighted option alongside following
 it — that smuggles the bypass in as the path of least resistance instead
 of surfacing the actual conflict.
 
+"Don't ask clarifying questions" is the common case, and on full-stack-app
+or an authored core it has a defined destination once the user has chosen
+it: **compressed intake** (`hedgehog-planning-intake`'s Phase 0). Surface
+the conflict first, exactly as above — compressed intake is what the
+user's answer can select, never what you recommend to avoid the
+conversation. Say what it costs when you name it: one batched round of
+questions instead of the shelf, a thinner archive, and an architecture
+(on an authored core) designed from a brief rather than elicited drivers.
+Landing-page has no such destination — see that skill for why — so there
+the conflict is surfaced and resolved with the user, not routed.
+
 ## Phase 0 — which core applies
 
 Before invoking any planning-intake skill, on a first run only (Workflow
@@ -200,6 +211,11 @@ anything here a background job, or is it all instant reads and writes?",
 default an add-on on or off without either a concrete trigger in the PRD
 or a direct answer.
 
+This gate holds identically on compressed intake — it is the reason that
+mode has a batched round of questions at all. Whatever the brief doesn't
+concretely trigger goes into that round; nothing here is inferred from
+silence because the user asked not to be asked.
+
 Write the decision to `.hedgehog/addons.yaml`, one entry per add-on with
 its on/off state and the one-line reason it landed there:
 
@@ -230,7 +246,9 @@ accounts get added where there were none).
 - Decide which core applies before running any planning-intake skill —
   Phase 0 above.
 - **full-stack-app**: owns `.hedgehog/BMAD/` (archival, written once,
-  never edited after) and `.hedgehog/addons.yaml` as artifacts; the
+  never edited after — including its `00-manifest.md`, which records
+  which intake mode produced it) and `.hedgehog/addons.yaml` as
+  artifacts; the
   intent records Phase 1 writes via `hedgehog intent add` live in the
   build graph, not a file this agent owns.
 - **landing-page**: owns `.hedgehog/BMAD/` and
@@ -288,11 +306,14 @@ accounts get added where there were none).
    that turns out to be wrong is a Correction Protocol case, not a quiet
    rewrite here.
 5. **Run planning intake**, in the shape this path calls for:
-   - **First run, full-stack-app**: run the vendored BMAD shelf, then
-     mine `04-prd.md` only into intent records per the PRD→graph-row
-     table (spec: "Mapping BMAD output to intents") and the Add-ons
-     decision (see above) — asking the user directly only for whatever
-     the PRD leaves unresolved.
+   - **First run, full-stack-app**: run the vendored BMAD shelf — or, if
+     the user has explicitly chosen it after the conflict was surfaced,
+     compressed intake's batched round — then mine `04-prd.md` only into
+     intent records per the PRD→graph-row table (spec: "Mapping BMAD
+     output to intents") and the Add-ons decision (see above) — asking
+     the user directly only for whatever the PRD leaves unresolved. The
+     mining step is the same either way; only how the archive was
+     produced differs.
    - **First run, landing-page**: run the same vendored BMAD shelf in
      full, then mine `.hedgehog/BMAD/` into a draft subject statement
      (subject, audience, single page job) — asking the user directly only

@@ -117,7 +117,10 @@ Every layer's `scope` and `verify` in Step 3 draws from this record.
 ## Step 3 — derive the layers
 
 Read `.hedgehog/BMAD/` for what the system actually does, then decide the
-layers it builds in. A layer earns its place by owning a distinct
+layers it builds in. Read `00-manifest.md` first for which files the
+archive holds: a compressed intake leaves `04-prd.md` as the only source
+for this step, and where it doesn't settle something a layer boundary
+depends on, ask rather than infer. A layer earns its place by owning a distinct
 artifact that can be verified on its own. Order by dependency first (a
 layer that another layer imports comes first), by contract second (a
 layer that pins an external interface — a schema, a wire format, a public
@@ -620,6 +623,11 @@ to change only until the file lands. Hard stop.
 - That this is an authored core: the sequence was designed for this
   project, not battle-tested across many, and it carries the same
   enforcement as a Golden Core but a weaker guarantee.
+- If `.hedgehog/BMAD/00-manifest.md` records a compressed intake: that
+  this architecture was designed from a brief and one batched round
+  rather than from elicited drivers, so the stack and layer choices rest
+  on thinner input than a full shelf run would give them. Name it here
+  rather than in passing — it's part of what the user is accepting.
 
 Then state plainly what happens on confirmation, before it happens:
 

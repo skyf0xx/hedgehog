@@ -35,15 +35,26 @@ material `planner` files per module at planning intake, for you to act on here.
 If it's thin, or a specific detail you need (information architecture, a
 named flow, visual identity) isn't in it, read the full source directly:
 `.hedgehog/BMAD/05-ux-spec/DESIGN.md` and `EXPERIENCE.md`, the un-mined
-UX spec `planner`'s notes were drawn from. Read the notes file if present,
-then say so plainly and ask for anything further
-before producing the rationale: "Phase A is closed for `<module>` — this
-is the UX planning step before the screen gets built. [If notes exist:
-"I've got what was noted at planning intake for this module — here's a quick
-recap: (one-line summary)."] If you have a mockup, screenshot, an export
-from a tool like Google Stitch or Figma, or an existing screen you want
-this to resemble, hand it over now; otherwise I'll propose the layout
-from the contract, hook, and any notes on file." Treat whatever's
+UX spec `planner`'s notes were drawn from. Read whichever of the two the
+archive holds — a project planned through compressed intake
+(`hedgehog-planning-intake`'s Phase 0) has `EXPERIENCE.md` only, and one
+whose brief stated no flows may have neither. **An absent file is your
+cue to ask, not to invent.** Visual identity is the first thing a
+compressed brief omits, so where the archive is silent, say so and
+propose from the contract and hook rather than inferring a direction the
+user never gave — that inference is the improvisation this step exists to
+replace.
+
+Read the notes file if present, then say so plainly and ask for anything
+further before producing the rationale: "Phase A is closed for
+`<module>` — this is the UX planning step before the screen gets built.
+[If notes exist: "I've got what was noted at planning intake for this
+module — here's a quick recap: (one-line summary)."] [If the archive
+holds no UX spec: "This project was planned through compressed intake, so
+there's no visual direction on file."] If you have a mockup, screenshot,
+an export from a tool like Google Stitch or Figma, or an existing screen
+you want this to resemble, hand it over now; otherwise I'll propose the
+layout from the contract, hook, and any notes on file." Treat whatever's
 supplied or on file the same way — a source of screen inventory and
 hierarchy, not something to transcribe pixel-for-pixel. No visual tool or
 prior note is required; the rationale stands on its own when nothing is
@@ -70,7 +81,10 @@ mockup, not a design system, not code:
    was (a screenshot, a Stitch/Figma export, a named reference app,
    planning-intake notes from `docs/design/<module>-notes.md`, or the
    raw UX spec at `.hedgehog/BMAD/05-ux-spec/`) and what was drawn from
-   it versus decided independently.
+   it versus decided independently. Where there was none — a compressed
+   archive with no UX spec and nothing supplied — say that plainly here,
+   so `front-end-eng` and `reviewer` read the rationale as reasoned from
+   the contract and hook rather than from a direction on file.
 
 Keep it short — a few bullets per screen, not a document. This is a
 rationale `front-end-eng` reads once before starting, and `reviewer` can
@@ -110,9 +124,11 @@ conclusion.
 1. Confirm the module's hook step is committed (`feat(<module>): hooks`)
    — if not, stop, this is being asked for too early.
 2. Check for `docs/design/<module>-notes.md` and read it if present. If
-   it's thin or missing a detail you need, read
-   `.hedgehog/BMAD/05-ux-spec/DESIGN.md` and `EXPERIENCE.md` directly for
-   the full material it was drawn from.
+   it's thin or missing a detail you need, read whichever of
+   `.hedgehog/BMAD/05-ux-spec/DESIGN.md` and `EXPERIENCE.md` the archive
+   holds, for the full material it was drawn from. Where neither the
+   notes nor the spec covers what you need, that gap goes into step 3's
+   ask — it is not something to fill in yourself.
 3. Announce the Phase B transition and ask for visual input, per "When
    you run," above.
 4. Read the contract (`packages/contracts`) for the module: what

@@ -130,7 +130,9 @@ Phase A — one claimed packet per dispatch, in its own context. Step
 the `hook` layer's task is `complete` and before `front-end-eng` starts
 the `screen` layer — via `ux-planner`, starting from whatever `planner`
 filed in `docs/design/<module>-notes.md` at planning intake, or the raw
-UX spec directly if that file is absent. Its first run for a module also
+UX spec directly if that file is absent, or — where the archive holds
+neither — from the contract and hook plus whatever the user supplies when
+it asks. Its first run for a module also
 signals to the user that Phase B has started, and is the point a mockup,
 screenshot, or export (Google Stitch, Figma) can be handed over. It
 writes `docs/design/<module>.md`, not its own compiled layer — the

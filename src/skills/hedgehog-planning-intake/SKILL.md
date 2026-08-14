@@ -1,6 +1,6 @@
 ---
 name: hedgehog-planning-intake
-description: Use on any core for first-run planning intake — Phase 0 runs the vendored BMAD-METHOD planning shelf, shared by every core, and Phase 1 (mining `04-prd.md` into intent records plus the Add-ons decision) is full-stack-app's own procedure. Also use for the Re-entry pass, which mines new scope into additional intents without re-running the shelf, on any core with a module axis to add an intent to (full-stack-app, authored) — landing-page has none, so its own new-scope path runs through `hedgehog-landing-loop`'s Correction Protocol instead. Invoked by the `planner` agent, which decides the path; don't run standalone. landing-page runs this skill's Phase 0 on first run, then mines the same archive through `hedgehog-landing-loop`'s own planning-intake section, that core's counterpart to this skill's Phase 1. An authored core runs this skill's Phase 0, then `hedgehog-core-design`, then this skill's Phase 1 mining against the designed layer sequence. A brownfield adoption (`hedgehog-adopt`) never runs this skill's shelf at all — the drivers BMAD elicits are already settled facts of a repo that already exists.
+description: Use on any core for first-run planning intake — Phase 0 runs the vendored BMAD-METHOD planning shelf, shared by every core, and Phase 1 (mining `04-prd.md` into intent records plus the Add-ons decision) is full-stack-app's own procedure. Phase 0 also defines compressed intake, the path a user's explicit "just build it" choice takes on full-stack-app and authored cores: one batched round of questions in place of the shelf, writing the same archive at the same path so Phase 1, `ux-planner`, and the Re-entry pass all keep their documented source. Also use for the Re-entry pass, which mines new scope into additional intents without re-running the shelf, on any core with a module axis to add an intent to (full-stack-app, authored) — landing-page has none, so its own new-scope path runs through `hedgehog-landing-loop`'s Correction Protocol instead. Invoked by the `planner` agent, which decides the path; don't run standalone. landing-page runs this skill's Phase 0 on first run, then mines the same archive through `hedgehog-landing-loop`'s own planning-intake section, that core's counterpart to this skill's Phase 1. An authored core runs this skill's Phase 0, then `hedgehog-core-design`, then this skill's Phase 1 mining against the designed layer sequence. A brownfield adoption (`hedgehog-adopt`) never runs this skill's shelf at all — the drivers BMAD elicits are already settled facts of a repo that already exists.
 ---
 
 # Hedgehog Planning Intake
@@ -95,7 +95,80 @@ Write each skill's output to `.hedgehog/BMAD/`, per the fixed layout:
 
 Every file/folder carries a one-line attribution header. `00-manifest.md`
 states the source repo, pinned version (`vendor-skills/BMAD/ATTRIBUTION.md` has
-the pinned commit), date, and which skills ran.
+the pinned commit), date, which intake mode ran (`full`, below, or
+`compressed`), and which skills ran.
+
+### Compressed intake (full-stack-app, authored core)
+
+A user who opens with "just build it" — no clarifying questions — is
+asking for something Phase 0's live elicitation can't give them.
+`planner` surfaces that conflict rather than resolving it silently (see
+that agent), and **compressed intake is the defined path when the user
+chooses it**. It is never the default and never offered as the
+easier option: it runs only on an explicit choice, after the conflict has
+been named.
+
+Compressed intake replaces the shelf with **one batched round of
+questions covering only what can't be inferred from the user's brief**,
+then writes the archive below directly. Everything else about intake is
+unchanged — Phase 1 mining, Confirm & Lock, and the Add-ons gate all run
+exactly as they do on a full run, against the archive this mode writes.
+
+Not available on landing-page: that core's whole chain is a traceability
+audit rooted in a subject statement mined from BMAD's material, so
+compressing the elicitation removes the thing the chain audits against.
+A "just build it" landing-page request is a conflict to surface, not a
+mode to switch into.
+
+**The Add-ons decision is what the batched round is for.** Auth, Queue,
+and Mobile must each be *answered* — inferred from a concrete trigger in
+the user's brief, or asked directly in that one round. Compressed intake
+compresses BMAD's elicitation, never `planner`'s gate; an add-on left as
+a guess is the same error here as on a full run.
+
+Write the manifest and the PRD always, and the experience spec where the
+brief gives it something to say — at the same path and in the same
+layout:
+
+```
+.hedgehog/BMAD/
+  00-manifest.md        # mode: compressed, date, what the batched round covered
+  04-prd.md             # §3 Glossary and §4 Features only, mined from the brief
+  05-ux-spec/
+    EXPERIENCE.md       # flows and behaviour, where the brief states them
+```
+
+- **`04-prd.md`** carries the load: Phase 1 below reads §3 Glossary and
+  §4 Features, so compressed intake writes exactly those two sections,
+  derived from the brief plus the batched answers, in the shape that
+  mining table expects. Not a full BMAD PRD — the minimum shape Phase 1
+  can walk.
+- **`05-ux-spec/EXPERIENCE.md`** only where the brief actually states
+  flows or behaviour ("a list you can filter", "mark done inline"). No
+  `DESIGN.md`: visual identity is what a compressed brief is least
+  likely to state, and inventing one is exactly the improvisation this
+  mode exists to prevent. `ux-planner` reads whichever of the two the
+  archive holds, and treats an absent file as its cue to ask (see that
+  agent).
+- **`01-brainstorming.md`, `02-brief.md`, `03-prfaq.md`, and
+  `06-research.md` are not written.** Those exist on a full run to
+  produce a good PRD; compressed intake reaches the PRD by a different
+  route. `00-manifest.md` naming them as not-run is the record — an
+  empty placeholder file is not.
+
+`00-manifest.md` states `mode: compressed`, the date, which files were
+written and which weren't, what the batched round asked, and which
+add-ons were answered directly versus triggered by the brief. That
+manifest is the single record of how this project was planned: **the
+archive exists on every core after intake, whichever mode ran**, so an
+absent `.hedgehog/BMAD/` means intake never ran, not that a compressed
+path was taken.
+
+On an authored core, `hedgehog-core-design` reads this archive to pick a
+stack and derive layers. A compressed PRD is thinner input for that than
+a full shelf run, so say so plainly at that skill's own Confirm & Lock —
+the architecture is being designed from a brief rather than from elicited
+drivers, and that's the user's call to accept there.
 
 `.hedgehog/BMAD/` is archival and immutable once written, on every core.
 Nothing in `hedgehog-loop`'s day-to-day operation, `hedgehog-bootstrap`,
@@ -117,6 +190,9 @@ Read `.hedgehog/BMAD/04-prd.md` only — §3 Glossary and §4 Features.
 Nothing else in `.hedgehog/BMAD/` is read again: brainstorming, brief,
 PR-FAQ, and deep-recon existed to produce a good PRD, and the UX spec is
 read later, once per module, by `ux-planner`, not by this mining pass.
+This is the same read on either intake mode — a compressed archive writes
+those two sections directly, so mining has its documented source
+whichever mode ran.
 Mining is mechanical, not interpretive — one graph row per PRD element,
 per this table:
 
@@ -187,7 +263,9 @@ stops being true, so it's a hard stop, not a recap in passing.
   `requirements` (rule/acceptance), and its `depends_on` list.
 - The Add-ons decision (Auth / Queue / Mobile, each explicitly on or
   off, with the one-line reason).
-- Which BMAD skills ran and where their output lives
+- Which intake mode ran, and on a full run which BMAD skills ran — or,
+  on a compressed run, what the batched round asked and what was inferred
+  from the brief without asking. Either way, where the output lives
   (`.hedgehog/BMAD/`).
 
 Then state plainly what happens on confirmation, before it happens:
@@ -225,9 +303,13 @@ their commits.
 
 1. **Read `.hedgehog/BMAD/` for context**, chiefly `02-brief.md` and
    `04-prd.md` — what this project is, and what its existing vocabulary
-   calls things. Read-only. The new scope has to sit inside the same
-   product and reuse its terms; you're extending a project, not starting
-   a neighbouring one.
+   calls things. Read `00-manifest.md` first for which of those the
+   archive actually holds: on a compressed archive that's `04-prd.md` and
+   the manifest's own record of the batched round, which carry the same
+   two things this step needs (the product, and its vocabulary).
+   Read-only. The new scope has to sit inside the same product and reuse
+   its terms; you're extending a project, not starting a neighbouring
+   one.
 2. **Read the existing graph**: `hedgehog status` for what's built, and
    the existing intent ids for the vocabulary already in play. New scope
    names must not collide with an existing intent id.

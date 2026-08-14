@@ -3,7 +3,10 @@
 Backend-first, schema → contract → repository → service → controller, then
 hook → UX rationale → screen, per domain module. See `.hedgehog/BMAD/` for
 the archival planning intake output — BMAD-METHOD's brainstorming, brief,
-PRD, and UX spec, written once by `planner` and never edited after.
+PRD, and UX spec, written once by `planner` and never edited after. Its
+`00-manifest.md` records which intake mode produced it; a compressed
+archive holds the PRD and whatever flows the brief stated, and nothing
+else.
 `.hedgehog/addons.yaml` carries this core's Add-ons decision
 (Auth/Queue/Mobile, each on or off) — check it before assuming any
 add-on's infra exists.
@@ -49,7 +52,9 @@ steps from memory:
 - **`ux-planner`** — once per module in Phase B, after the hook exists and
   before the screen: writes `docs/design/<module>.md`, reading
   `.hedgehog/BMAD/05-ux-spec/` directly (or
-  `docs/design/<module>-notes.md` if a prior run already filed one).
+  `docs/design/<module>-notes.md` if a prior run already filed one). Where
+  the archive holds no UX spec, it asks for visual input rather than
+  inferring a direction.
 - **`front-end-eng`** — builds each module's Phase B layers (hook, screen)
   from the ux-planner rationale, one `hedgehog next` packet at a time,
   gated by `hedgehog verify`.
