@@ -19,7 +19,21 @@ let client: NodePgDatabase | undefined;
 export function getPool(): Pool {
   if (!pool) {
     const env = loadEnv();
-    pool = new Pool({ connectionString: env.DATABASE_URL });
+    pool = new Pool({
+      connectionString: env.DATABASE_URL,
+      // A wedged connection surfaces as a query error rather than a hang.
+      connectionTimeoutMillis: 10_000,
+      idleTimeoutMillis: 30_000,
+    });
+    // `pg` emits 'error' on the pool when an *idle* client's connection dies
+    // (Postgres restart, failover, laptop sleep). Node terminates the process
+    // on an unhandled 'error' event, so without this listener a routine
+    // database blip crashes the API. `pg` has already discarded the bad
+    // client by the time this fires: the next query opens a fresh connection,
+    // so logging and swallowing is the recovery.
+    pool.on('error', (err) => {
+      console.error('idle postgres client error', err);
+    });
   }
   return pool;
 }
