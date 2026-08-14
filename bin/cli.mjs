@@ -543,8 +543,11 @@ async function init({ force, core, explicitCore, host = DEFAULT_HOST, hostOnly =
     dim(
       `If an agent ran this command itself, mid-session: the agents/skills\n` +
         `just written are usable immediately in this same session, no restart\n` +
-        `needed — verify against the available-agent-types listing before\n` +
-        'the first dispatch to one of them if in doubt.',
+        `needed. Before the first dispatch to one of them, confirm the name\n` +
+        `resolves in the available-agent-types listing, and read the agent's\n` +
+        `or skill's own file rather than assuming its behavior from this CLI\n` +
+        'output or prior knowledge of Hedgehog — this run may have written a\n' +
+        'newer version than what you last read.',
     ),
   );
   console.log();
