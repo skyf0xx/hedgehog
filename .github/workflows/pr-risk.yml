@@ -68,10 +68,21 @@ jobs:
           # a prefix. Any time we received fewer files than the PR actually
           # changed, part of the diff is invisible — fail safe, same as an
           # omitted patch.
+          # `[ cond ] && echo ...` is not used for these notices: the step
+          # runs under `bash -e`, so a false test makes the whole line
+          # return 1, and as the last command in the branch that fails the
+          # step right after match=true is written — leaving the labelling
+          # step (gated on match) skipped, i.e. the exact over-label this
+          # job fails safe to produce never gets applied. `if` has no such
+          # exit-status edge.
           if [ "$GOT" -lt "$CHANGED" ] || [ -n "$BLIND" ] || echo "$ADDED" | grep -qE 'child_process|execFile|execSync|spawn\(|\bexec\(|\beval\(|new Function\(|Docker(file)?\b'; then
             echo "match=true" >> "$GITHUB_OUTPUT"
-            [ "$GOT" -lt "$CHANGED" ] && echo "::notice::risk:execution set conservatively — files endpoint returned $GOT of $CHANGED changed files"
-            [ -n "$BLIND" ] && echo "::notice::risk:execution set conservatively — no diff available to scan for: $(echo "$BLIND" | tr '\n' ' ')"
+            if [ "$GOT" -lt "$CHANGED" ]; then
+              echo "::notice::risk:execution set conservatively — files endpoint returned $GOT of $CHANGED changed files"
+            fi
+            if [ -n "$BLIND" ]; then
+              echo "::notice::risk:execution set conservatively — no diff available to scan for: $(echo "$BLIND" | tr '\n' ' ')"
+            fi
           else
             echo "match=false" >> "$GITHUB_OUTPUT"
           fi
