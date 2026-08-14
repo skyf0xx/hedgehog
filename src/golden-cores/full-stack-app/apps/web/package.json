@@ -21,6 +21,18 @@
     "prettier-plugin-tailwindcss": "^0.7.4"
   },
   "nx": {
+    "targets": {
+      "generate-module-routes": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": ["{projectRoot}/src/app/*/page.tsx"],
+        "outputs": ["{projectRoot}/src/app/module-routes.ts"],
+        "options": {
+          "command": "node tools/generate-module-routes.cjs",
+          "cwd": "{workspaceRoot}"
+        }
+      }
+    },
     "tags": ["scope:web"]
   }
 }

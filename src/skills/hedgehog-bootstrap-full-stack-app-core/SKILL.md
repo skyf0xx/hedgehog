@@ -136,6 +136,32 @@ runtime `fs.readdirSync` scan for sibling files would find nothing in the
 built output even though the same scan works when Vitest runs the same
 source directly. Generating literal imports keeps both paths identical.
 
+## The route index
+
+`apps/web/src/app/page.tsx` is the same category of file on the web side,
+and gets the same answer. The screen layer's scope is
+`apps/web/src/app/{module}/**`, module-disjoint and — by the same
+`validateCore` rule — unable to be widened to reach one level up, so the
+root page is outside every layer's scope. Left to itself it can never
+learn about the modules built beneath it, and a finished build ships a
+landing page with no route into the app it just built.
+
+`tools/generate-module-routes.cjs` globs `apps/web/src/app/*/page.tsx`
+and writes `apps/web/src/app/module-routes.ts` — an exported
+`moduleRoutes` array of `{ href, label }`, one per route directory found,
+skipping Next.js route groups (`(group)`) and `_`/`.`-prefixed
+directories, which are not routes. The root page imports that one
+generated file and renders a link per entry, or a short "no modules yet"
+line when the array is empty, which is what the shipped core has. A
+module's screen layer only ever creates its own `page.tsx` inside its own
+`apps/web/src/app/{module}/` directory — always in scope — and nothing
+ever hand-edits the root page or the generated file.
+
+`generate-module-routes` is wired as an explicit Nx target on `apps/web`
+(`apps/web/package.json`'s `nx.targets`), cached, with `build`, `dev`,
+`test` and `typecheck` picking it up through `nx.json`'s `targetDefaults`
+the same way its API sibling does.
+
 ## Steps
 
 ### 1. Confirm this hasn't already run

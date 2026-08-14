@@ -2,14 +2,18 @@
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
   "targetDefaults": {
     "build": {
-      "cache": true
+      "cache": true,
+      "dependsOn": ["generate-module-routes"]
+    },
+    "dev": {
+      "dependsOn": ["generate-module-routes"]
     },
     "test": {
       "cache": true,
-      "dependsOn": ["^build", "generate-feature-modules"]
+      "dependsOn": ["^build", "generate-feature-modules", "generate-module-routes"]
     },
     "typecheck": {
-      "dependsOn": ["generate-feature-modules"]
+      "dependsOn": ["generate-feature-modules", "generate-module-routes"]
     },
     "lint": {
       "cache": true
