@@ -548,31 +548,22 @@ async function init({ force, core, explicitCore, host = DEFAULT_HOST, hostOnly =
     );
     console.log(dim('     instead of polling tightly or narrating the wait.'));
     console.log(`  2. ${bold('git add -A && git commit -m "chore: install Hedgehog"')}`);
-    console.log(
-      `  3. Start a ${bold('new')} ${HOSTS[host].label} session and describe what you want to build.`,
-    );
+    console.log(`  3. Describe what you want to build.`);
   } else {
     console.log(`  1. ${bold('git add -A && git commit -m "chore: install Hedgehog"')}`);
-    console.log(
-      `  2. Start a ${bold('new')} ${HOSTS[host].label} session and describe what you want to build.`,
-    );
+    console.log(`  2. Describe what you want to build.`);
   }
+  // Hand off by path, not by name. Reading the file works on every host in
+  // the session that ran this install — no restart, no dependence on whether
+  // the harness re-scans its agent directory, and no chance of a bare
+  // `planner` resolving to an unrelated global agent of the same name.
+  const agents = HOSTS[host].agentsDir;
+  const skills = HOSTS[host].skillsDir;
   console.log(
     dim(
-      `     The ${bold('planner')} agent runs planning intake, then hands off to bootstrap.`,
-    ),
-  );
-  // A host enumerates its agents once, at session start. This install just
-  // wrote them mid-session, so in THIS session they are not dispatchable —
-  // and the failure is worse than a plain error: names like `planner` and
-  // `reviewer` often resolve to the user's own unrelated global agents,
-  // silently running a different discipline instead of erroring.
-  console.log(
-    dim(
-      `     A new session matters: ${HOSTS[host].label} lists its agents at startup, so the\n` +
-        '     ones just installed are not dispatchable in the session that ran this.\n' +
-        '     If a handoff must happen here anyway, read the agent file and follow it\n' +
-        '     inline rather than dispatching to a name that may resolve elsewhere.',
+      `     Read ${bold(`${agents}/planner.md`)} and follow it — it runs planning\n` +
+        `     intake (${skills}/hedgehog-planning-intake/SKILL.md), then hands\n` +
+        `     off to ${agents}/bootstrap.md.`,
     ),
   );
   console.log();
