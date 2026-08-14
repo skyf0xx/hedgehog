@@ -128,11 +128,18 @@ plugin_update_notice() {
     # The marketplace name is read from the install path rather than
     # hardcoded, so a plugin installed from a fork or a differently-named
     # marketplace still gets a command that works.
-    printf '# Hedgehog plugin update available\n\nThe installed Hedgehog plugin is version %s; version %s is published.\n\nMention this to the user once, briefly, and tell them to run both lines:\n\n    claude plugin marketplace update %s\n    claude plugin update hedgehog@%s\n\nBoth are needed: the first fetches the new version, the second installs\nit, and it takes effect on restart. Do not run them yourself and do not\nrepeat this later in the session.\n\n' \
+    printf '# Hedgehog plugin update available\n\nThe installed Hedgehog plugin is version %s; version %s is published.\n\nMention this to the user once, briefly, and tell them to run both lines:\n\n    claude plugin marketplace update %s\n    claude plugin update hedgehog@%s\n\nBoth are needed: the first fetches the new version, the second installs\nit, and it takes effect on restart. Do not run them yourself and do not\nrepeat this later in the session.\n' \
         "$installed_version" "$latest" "$marketplace" "$marketplace"
 }
 
 plugin_notice="$(plugin_update_notice 2>/dev/null || true)"
+
+# Command substitution strips every trailing newline, so the blank line
+# that separates this notice from whatever follows it cannot be carried
+# out of the function — it has to be re-added here, at the join.
+if [ -n "$plugin_notice" ]; then
+    plugin_notice="${plugin_notice}"$'\n\n'
+fi
 
 # Refresh the remote ref the check above reads, for the next session
 # rather than this one. Fully detached and discarded: a session start must
