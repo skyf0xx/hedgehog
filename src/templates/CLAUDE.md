@@ -31,12 +31,16 @@ brand-new install and nothing has been built yet. Open with something
 short and warm — 🦔 plus one line asking what the user wants to build —
 then follow `planner` in this thread, not as a subagent dispatch —
 Phase 0's BMAD elicitation is a live, multi-turn conversation the user
-needs a direct channel for. Read `planner.md` and run it here through
-Confirm & Lock and the `bootstrap` handoff; that handoff and everything
-after it delegates normally. Don't re-explain the discipline or
-summarize this file; the greeting is one line, not a tour. Skip this
-entirely once the placeholder is filled
-in — every later session starts with `hedgehog status`, not a greeting.
+needs a direct channel for. Read `planner.md` fresh off disk (this
+install just wrote it, in this session — don't rely on a prior read or
+prior-project memory of what it says) and run it here through Confirm &
+Lock and the `bootstrap` handoff; that handoff and everything after it
+delegates normally. This same rule holds at every later handoff to a
+newly-installed agent or skill in this session: read its file, don't
+assume its content. Don't re-explain the discipline or summarize this
+file; the greeting is one line, not a tour. Skip this entirely once the
+placeholder is filled in — every later session starts with `hedgehog
+status`, not a greeting.
 
 ## How to work here
 

@@ -539,18 +539,6 @@ async function init({ force, core, explicitCore, host = DEFAULT_HOST, hostOnly =
     ),
   );
   console.log();
-  console.log(
-    dim(
-      `If an agent ran this command itself, mid-session: the agents/skills\n` +
-        `just written are usable immediately in this same session, no restart\n` +
-        `needed. Before the first dispatch to one of them, confirm the name\n` +
-        `resolves in the available-agent-types listing, and read the agent's\n` +
-        `or skill's own file rather than assuming its behavior from this CLI\n` +
-        'output or prior knowledge of Hedgehog — this run may have written a\n' +
-        'newer version than what you last read.',
-    ),
-  );
-  console.log();
   if (explicitCore) {
     console.log(dim(`Core: ${bold(core)}.`));
     console.log(
