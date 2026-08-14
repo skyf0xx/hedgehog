@@ -43,6 +43,67 @@ function intentExists(db, id) {
   return db.prepare('SELECT 1 FROM intents WHERE id = ?').get(id) !== undefined;
 }
 
+// A rebuild's result is a pure function of the committed sources
+// (`.hedgehog/intents/`, core.yaml, overrides, git history), so the
+// derived graph is cleared before replay rather than replayed on top of
+// whatever the DB already held. Without this, an intent file that was
+// renamed or deleted leaves its tasks behind: the scheduler then sees a
+// ghost task whose scope overlaps the real one and holds the real one
+// back, producing a graph no set of committed intents describes.
+//
+// Deleting `intents` cascades through requirements, tasks,
+// task_requirements, dependencies, artifacts and verifications — every
+// one of which this run re-derives. `debt` and `friction` are the
+// exception: they are operator-recorded notes with no committed source,
+// so they are carried across by task id (deterministic, so a note
+// re-attaches to the same task the replay recompiles). A note whose task
+// no longer exists in the new graph has nowhere to live and is reported
+// rather than silently dropped.
+function clearDerivedGraph(db) {
+  const debt = db.prepare('SELECT task_id, note, logged_at FROM debt').all();
+  const friction = db.prepare('SELECT task_id, note, logged_at FROM friction').all();
+
+  db.prepare('DELETE FROM intents').run();
+  // `friction.task_id` is ON DELETE SET NULL rather than CASCADE, so its
+  // rows outlive the delete above. Clear them too and let restoreNotes be
+  // the single writer, so a note is not duplicated against its own copy.
+  db.prepare('DELETE FROM friction').run();
+
+  return { debt, friction };
+}
+
+function restoreNotes(db, { debt, friction }) {
+  const taskExists = db.prepare('SELECT 1 FROM tasks WHERE id = ?');
+  const insertDebt = db.prepare(
+    'INSERT INTO debt (task_id, note, logged_at) VALUES (?, ?, ?)',
+  );
+  const insertFriction = db.prepare(
+    'INSERT INTO friction (task_id, note, logged_at) VALUES (?, ?, ?)',
+  );
+
+  const orphaned = [];
+
+  for (const row of debt) {
+    if (taskExists.get(row.task_id) === undefined) {
+      orphaned.push({ kind: 'debt', taskId: row.task_id, note: row.note });
+      continue;
+    }
+    insertDebt.run(row.task_id, row.note, row.logged_at);
+  }
+
+  for (const row of friction) {
+    // friction.task_id is nullable — an unattached note always survives.
+    if (row.task_id !== null && taskExists.get(row.task_id) === undefined) {
+      insertFriction.run(null, row.note, row.logged_at);
+      orphaned.push({ kind: 'friction', taskId: row.task_id, note: row.note });
+      continue;
+    }
+    insertFriction.run(row.task_id, row.note, row.logged_at);
+  }
+
+  return orphaned;
+}
+
 // Topological sort over `depends_on`, tie-broken by the file order above
 // so two runs over the same directory always replay identically.
 //
@@ -71,9 +132,9 @@ function orderIntentsForReplay(records, isSatisfied) {
 
     const entry = byId.get(id);
     if (!entry) {
-      // Not a file in this directory. Fine if the DB already has it
-      // (rebuild tolerates an already-populated DB); otherwise the edge
-      // points at nothing and would fail the FOREIGN KEY.
+      // Not a file in this directory, and the derived graph was cleared
+      // before replay, so the edge points at nothing and would fail the
+      // FOREIGN KEY.
       if (isSatisfied(id)) return;
       throw new Error(
         `intent "${requiredBy}" depends_on "${id}", which has no intent file in ` +
@@ -97,12 +158,6 @@ function orderIntentsForReplay(records, isSatisfied) {
 
 // Reads every intent file, normalizes it, orders the set by depends_on,
 // and inserts the rows. Read-only with respect to the files themselves.
-//
-// The insert is unconditional (an intent id is never re-added through
-// `intent add` in normal use), so rebuild — the one caller that must also
-// tolerate an already-populated DB, per "re-derive from source-of-truth
-// after suspected corruption" — skips any intent whose id is already
-// present rather than letting the UNIQUE constraint fail the whole run.
 //
 // Ordering is resolved for the whole set BEFORE any row is written, so a
 // cycle or a dangling depends_on fails the run without having half-built
@@ -232,10 +287,9 @@ function markCompletedTasks(db, commitSubjects) {
   const setComplete = db.prepare("UPDATE tasks SET status = 'complete' WHERE id = ?");
   for (const id of complete) setComplete.run(id);
 
-  // Rebuild also runs against an already-populated DB ("after suspected
-  // corruption"), where a once-task may be sitting at `complete` from
-  // before a re-entry pass added work under it. Reconcile it back rather
-  // than leaving the stale status untouched.
+  // A once-task can be marked complete by the loop above and then fail
+  // one of the extra conditions on a later pass of the fixpoint walk.
+  // Reconcile it back rather than leaving the stale status untouched.
   const reopen = db.prepare(
     "UPDATE tasks SET status = 'planned' WHERE id = ? AND status = 'complete'",
   );
@@ -268,6 +322,8 @@ export async function rebuildDb(
 ) {
   applySchema(db);
 
+  const notes = clearDerivedGraph(db);
+
   const intentsReplayed = await replayIntents(db, intentsDir);
 
   const core = await loadCore(corePath);
@@ -277,7 +333,9 @@ export async function rebuildDb(
   const commitSubjects = loadCommitSubjects();
   const tasksMarkedComplete = markCompletedTasks(db, commitSubjects);
 
+  const orphanedNotes = restoreNotes(db, notes);
+
   const drift = detectDrift(db, core, { overrides });
 
-  return { intentsReplayed, tasksMarkedComplete, drift };
+  return { intentsReplayed, tasksMarkedComplete, orphanedNotes, drift };
 }
