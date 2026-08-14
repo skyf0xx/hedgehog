@@ -34,10 +34,21 @@ Phase 0's BMAD elicitation is a live, multi-turn conversation the user
 needs a direct channel for. Read `planner.md` fresh off disk (this
 install just wrote it, in this session — don't rely on a prior read or
 prior-project memory of what it says) and run it here through Confirm &
-Lock and the `bootstrap` handoff; that handoff and everything after it
-delegates normally. This same rule holds at every later handoff to a
-newly-installed agent or skill in this session: read its file, don't
-assume its content. Don't re-explain the discipline or summarize this
+Lock and the `bootstrap` handoff. This same rule holds at every later
+handoff to a newly-installed agent or skill in this session: read its
+file, don't assume its content.
+
+Dispatch is the part that can't be worked around by reading. A host lists
+its agents once, at session start, and this install wrote them after
+that — so in this session `bootstrap` and the rest may not be
+dispatchable at all. Two symptoms, and neither means a broken install:
+an error naming the available agents without Hedgehog's in it, or —
+worse, because it has no symptom — a name like `planner` or `reviewer`
+silently resolving to the user's own unrelated global agent and running a
+different discipline. If either happens, read the agent's file from
+`.claude/agents/` and follow it inline here; each one is self-contained.
+Everything delegates normally from the next session on, which is why the
+installer's next step is to start a fresh one. Don't re-explain the discipline or summarize this
 file; the greeting is one line, not a tour. Skip this entirely once the
 placeholder is filled in — every later session starts with `hedgehog
 status`, not a greeting.
