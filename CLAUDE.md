@@ -135,6 +135,42 @@ discipline's stance and rationale.
   from the agents' and skills' own frontmatter. See
   [ARCHITECTURE.md](ARCHITECTURE.md) for the host table.
 
+## Releasing
+
+Two independent version numbers ship from this repo, bumped by different
+triggers and never touched by the same automation:
+
+- `package.json`'s `version` — the npm package (`bin/`, `src/`,
+  `vendor-skills/`) that `npx @skyf0xx/hedgehog init`/`update` install.
+  Bump with `npm run release` (`npm version patch`) for any change under
+  those directories. **Commit the bump on the feature branch and let the
+  PR merge it into `master` — do not tag or push the tag yourself.**
+  `.github/workflows/publish.yml` watches every push to `master` that
+  changes `package.json`, diffs the version before/after that push, and
+  when it changed: tags `v<version>`, runs `npm publish`, and creates the
+  GitHub release, all on the runner's own token. A tag pushed by hand
+  ahead of the merge collides with that workflow's own `git push origin
+  "$TAG"` and fails the release (see git history around 2026-08-14 for
+  the incident this rule comes from). If a tag was pushed by mistake,
+  delete it (`git push origin --delete v<version>`) before the PR merges
+  so the workflow can create it fresh, pointing at the actual merge
+  commit.
+- `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`'s
+  `version` fields (kept identical to each other) — the Claude Code
+  plugin (`claude plugin install hedgehog`), whose payload is `skills/`
+  (currently just `skills/hedgehog/SKILL.md`) only, not `src/`. Bump
+  these by hand, in the same PR as the change, for any edit under
+  `skills/` or `.claude-plugin/` itself — that's what a
+  `claude plugin marketplace` update check reads to decide a user has a
+  new version to pull. No CI bumps or publishes this one; it ships by the
+  marketplace re-reading the repo at whatever commit `master` is on.
+
+The two versions move independently: a change scoped to `src/` or `bin/`
+only bumps `package.json`; a change scoped to `skills/hedgehog/SKILL.md`
+only bumps the plugin version; a change touching both (as most
+`src/skills/hedgehog-*` fixes end up also touching the top-level
+`skills/hedgehog` offer skill) bumps both, in the same PR.
+
 ## Working in this repo
 
 This repo's own content is the product. Changes here are edits to the
