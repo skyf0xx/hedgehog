@@ -539,6 +539,15 @@ async function init({ force, core, explicitCore, host = DEFAULT_HOST, hostOnly =
     ),
   );
   console.log();
+  console.log(
+    dim(
+      `If an agent ran this command itself, mid-session: the agents/skills\n` +
+        `just written are usable immediately in this same session, no restart\n` +
+        `needed — verify against the available-agent-types listing before\n` +
+        'the first dispatch to one of them if in doubt.',
+    ),
+  );
+  console.log();
   if (explicitCore) {
     console.log(dim(`Core: ${bold(core)}.`));
     console.log(

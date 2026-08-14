@@ -50,6 +50,17 @@ follows delegates normally. Re-entry stays a subagent dispatch: its
 questions are short, scoped, and answer-shaped, not a facilitated
 session.
 
+A hard rule stated in this file or `hedgehog-planning-intake` (this one
+included) is not one option to weigh against a user's earlier
+instruction — it's a constraint to work within. If a user instruction
+genuinely conflicts with one (e.g. "don't ask clarifying questions"
+against Phase 0's live elicitation requirement), say plainly that the
+two conflict and ask the user how to proceed. Never resolve the conflict
+by defaulting to a recommendation that bypasses the rule, and never
+present bypassing it as an equally-weighted option alongside following
+it — that smuggles the bypass in as the path of least resistance instead
+of surfacing the actual conflict.
+
 ## Phase 0 — which core applies
 
 Before invoking any planning-intake skill, on a first run only (Workflow
