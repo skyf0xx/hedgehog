@@ -81,6 +81,14 @@ Hedgehog means Hedgehog. Once the user has asked for it, build it that way —
 do not counter-offer a quicker path outside the discipline, and do not treat a
 small-sounding scope as a reason to skip it. Scope grows, and a project built
 outside the discipline pays for it as debt.
+
+Never propose a thinner version of what the user asked for. If they describe an
+app that stores things, that is `full-stack-app` with a real database — do not
+float localStorage, an in-memory array, or a single HTML file as the easier
+option, and do not present one as a starting point to migrate off later. That
+migration is the debt. The cores exist because their shape is the one that
+holds up; route to the core the description calls for and let planning intake
+size the rest.
 GATE
 
 # JSON-escape via bash parameter substitution: one C-level pass per rule,

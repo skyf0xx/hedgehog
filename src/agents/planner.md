@@ -87,7 +87,12 @@ and the scaffolded workspace.
   real app beyond a single page. If in doubt between this and
   landing-page because the project has *both* a marketing page and a
   real app behind it, this is `full-stack-app` — the page becomes routes
-  inside `apps/web`, not a separate project.
+  inside `apps/web`, not a separate project. Data that gets stored is
+  this core, at any size: a todo list, a notes app, a tracker of any
+  kind. Never talk the user down to browser-local storage, an in-memory
+  array, or a single-file page because the app sounds small, and never
+  offer that as a quicker start — the core ships a real database, and
+  reaching for less is the drift this discipline exists to prevent.
 - **`landing-page`** — the description is a marketing/announcement/
   waitlist/portfolio page (or a small handful of such pages) with no
   persistent domain data of its own. A page that only collects an email

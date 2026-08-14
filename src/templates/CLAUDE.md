@@ -38,20 +38,19 @@ Lock and the `bootstrap` handoff. This same rule holds at every later
 handoff to a newly-installed agent or skill in this session: read its
 file, don't assume its content.
 
-Dispatch is the part that can't be worked around by reading. A host lists
-its agents once, at session start, and this install wrote them after
-that — so in this session `bootstrap` and the rest may not be
-dispatchable at all. Two symptoms, and neither means a broken install:
-an error naming the available agents without Hedgehog's in it, or —
-worse, because it has no symptom — a name like `planner` or `reviewer`
-silently resolving to the user's own unrelated global agent and running a
-different discipline. If either happens, read the agent's file from
-`.claude/agents/` and follow it inline here; each one is self-contained.
-Everything delegates normally from the next session on, which is why the
-installer's next step is to start a fresh one. Don't re-explain the discipline or summarize this
-file; the greeting is one line, not a tour. Skip this entirely once the
-placeholder is filled in — every later session starts with `hedgehog
-status`, not a greeting.
+The build continues in this session — nothing here needs a restart. Hosts
+differ in whether they pick up agents written mid-session, so prefer
+reading an agent's file from `.claude/agents/` and following it inline;
+each one is self-contained, and that path works everywhere. Reading also
+avoids the quiet failure of dispatch by name, where `planner` or
+`reviewer` resolves to the user's own unrelated global agent and runs a
+different discipline with no symptom. If a dispatch does error with a
+list of available agents that omits Hedgehog's, that is the same case —
+read the file and carry on.
+
+Don't re-explain the discipline or summarize this file; the greeting is
+one line, not a tour. Skip this entirely once the placeholder is filled
+in — every later session starts with `hedgehog status`, not a greeting.
 
 ## How to work here
 
@@ -85,6 +84,16 @@ enforcement (scope boundaries, no self-certification, the commit-gated
 loop) is what a generic skill pack has no notion of, and running one
 alongside Hedgehog's own skills produces work that bypasses the very
 discipline this file describes.
+
+**Build through the loop, including when the work looks too small to need
+it.** A task that seems like a quick edit is not a reason to skip the
+graph, the step sequence, or the gate — scope grows, and the shortcut is
+what turns a small change into debt the next step has to work around.
+Don't propose going around the discipline to save a step, and don't treat
+a user's impatience as license to: say what the loop's next step is and
+take it. Where a rule genuinely conflicts with what the user is asking
+for, name the conflict and let them decide — never resolve it by quietly
+taking the faster path.
 
 {{CORE_SECTION}}
 
