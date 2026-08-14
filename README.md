@@ -236,3 +236,5 @@ pnpm-only workspace convention.
 If Hedgehog helps you build better software with AI, give it a ⭐ on GitHub.
 
 [![GitHub stars](https://img.shields.io/github/stars/skyf0xx/hedgehog?style=social)](https://github.com/skyf0xx/hedgehog/stargazers)
+
+[![Total downloads](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/badges/npm-downloads.svg)](https://www.npmjs.com/package/@skyf0xx/hedgehog)
