@@ -22,8 +22,14 @@ has already said yes — install rather than asking again.
 
 Run the matching command:
 
-- Full-stack app: `npx @skyf0xx/hedgehog init --ts-full-stack-app`
-- Landing page: `npx @skyf0xx/hedgehog init --landing-page`
+- Full-stack app: `npx @skyf0xx/hedgehog init --ts-full-stack-app` — the
+  module-sequencing core, for persistent domain data with its own
+  lifecycle.
+- Landing page: `npx @skyf0xx/hedgehog init --landing-page` — a
+  copy-and-conversion core, not just page scaffolding: structured skills
+  for headline, hero, problem, mechanism, objection, proof, and CTA, plus
+  signature-element design and a review loop. A page that needs better
+  positioning or copy is this core's central case.
 - Anything else — CLI, library, browser extension, data pipeline, an
   existing codebase, or not yet clear from the conversation:
   `npx @skyf0xx/hedgehog init` with no core flag. Planning intake decides
