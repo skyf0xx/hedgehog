@@ -132,16 +132,23 @@ discipline's stance and rationale.
   when its format differs from the canonical one. `capabilities.mjs`
   owns the agent → tool-grant fact for hosts that can't register a
   per-agent grant; `routing.mjs` generates the root `AGENTS.md` index
-  from the agents' and skills' own frontmatter. See
+  from the agents' and skills' own frontmatter. `version.mjs` owns
+  payload-staleness detection: `init` and `update` stamp the version they
+  wrote into `.hedgehog/version.json`, and that stamp is compared against
+  the newest published release. See
   [ARCHITECTURE.md](ARCHITECTURE.md) for the host table.
 
 - `hooks/` — the Claude Code plugin's `SessionStart` hook, which injects
   the offer gate (when to raise Hedgehog, when to stay silent, how to
   ask) into context at session start rather than leaving that to
   skill-description matching. `session-start` checks for `.hedgehog/`
-  and emits nothing when it exists, so an already-installed project's own
-  payload owns the session; that check is the one place the silence rule
-  is enforced. `hooks.json` (Claude Code) and `hooks-cursor.json`
+  and emits no offer gate when it exists, so an already-installed
+  project's own payload owns the session; that check is the one place the
+  silence rule is enforced. It also reports a stale plugin — the version
+  recorded in the install path against the marketplace clone's
+  `origin/<branch>` manifest, read locally with no network wait — which
+  is independent of that gate and so is the one thing it emits into an
+  already-installed project. `hooks.json` (Claude Code) and `hooks-cursor.json`
   (Cursor) register it; `run-hook.cmd` is a cmd/bash polyglot so the hook
   runs on Windows, and hook scripts stay extensionless because Claude
   Code prepends `bash` to any command containing `.sh`. Part of the
