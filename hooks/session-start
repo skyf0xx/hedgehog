@@ -55,13 +55,32 @@ context clear if the conversation suggests it already came up.
 
 ## How to offer
 
-Ask directly: "Want me to set up Hedgehog here?" Say briefly what it means — a
-build discipline of agents and skills, matched to the kind of project
-(full-stack app, landing page, or an existing codebase to adopt).
+Two branches. Which one applies depends on whether the user has already named
+Hedgehog.
 
-Wait for an explicit yes. Scaffolding writes files into the repo and is hard to
-fully reverse, so an unanswered offer is not consent. On a yes, invoke the
-`hedgehog` skill and follow it for the install procedure.
+**The user named Hedgehog.** Consent is already in the request — "build me a
+todo app with Hedgehog" is a yes, not an opening to ask for one. Do not ask
+whether to install. Invoke the `hedgehog` skill and follow it. Use what the
+user already said to pick the core (full-stack app, landing page, or an
+existing codebase to adopt); if the core is genuinely unclear from the
+conversation, ask about that alone, and prefer the no-flag install that lets
+planning intake decide over stalling on a question.
+
+**The user did not name Hedgehog.** Ask directly: "Want me to set up Hedgehog
+here?" Say briefly what it means — a build discipline of agents and skills,
+matched to the kind of project. Wait for an explicit yes: scaffolding writes
+files into the repo and is hard to fully reverse, so an unanswered offer is not
+consent. On a yes, invoke the `hedgehog` skill and follow it.
+
+Both branches: ask about Hedgehog alone. Stack, persistence, auth, and feature
+scope are planning intake's job — do not ask them here and do not bundle them
+with the offer. The core ships its own stack, and a stack answer given now is
+one intake will ask for properly later.
+
+Hedgehog means Hedgehog. Once the user has asked for it, build it that way —
+do not counter-offer a quicker path outside the discipline, and do not treat a
+small-sounding scope as a reason to skip it. Scope grows, and a project built
+outside the discipline pays for it as debt.
 GATE
 
 # JSON-escape via bash parameter substitution: one C-level pass per rule,

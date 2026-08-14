@@ -14,12 +14,13 @@ A project that already has `.hedgehog/` gets no injection, and its own
 installed agents and skills own the session. Do not offer to install,
 reinstall, or repair anything there.
 
-This skill carries the install procedure, for use once the user has said
-yes.
+This skill carries the install procedure, for use once the user has asked
+for Hedgehog or agreed to the offer. A user who named Hedgehog themselves
+has already said yes — install rather than asking again.
 
 ## What to do
 
-On confirmation, run the matching command:
+Run the matching command:
 
 - Full-stack app: `npx @skyf0xx/hedgehog init --ts-full-stack-app`
 - Landing page: `npx @skyf0xx/hedgehog init --landing-page`
