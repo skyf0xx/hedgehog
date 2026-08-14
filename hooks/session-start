@@ -17,8 +17,139 @@ set -euo pipefail
 # (other hosts, direct invocation in tests).
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 
-# Already a Hedgehog project. Stay out of the way.
+# JSON-escape via bash parameter substitution: one C-level pass per rule,
+# rather than a character-by-character loop.
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+# Emit one context payload in whichever shape the current host reads.
+#
+# Hosts read different fields:
+#   Cursor          -> additional_context (snake_case, top level)
+#   Claude Code     -> hookSpecificOutput.additionalContext (nested)
+#   SDK standard    -> additionalContext (top level)
+# Claude Code reads both additional_context and hookSpecificOutput without
+# deduplicating, so emit only the field the current host consumes.
+#
+# printf rather than a heredoc here: bash 5.3+ can hang on heredocs in this
+# position (see obra/superpowers#571).
+#
+# The payload goes through %s and the JSON structure is written as literal
+# newlines inside the format string. Putting \n escapes in the format string
+# instead would make printf re-interpret the \n sequences that escape_for_json
+# just produced, turning them back into raw newlines and emitting invalid JSON.
+emit_context() {
+    local escaped
+    escaped=$(escape_for_json "$1")
+
+    if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+        printf '{
+  "additional_context": "%s"
+}
+' "$escaped"
+    elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
+        printf '{
+  "hookSpecificOutput": {
+    "hookEventName": "SessionStart",
+    "additionalContext": "%s"
+  }
+}
+' "$escaped"
+    else
+        printf '{
+  "additionalContext": "%s"
+}
+' "$escaped"
+    fi
+}
+
+# Is the installed plugin behind the marketplace it came from?
+#
+# The plugin ships often, and a stale copy is invisible: the skill and this
+# gate still load, they're just an older version's text. The host owns the
+# install directory, so this only ever reports — updating is the user's
+# command to run.
+#
+# Entirely local: the marketplace is a git clone the host already maintains,
+# so comparing the manifest version there against the installed one costs no
+# network call and cannot hang a session start.
+plugin_update_notice() {
+    [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || return 0
+    command -v git >/dev/null 2>&1 || return 0
+
+    # .../plugins/cache/<marketplace>/<plugin>/<version> — the marketplace
+    # clone sits at .../plugins/marketplaces/<marketplace>.
+    local plugins_root marketplace installed_version manifest latest
+    plugins_root="${CLAUDE_PLUGIN_ROOT%/cache/*}"
+    [ "$plugins_root" != "$CLAUDE_PLUGIN_ROOT" ] || return 0
+    installed_version="$(basename "$CLAUDE_PLUGIN_ROOT")"
+    marketplace="${CLAUDE_PLUGIN_ROOT#"${plugins_root}"/cache/}"
+    marketplace="${marketplace%%/*}"
+
+    local clone="${plugins_root}/marketplaces/${marketplace}"
+    [ -d "${clone}/.git" ] || return 0
+
+    # Read the manifest from the tracked remote branch, not the working
+    # tree. The working tree is whatever the host last pulled, so a
+    # published update is invisible there until the host happens to
+    # refresh — which is precisely the staleness this is meant to catch.
+    local branch
+    branch="$(git -C "$clone" symbolic-ref --quiet --short HEAD 2>/dev/null || echo master)"
+    manifest="$(git -C "$clone" show "origin/${branch}:.claude-plugin/marketplace.json" 2>/dev/null)"
+    [ -n "$manifest" ] || return 0
+
+    # Only the version field, and only from the hedgehog entry. sed rather
+    # than a JSON parser: no node dependency in a hook that must stay fast
+    # and must never fail a session start.
+    latest="$(printf '%s\n' "$manifest" \
+        | sed -n '/"name"[[:space:]]*:[[:space:]]*"hedgehog"/,/}/p' \
+        | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+    [ -n "$latest" ] || return 0
+    [ "$latest" != "$installed_version" ] || return 0
+
+    # Sort -V decides direction: report only when the marketplace is ahead,
+    # never when a locally-built plugin is ahead of it.
+    [ "$(printf '%s\n%s\n' "$installed_version" "$latest" | sort -V | tail -1)" = "$latest" ] || return 0
+    [ "$installed_version" != "unknown" ] || return 0
+
+    printf '# Hedgehog plugin update available\n\nThe installed Hedgehog plugin is version %s; version %s is published.\n\nMention this to the user once, briefly, and tell them to run:\n\n    claude plugin update hedgehog\n\nDo not run it yourself and do not repeat it later in the session.\n\n' \
+        "$installed_version" "$latest"
+}
+
+plugin_notice="$(plugin_update_notice 2>/dev/null || true)"
+
+# Refresh the remote ref the check above reads, for the next session
+# rather than this one. Fully detached and discarded: a session start must
+# never wait on the network, so this session reports against whatever was
+# already fetched and the fetch it kicks off lands in time for the next.
+refresh_marketplace_ref() {
+    [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || return 0
+    command -v git >/dev/null 2>&1 || return 0
+    local plugins_root marketplace clone
+    plugins_root="${CLAUDE_PLUGIN_ROOT%/cache/*}"
+    [ "$plugins_root" != "$CLAUDE_PLUGIN_ROOT" ] || return 0
+    marketplace="${CLAUDE_PLUGIN_ROOT#"${plugins_root}"/cache/}"
+    marketplace="${marketplace%%/*}"
+    clone="${plugins_root}/marketplaces/${marketplace}"
+    [ -d "${clone}/.git" ] || return 0
+    ( git -C "$clone" fetch --quiet origin >/dev/null 2>&1 & ) >/dev/null 2>&1
+}
+refresh_marketplace_ref || true
+
+# Already a Hedgehog project. Its own installed payload owns the session, so
+# the offer gate stays silent — but a stale plugin is still worth one line,
+# since that's true regardless of whether this project is installed.
 if [ -d "${PROJECT_DIR}/.hedgehog" ]; then
+    if [ -n "$plugin_notice" ]; then
+        emit_context "$plugin_notice"
+    fi
     exit 0
 fi
 
@@ -130,52 +261,6 @@ resolve it by starting the work outside the discipline and reporting it
 afterward.
 GATE
 
-# JSON-escape via bash parameter substitution: one C-level pass per rule,
-# rather than a character-by-character loop.
-escape_for_json() {
-    local s="$1"
-    s="${s//\\/\\\\}"
-    s="${s//\"/\\\"}"
-    s="${s//$'\n'/\\n}"
-    s="${s//$'\r'/\\r}"
-    s="${s//$'\t'/\\t}"
-    printf '%s' "$s"
-}
-
-gate_escaped=$(escape_for_json "$gate_text")
-
-# Hosts read different fields:
-#   Cursor          -> additional_context (snake_case, top level)
-#   Claude Code     -> hookSpecificOutput.additionalContext (nested)
-#   SDK standard    -> additionalContext (top level)
-# Claude Code reads both additional_context and hookSpecificOutput without
-# deduplicating, so emit only the field the current host consumes.
-#
-# printf rather than a heredoc here: bash 5.3+ can hang on heredocs in this
-# position (see obra/superpowers#571).
-#
-# The payload goes through %s and the JSON structure is written as literal
-# newlines inside the format string. Putting \n escapes in the format string
-# instead would make printf re-interpret the \n sequences that escape_for_json
-# just produced, turning them back into raw newlines and emitting invalid JSON.
-if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
-    printf '{
-  "additional_context": "%s"
-}
-' "$gate_escaped"
-elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
-    printf '{
-  "hookSpecificOutput": {
-    "hookEventName": "SessionStart",
-    "additionalContext": "%s"
-  }
-}
-' "$gate_escaped"
-else
-    printf '{
-  "additionalContext": "%s"
-}
-' "$gate_escaped"
-fi
+emit_context "${plugin_notice}${gate_text}"
 
 exit 0
