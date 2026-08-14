@@ -13,12 +13,12 @@
 //   npx @skyf0xx/hedgehog --help
 
 import { cp, mkdir, access, readdir, stat, rm, readFile, writeFile } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { constants, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { dbInit, DB_PATH, dbAbsPath, openDb } from '../src/db/init.mjs';
-import { loadCore, lintCore } from '../src/db/core.mjs';
+import { loadCore, lintCore, isModuleAxis } from '../src/db/core.mjs';
 import { planTasks } from '../src/db/plan.mjs';
 import { addIntent, INTENTS_DIR } from '../src/db/intent.mjs';
 import {
@@ -281,6 +281,26 @@ function warnRebuildDrift({ drift }, corePath) {
   );
 }
 
+// Debt and friction notes are operator-recorded and have no committed
+// source, so a rebuild carries them across by task id. A note whose task
+// is no longer in the recompiled graph — its intent file was renamed,
+// deleted, or its layer sequence changed — has nowhere to re-attach.
+// Friction notes survive unattached (their task_id is nullable); debt
+// notes are lost, so both are printed with their text rather than
+// disappearing into a count.
+function warnOrphanedNotes({ orphanedNotes }) {
+  if (!orphanedNotes || orphanedNotes.length === 0) return;
+  console.log(
+    `${yellow(bold('Notes without a task after rebuild.'))} ${orphanedNotes.length} note(s) referenced a\n` +
+      'task the recompiled graph no longer holds. Friction notes were kept unattached;\n' +
+      'debt notes could not be, so they are reproduced here:\n',
+  );
+  for (const note of orphanedNotes) {
+    console.log(`  ${dim(note.kind)}  ${bold(note.taskId)}  ${note.note}`);
+  }
+  console.log('');
+}
+
 // Writes one planned file to disk — a straight copy, or for a `merge`
 // entry, the shell template with {{CORE_SECTION}} replaced by the
 // chosen core's include.
@@ -528,14 +548,31 @@ async function init({ force, core, explicitCore, host = DEFAULT_HOST, hostOnly =
     );
     console.log(dim('     instead of polling tightly or narrating the wait.'));
     console.log(`  2. ${bold('git add -A && git commit -m "chore: install Hedgehog"')}`);
-    console.log(`  3. Open ${HOSTS[host].label} and describe what you want to build.`);
+    console.log(
+      `  3. Start a ${bold('new')} ${HOSTS[host].label} session and describe what you want to build.`,
+    );
   } else {
     console.log(`  1. ${bold('git add -A && git commit -m "chore: install Hedgehog"')}`);
-    console.log(`  2. Open ${HOSTS[host].label} and describe what you want to build.`);
+    console.log(
+      `  2. Start a ${bold('new')} ${HOSTS[host].label} session and describe what you want to build.`,
+    );
   }
   console.log(
     dim(
       `     The ${bold('planner')} agent runs planning intake, then hands off to bootstrap.`,
+    ),
+  );
+  // A host enumerates its agents once, at session start. This install just
+  // wrote them mid-session, so in THIS session they are not dispatchable —
+  // and the failure is worse than a plain error: names like `planner` and
+  // `reviewer` often resolve to the user's own unrelated global agents,
+  // silently running a different discipline instead of erroring.
+  console.log(
+    dim(
+      `     A new session matters: ${HOSTS[host].label} lists its agents at startup, so the\n` +
+        '     ones just installed are not dispatchable in the session that ran this.\n' +
+        '     If a handoff must happen here anyway, read the agent file and follow it\n' +
+        '     inline rather than dispatching to a name that may resolve elsewhere.',
     ),
   );
   console.log();
@@ -636,6 +673,7 @@ async function dbRebuildCommand() {
   console.log(
     `${green('rebuilt')}  ${dim(`${result.intentsReplayed} intent(s) replayed, ${result.tasksMarkedComplete} task(s) marked complete`)}\n`,
   );
+  warnOrphanedNotes(result);
   warnRebuildDrift(result, corePath);
 }
 
@@ -667,6 +705,13 @@ async function dbCommand(args) {
 // along with the rest of src/golden-cores/<core>). Neither exists yet on
 // a deferred install (plain `init`, no explicit core flag) until
 // `bootstrap` runs — this returns null until then.
+// Synchronous on purpose: formatPacket renders in one pass and takes this
+// as a predicate, so the FIRST ARRIVAL check cannot be an await. Paths are
+// repo-relative, the same way scope globs are.
+function packetExists(path) {
+  return existsSync(join(DEST_ROOT, path));
+}
+
 async function resolveCorePath() {
   if (await exists(join(DEST_ROOT, AUTHORED_CORE_PATH))) {
     return join(DEST_ROOT, AUTHORED_CORE_PATH);
@@ -957,6 +1002,45 @@ async function intentCommand(args) {
 
   console.log(`  ${green('added')}  ${intent.id}`);
   console.log(`  ${dim(`${intent.requirements.length} requirement(s), ${intent.depends_on.length} dependency(ies)`)}`);
+  await warnSingularModuleId(intent);
+}
+
+// On a module-axis core the intent id becomes {module} in every layer's
+// scope glob and verify command, and the generators the packet points at
+// take the module name plural. A singular id compiles a whole graph
+// scoped to a directory the generator will never write, and nothing
+// downstream catches it: plan compiles it, claim hands out a packet whose
+// own scaffold command contradicts its ALLOWED SCOPE.
+//
+// A warning rather than a refusal: plenty of real modules are singular
+// (`billing`, `search`), so the convention cannot be enforced without
+// rejecting correct ids. Raised here because this is the last moment the
+// fix is one file rename — three layers later it is a Correction Protocol
+// case across every compiled task.
+async function warnSingularModuleId(intent) {
+  const corePath = await resolveCorePath();
+  if (!corePath) return;
+
+  let core;
+  try {
+    core = await loadCore(corePath);
+  } catch {
+    // A core that will not load is `plan`'s error to report, not this
+    // advisory's.
+    return;
+  }
+  if (!isModuleAxis(core)) return;
+  if (/(s|ae|ia|people|children)$/i.test(intent.id)) return;
+
+  console.log(
+    `\n${yellow(bold('Module id looks singular.'))} On this core the intent id is ${bold('{module}')} in\n` +
+      `every layer's scope, and the generators take it plural — so ${bold(intent.id)} compiles\n` +
+      `scope for ${bold(`${intent.id}/`)} while the scaffold command writes ${bold(`${intent.id}s/`)}.\n` +
+      `If ${bold(`${intent.id}s`)} is the name you meant, fix it now, before ${bold('hedgehog plan')}:\n` +
+      `  ${dim(`git mv ${INTENTS_DIR}/${intent.id}.json ${INTENTS_DIR}/${intent.id}s.json`)}\n` +
+      `  ${dim(`# edit "id" and every ${intent.id.toUpperCase()}-* requirement id, then:`)}\n` +
+      `  ${dim('hedgehog db rebuild')}\n`,
+  );
 }
 
 async function nextCommand() {
@@ -1010,7 +1094,7 @@ async function nextCommand() {
     console.error('');
   }
 
-  console.log(formatNext(packet, await resolveCoreId()));
+  console.log(formatNext(packet, await resolveCoreId(), packetExists));
 }
 
 function printStalledTasks(stalled) {
@@ -1237,7 +1321,7 @@ async function printPackets(tasks) {
       const packet = taskPacket(db, task.id);
       if (!packet) continue;
       console.log();
-      console.log(formatPacket(packet, taskStatusLine(packet.task), coreId));
+      console.log(formatPacket(packet, taskStatusLine(packet.task), coreId, packetExists));
     }
   } finally {
     db.close();
@@ -1467,7 +1551,9 @@ async function showCommand(args) {
     return;
   }
 
-  console.log(formatPacket(packet, taskStatusLine(packet.task), await resolveCoreId()));
+  console.log(
+    formatPacket(packet, taskStatusLine(packet.task), await resolveCoreId(), packetExists),
+  );
 }
 
 // `hedgehog release <task-id> --owner <owner>` — hands a claimed task
