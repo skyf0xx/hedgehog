@@ -360,9 +360,74 @@ const HONESTY = [
 // HONESTY is last deliberately: it's the one section that qualifies the
 // gate above it, so it reads as the answer to "and what if I can't clear
 // VERIFICATION honestly" rather than as preamble.
-export function formatPacket(packet, statusLine, coreId = null) {
+// The package root a scope glob lives inside: the literal path above the
+// glob's first wildcard, truncated at `src/` when one appears — a package
+// root is where `package.json` sits, which is always above the `src/` a
+// module directory hangs off.
+//
+// `{module}` is substituted first rather than treated as a wildcard,
+// because on this core it is a real directory name in the compiled task
+// and the package root can sit *below* it: `packages/contracts/src/tasks/**`
+// has its root two segments up, while `libs/tasks/repository/**` has its
+// root at the full literal path. Only `*` genuinely ends the literal part.
+export function scopePackageRoot(glob, module) {
+  const segments = glob.replace('{module}', module).split('/');
+  const wildcard = segments.findIndex((s) => s.includes('*'));
+  const literal = wildcard === -1 ? segments.slice(0, -1) : segments.slice(0, wildcard);
+  const src = literal.indexOf('src');
+  const root = src === -1 ? literal : literal.slice(0, src);
+  // A package root is at least `<area>/<name>`; anything shallower is the
+  // repo itself, which is never a first arrival.
+  return root.length >= 2 ? root.join('/') : null;
+}
+
+// A task is the first arrival in its package when the package the scope
+// points into has no package.json on disk yet: the generator that
+// scaffolds this layer will create the package shell (package.json,
+// tsconfig*.json, vitest.config.mts, src/index.ts) alongside the module's
+// own files, and every one of those lands outside a {module}-bearing
+// glob. Detected here rather than left to be discovered from a failed
+// verify, which is where the override stops being available and the
+// recovery becomes a five-command round trip.
+//
+// `exists` is injected so this module keeps no filesystem dependency of
+// its own; the CLI passes a real one and the packet degrades to no
+// section when a caller supplies none.
+export function firstArrivalPackages(task, exists) {
+  if (!exists) return [];
+  const roots = new Set();
+  for (const glob of JSON.parse(task.scope_globs)) {
+    const root = scopePackageRoot(glob, task.module);
+    if (root && !exists(`${root}/package.json`)) roots.add(root);
+  }
+  return [...roots].sort();
+}
+
+function firstArrivalLines(task, roots) {
+  const scopes = roots.flatMap((root) => [`${root}/*`, `${root}/src/*`]);
+  return [
+    'FIRST ARRIVAL',
+    `  ${roots.join(', ')} ${roots.length > 1 ? 'do' : 'does'} not exist yet, so this task's`,
+    "  generator also creates the package shell (package.json, tsconfig*.json,",
+    '  vitest.config.mts, src/index.ts) plus any package-wide source it writes',
+    '  at the src/ root. All of that lands OUTSIDE the scope above. Widen this',
+    '  one task before building it, or verify will reject those paths and',
+    '  block the task:',
+    '',
+    `  hedgehog override add ${task.id} \\`,
+    ...scopes.map((s) => `    --scope '${s}' \\`),
+    `    --reason 'first module through ${task.layer} also creates the package shell'`,
+    '',
+    '  src/* is non-recursive on purpose: it covers src/index.ts and any',
+    "  shared util beside it without re-granting the module directory the",
+    '  scope above already covers.',
+  ];
+}
+
+export function formatPacket(packet, statusLine, coreId = null, exists = null) {
   const { task, intent, requirements, dependents, incompleteDeps = [], inheritedDebt = [] } = packet;
   const scopeGlobs = JSON.parse(task.scope_globs);
+  const firstArrival = firstArrivalPackages(task, exists);
 
   const lines = [];
   lines.push(`TASK  ${task.id}`);
@@ -428,6 +493,10 @@ export function formatPacket(packet, statusLine, coreId = null) {
   lines.push('ALLOWED SCOPE');
   for (const glob of scopeGlobs) lines.push(`  ${glob}`);
   lines.push('');
+  if (firstArrival.length > 0) {
+    lines.push(...firstArrivalLines(task, firstArrival));
+    lines.push('');
+  }
   const shapeLines = layerShapeLines(task, coreId);
   if (shapeLines) {
     lines.push(...shapeLines);
@@ -443,6 +512,6 @@ export function formatPacket(packet, statusLine, coreId = null) {
 
 // `hedgehog next`'s rendering: its task always came out of the readiness
 // SELECT, so STATUS is READY by construction.
-export function formatNext(packet, coreId = null) {
-  return formatPacket(packet, 'READY', coreId);
+export function formatNext(packet, coreId = null, exists = null) {
+  return formatPacket(packet, 'READY', coreId, exists);
 }
