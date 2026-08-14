@@ -196,19 +196,29 @@ export function useRemove${entityPascal}() {
     toggleField
       ? `
 
+/**
+ * Sends the id and nothing else. The server reads the current
+ * ${toggleField} and flips it inside one transaction, so a stale row in
+ * this cache cannot overwrite a newer state — which is what computing
+ * the new value here from a cached row would do, losing one of any two
+ * flips that raced.
+ */
 export function useToggle${entityPascal}() {
-  const update = useUpdate${entityPascal}();
+  const queryClient = useQueryClient();
 
-  return {
-    ...update,
-    mutate: (variables: { id: string; ${toggleField}: boolean }) =>
-      update.mutate({ id: variables.id, ${toggleField}: !variables.${toggleField} }),
-    mutateAsync: (variables: { id: string; ${toggleField}: boolean }) =>
-      update.mutateAsync({
-        id: variables.id,
-        ${toggleField}: !variables.${toggleField},
-      }),
-  };
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await client.toggle({ params: { id } });
+      if (response.status !== 200) {
+        throw new Error(\`Failed to toggle ${names.entityCamel} \${id}.\`);
+      }
+      return response.body;
+    },
+    onSuccess: (_result, id) => {
+      queryClient.invalidateQueries({ queryKey: ${camel}Keys.lists() });
+      queryClient.invalidateQueries({ queryKey: ${camel}Keys.detail(id) });
+    },
+  });
 }`
       : ''
   }
@@ -266,6 +276,13 @@ describe('${camel} hooks', () => {
     const { useToggle${entityPascal} } = await import('./use-${names.module}');
 
     expect(useToggle${entityPascal}).toBeTypeOf('function');
+  });
+
+  it('routes the toggle at a server endpoint that takes no body', async () => {
+    const { ${camel}Contract } = await import('contracts');
+
+    expect(${camel}Contract.toggle.method).toBe('POST');
+    expect(String(${camel}Contract.toggle.body)).toBe('Symbol(ContractNoBody)');
   });`
       : ''
   }

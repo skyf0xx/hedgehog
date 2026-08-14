@@ -6,6 +6,7 @@ import { moduleNames, ModuleNames } from '../naming';
 interface ContractGeneratorOptions {
   module: string;
   fields: string;
+  toggleField?: string;
 }
 
 const PACKAGE_ROOT = 'packages/contracts';
@@ -32,9 +33,15 @@ export default async function contractGenerator(
   const dir = `${PACKAGE_ROOT}/src/${names.module}`;
   tree.write(`${dir}/${names.module}.schema.ts`, entitySchemaFile(names, fields));
   tree.write(`${dir}/${names.module}.errors.ts`, errorSchemaFile(names));
-  tree.write(`${dir}/${names.module}.contract.ts`, contractFile(names));
+  tree.write(
+    `${dir}/${names.module}.contract.ts`,
+    contractFile(names, options.toggleField),
+  );
   tree.write(`${dir}/index.ts`, barrelFile(names));
-  tree.write(`${dir}/${names.module}.spec.ts`, specFile(names, fields));
+  tree.write(
+    `${dir}/${names.module}.spec.ts`,
+    specFile(names, fields, options.toggleField),
+  );
 
   appendBarrelExport(tree, `${PACKAGE_ROOT}/src/index.ts`, `./${names.module}/index`);
 
@@ -115,7 +122,34 @@ export type ${names.entityPascal}BadRequest = z.infer<typeof ${names.entityCamel
 `;
 }
 
-function contractFile(names: ModuleNames): string {
+/**
+ * The toggle route carries `c.noBody()` deliberately: the new value is
+ * derived from stored state on the server, inside the service's existing
+ * transaction. A route that took the current value as a body would be a
+ * read-modify-write with the read served from the client's cache, so two
+ * toggles racing from one stale row would both write the same value and
+ * lose a flip.
+ *
+ * `@ts-rest/core` generates no `body` parameter for a `c.noBody()` route,
+ * so the call site is `client.toggle({ params: { id } })` — passing
+ * `body: undefined` is a compile error.
+ */
+function toggleRoute(names: ModuleNames): string {
+  return `    toggle: {
+      method: 'POST',
+      path: '/${names.module}/:id/toggle',
+      pathParams: z.object({ id: z.uuid() }),
+      body: c.noBody(),
+      responses: {
+        200: ${names.entityCamel}Schema,
+        404: ${names.entityCamel}NotFoundSchema,
+      },
+      summary: 'Flip a ${names.entityCamel} from its stored state',
+    },
+`;
+}
+
+function contractFile(names: ModuleNames, toggleField?: string): string {
   return `import { initContract } from '@ts-rest/core';
 import { z } from 'zod';
 import {
@@ -182,7 +216,7 @@ export const ${names.camel}Contract = c.router(
       },
       summary: 'Delete a ${names.entityCamel}',
     },
-  },
+${toggleField ? toggleRoute(names) : ''}  },
   {
     // apps/api sets /api as a global prefix at runtime (apps/api/src/main.ts),
     // so the paths above stay prefix-free and the client adds the base URL.
@@ -199,7 +233,11 @@ export * from './${names.module}.schema';
 `;
 }
 
-function specFile(names: ModuleNames, fields: Field[]): string {
+function specFile(
+  names: ModuleNames,
+  fields: Field[],
+  toggleField?: string,
+): string {
   const dateField = fields.find(isDateField);
   const requiredField = fields.find((field) => !field.nullable);
 
@@ -221,7 +259,22 @@ describe('${names.camel} contract', () => {
     expect(${names.camel}Contract.update.method).toBe('PATCH');
     expect(${names.camel}Contract.remove.method).toBe('DELETE');
   });
-
+${
+  toggleField
+    ? `
+  it('takes no body on toggle, so a stale client value cannot overwrite state', () => {
+    expect(${names.camel}Contract.toggle.method).toBe('POST');
+    expect(${names.camel}Contract.toggle.path).toBe('/${names.module}/:id/toggle');
+    // c.noBody() is a marker symbol at runtime; what it buys is a client
+    // call signature with no body parameter at all, so the new ${toggleField}
+    // can only be derived server-side.
+    expect(String(${names.camel}Contract.toggle.body)).toBe(
+      'Symbol(ContractNoBody)',
+    );
+  });
+`
+    : ''
+}
   it('accepts a server-side row, where every timestamp is a Date', () => {
     expect(${names.entityCamel}Schema.parse(sample)).toBeDefined();
   });

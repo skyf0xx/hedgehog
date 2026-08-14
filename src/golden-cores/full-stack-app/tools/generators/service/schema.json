@@ -9,6 +9,10 @@
       "description": "Domain module name, plural kebab-case (e.g. tasks, order-items).",
       "$default": { "$source": "argv", "index": 0 },
       "x-prompt": "Domain module name (plural kebab-case)?"
+    },
+    "toggleField": {
+      "type": "string",
+      "description": "A boolean field from the schema layer to expose as a server-side toggle. Pass the same value to the schema, contract, service, controller, and hook layers. Omit when the module has none."
     }
   },
   "required": ["module"]

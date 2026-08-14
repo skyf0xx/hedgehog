@@ -12,7 +12,7 @@
     },
     "toggleField": {
       "type": "string",
-      "description": "A boolean field from the schema layer to expose as a dedicated toggle mutation. Omit when the module has none."
+      "description": "A boolean field from the schema layer to expose as a server-side toggle. Pass the same value to the schema, contract, service, controller, and hook layers. Omit when the module has none."
     }
   },
   "required": ["module"]

@@ -4,6 +4,7 @@ import { moduleNames, ModuleNames } from '../naming';
 
 interface ServiceGeneratorOptions {
   module: string;
+  toggleField?: string;
 }
 
 export default async function serviceGenerator(
@@ -22,10 +23,13 @@ export default async function serviceGenerator(
   });
 
   tree.write(`${root}/src/lib/${names.entityKebab}.errors.ts`, errorsFile(names));
-  tree.write(`${root}/src/lib/${names.entityKebab}.service.ts`, serviceFile(names));
+  tree.write(
+    `${root}/src/lib/${names.entityKebab}.service.ts`,
+    serviceFile(names, options.toggleField),
+  );
   tree.write(
     `${root}/src/lib/${names.entityKebab}.service.spec.ts`,
-    serviceSpecFile(names),
+    serviceSpecFile(names, options.toggleField),
   );
   tree.write(`${root}/src/index.ts`, barrelFile(names));
 
@@ -58,7 +62,35 @@ export class ${entityPascal}InvalidStateError extends Error {
 `;
 }
 
-function serviceFile(names: ModuleNames): string {
+/**
+ * The flip is computed from the row this transaction just read, never
+ * from a value the caller supplied: the client has no way to send a
+ * stale one, so two toggles racing against each other serialize into two
+ * flips instead of both writing the same value and losing one.
+ */
+function toggleMethod(names: ModuleNames, toggleField: string): string {
+  const { entityPascal, entityCamel } = names;
+
+  return `
+
+  async toggle${entityPascal}(id: string): Promise<${entityPascal}> {
+    return this.${entityCamel}s.transaction(async (repository) => {
+      const existing = await repository.findById(id);
+      if (!existing) {
+        throw new ${entityPascal}NotFoundError(id);
+      }
+      const updated = await repository.update(id, {
+        ${toggleField}: !existing.${toggleField},
+      } as ${entityPascal}Patch);
+      if (!updated) {
+        throw new ${entityPascal}NotFoundError(id);
+      }
+      return updated;
+    });
+  }`;
+}
+
+function serviceFile(names: ModuleNames, toggleField?: string): string {
   const { entityPascal, entityCamel, entityKebab, module } = names;
 
   return `import type {
@@ -115,12 +147,12 @@ export class ${entityPascal}Service {
     if (!removed) {
       throw new ${entityPascal}NotFoundError(id);
     }
-  }
+  }${toggleField ? toggleMethod(names, toggleField) : ''}
 }
 `;
 }
 
-function serviceSpecFile(names: ModuleNames): string {
+function serviceSpecFile(names: ModuleNames, toggleField?: string): string {
   const { entityPascal, entityCamel, entityKebab } = names;
 
   return `import { describe, expect, it, vi } from 'vitest';
@@ -183,7 +215,51 @@ describe('${entityPascal}Service', () => {
       ${entityPascal}NotFoundError,
     );
   });
-});
+${
+  toggleField
+    ? `
+  it('derives the new ${toggleField} from stored state, not from the caller', async () => {
+    const repository = repositoryDouble({
+      findById: vi.fn(async () => ({ id: 'present', ${toggleField}: true }) as never),
+      update: vi.fn(async (_id, patch) => ({ id: 'present', ...patch }) as never),
+    });
+    const service = new ${entityPascal}Service(repository);
+
+    await service.toggle${entityPascal}('present');
+
+    expect(repository.update).toHaveBeenCalledWith('present', {
+      ${toggleField}: false,
+    });
+    expect(repository.transaction).toHaveBeenCalledOnce();
+  });
+
+  it('flips twice back to the original value, so no flip is lost', async () => {
+    let stored = false;
+    const repository = repositoryDouble({
+      findById: vi.fn(async () => ({ id: 'present', ${toggleField}: stored }) as never),
+      update: vi.fn(async (_id, patch) => {
+        stored = (patch as { ${toggleField}: boolean }).${toggleField};
+        return { id: 'present', ${toggleField}: stored } as never;
+      }),
+    });
+    const service = new ${entityPascal}Service(repository);
+
+    await service.toggle${entityPascal}('present');
+    expect(stored).toBe(true);
+    await service.toggle${entityPascal}('present');
+    expect(stored).toBe(false);
+  });
+
+  it('rejects a toggle against a ${entityCamel} that is not there', async () => {
+    const service = new ${entityPascal}Service(repositoryDouble());
+
+    await expect(service.toggle${entityPascal}('missing')).rejects.toBeInstanceOf(
+      ${entityPascal}NotFoundError,
+    );
+  });
+`
+    : ''
+}});
 `;
 }
 

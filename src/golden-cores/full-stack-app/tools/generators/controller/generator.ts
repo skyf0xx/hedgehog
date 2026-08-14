@@ -6,6 +6,7 @@ import { moduleNames, ModuleNames } from '../naming';
 interface ControllerGeneratorOptions {
   module: string;
   fields: string;
+  toggleField?: string;
 }
 
 const API_ROOT = 'apps/api';
@@ -43,9 +44,15 @@ export default async function controllerGenerator_(
   // full path, so leaving it would prefix each route twice.
   stripControllerBasePath(tree, `${stem}.controller.ts`);
 
-  tree.write(`${stem}.controller.ts`, controllerFile(names, fields));
+  tree.write(
+    `${stem}.controller.ts`,
+    controllerFile(names, fields, options.toggleField),
+  );
   tree.write(`${stem}.module.ts`, moduleFile(names));
-  tree.write(`${stem}.controller.spec.ts`, controllerSpecFile(names));
+  tree.write(
+    `${stem}.controller.spec.ts`,
+    controllerSpecFile(names, options.toggleField),
+  );
 
   addApiDependencies(tree, names);
 
@@ -62,7 +69,11 @@ function stripControllerBasePath(tree: Tree, path: string) {
   tree.write(path, source.replace(/@Controller\((['"]).*?\1\)/, '@Controller()'));
 }
 
-function controllerFile(names: ModuleNames, fields: Field[]): string {
+function controllerFile(
+  names: ModuleNames,
+  fields: Field[],
+  toggleField?: string,
+): string {
   const { entityPascal, entityCamel, camel, module } = names;
   const dateFields = fields.filter(isDateField);
   const wireShape = dateFields.length
@@ -129,7 +140,25 @@ export class ${names.pascal}Controller {
         } catch (error) {
           return notFoundOr(error, params.id);
         }
-      },
+      },${
+        toggleField
+          ? `
+
+      // The id is the whole request: the service reads the current value
+      // and flips it inside its own transaction, so there is no client
+      // value here that could be stale.
+      toggle: async ({ params }) => {
+        try {
+          return {
+            status: 200 as const,
+            body: await this.${entityCamel}s.toggle${entityPascal}(params.id),
+          };
+        } catch (error) {
+          return notFoundOr(error, params.id);
+        }
+      },`
+          : ''
+      }
     });
   }
 }
@@ -170,10 +199,14 @@ function fromWire<T extends ${wireShape}>(body: T) {
   };
 }
 
-function toDate(value: Date | string | null | undefined) {
+${
+  dateFields.length
+    ? `function toDate(value: Date | string | null | undefined) {
   return typeof value === 'string' ? new Date(value) : value;
 }
-`;
+`
+    : ''
+}`;
 }
 
 function moduleFile(names: ModuleNames): string {
@@ -217,7 +250,7 @@ export class ${pascal}Module {}
 `;
 }
 
-function controllerSpecFile(names: ModuleNames): string {
+function controllerSpecFile(names: ModuleNames, toggleField?: string): string {
   const { entityPascal, pascal, module } = names;
 
   return `import { Test } from '@nestjs/testing';
@@ -285,7 +318,41 @@ describe('${pascal}Controller', () => {
       handler.get({ params: { id: 'any' } } as never),
     ).rejects.toBe(boom);
   });
-});
+${
+  toggleField
+    ? `
+  it('passes only the id to the service, so no client value reaches the write', async () => {
+    const toggle${entityPascal} = vi.fn(async () => ({ id: 'one' }) as never);
+    const controller = await controllerWith({ toggle${entityPascal} });
+
+    const handler = await controller.handler();
+    const response = await handler.toggle({
+      params: { id: 'one' },
+    } as never);
+
+    expect(toggle${entityPascal}).toHaveBeenCalledWith('one');
+    expect(response).toMatchObject({ status: 200 });
+  });
+
+  it('maps a not-found on toggle to 404', async () => {
+    const controller = await controllerWith({
+      toggle${entityPascal}: vi.fn(async () => {
+        throw Object.assign(new Error('absent'), {
+          name: '${entityPascal}NotFoundError',
+        });
+      }),
+    });
+
+    const handler = await controller.handler();
+    const response = await handler.toggle({
+      params: { id: 'missing' },
+    } as never);
+
+    expect(response).toMatchObject({ status: 404 });
+  });
+`
+    : ''
+}});
 `;
 }
 
