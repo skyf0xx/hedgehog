@@ -8,7 +8,7 @@
     {
       "name": "hedgehog",
       "description": "Offers to set up the Hedgehog build discipline in any project you open",
-      "version": "1.4.1",
+      "version": "1.4.2",
       "source": "./",
       "skills": [
         "./skills/"
