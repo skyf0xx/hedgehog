@@ -135,6 +135,19 @@ discipline's stance and rationale.
   from the agents' and skills' own frontmatter. See
   [ARCHITECTURE.md](ARCHITECTURE.md) for the host table.
 
+- `hooks/` — the Claude Code plugin's `SessionStart` hook, which injects
+  the offer gate (when to raise Hedgehog, when to stay silent, how to
+  ask) into context at session start rather than leaving that to
+  skill-description matching. `session-start` checks for `.hedgehog/`
+  and emits nothing when it exists, so an already-installed project's own
+  payload owns the session; that check is the one place the silence rule
+  is enforced. `hooks.json` (Claude Code) and `hooks-cursor.json`
+  (Cursor) register it; `run-hook.cmd` is a cmd/bash polyglot so the hook
+  runs on Windows, and hook scripts stay extensionless because Claude
+  Code prepends `bash` to any command containing `.sh`. Part of the
+  plugin payload, not the npm package — a consuming project installs real
+  agents instead.
+
 ## Releasing
 
 Two independent version numbers ship from this repo, bumped by different
@@ -158,9 +171,11 @@ triggers and never touched by the same automation:
 - `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`'s
   `version` fields (kept identical to each other) — the Claude Code
   plugin (`claude plugin install hedgehog`), whose payload is `skills/`
-  (currently just `skills/hedgehog/SKILL.md`) only, not `src/`. Bump
-  these by hand, in the same PR as the change, for any edit under
-  `skills/` or `.claude-plugin/` itself — that's what a
+  (currently just `skills/hedgehog/SKILL.md`) and `hooks/`, not `src/`.
+  `.cursor-plugin/plugin.json` carries the same version for the Cursor
+  packaging of that payload. Bump these by hand, in the same PR as the
+  change, for any edit under `skills/`, `hooks/`, `.claude-plugin/`, or
+  `.cursor-plugin/` — that's what a
   `claude plugin marketplace` update check reads to decide a user has a
   new version to pull. No CI bumps or publishes this one; it ships by the
   marketplace re-reading the repo at whatever commit `master` is on.

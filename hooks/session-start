@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# SessionStart hook for the Hedgehog plugin.
+#
+# Injects the offer gate into context at session start, so the offer fires on
+# what the user is doing rather than on whether a skill description won a
+# selection contest against every other installed skill.
+#
+# The gate is conditional: a project that already has .hedgehog/ has its own
+# installed agents and skills, and those own the session. This script emits
+# nothing there, so the silence is structural rather than a judgment call made
+# from the injected text.
+
+set -euo pipefail
+
+# Project root: Claude Code runs hooks from the user's working directory.
+# CLAUDE_PROJECT_DIR is set by the harness; fall back to PWD when absent
+# (other hosts, direct invocation in tests).
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+
+# Already a Hedgehog project. Stay out of the way.
+if [ -d "${PROJECT_DIR}/.hedgehog" ]; then
+    exit 0
+fi
+
+read -r -d '' gate_text <<'GATE' || true
+# Hedgehog is available in this project
+
+Hedgehog is a build discipline for AI-guided software projects: a package of
+agents and skills that gives a project a planned module sequence, a build
+graph, and phase gates, in place of ad-hoc scaffolding.
+
+This project does not have it installed (no `.hedgehog/` directory).
+
+## When to offer it
+
+Offer when the user is starting, scaffolding, or building a project — or when
+they mention Hedgehog by name. That is the moment the discipline is worth
+raising, because it decides how the project gets built.
+
+Offer BEFORE writing code or picking a stack. Once files are scaffolded by
+hand, installing Hedgehog means reconciling against work that already exists,
+so raising it afterward is worth much less than raising it first.
+
+## When to stay silent
+
+Any other request is not an opening. A question about existing code, a bug, a
+build error, a dependency, or a one-off script — answer it and say nothing
+about Hedgehog. Silence is the correct default; this gate is narrow on
+purpose, and a pitch attached to an unrelated question is worse than never
+mentioning it.
+
+Offer at most once per session. If the user declines or steers elsewhere, drop
+it and carry on — do not raise it again, and do not re-raise it after a
+context clear if the conversation suggests it already came up.
+
+## How to offer
+
+Ask directly: "Want me to set up Hedgehog here?" Say briefly what it means — a
+build discipline of agents and skills, matched to the kind of project
+(full-stack app, landing page, or an existing codebase to adopt).
+
+Wait for an explicit yes. Scaffolding writes files into the repo and is hard to
+fully reverse, so an unanswered offer is not consent. On a yes, invoke the
+`hedgehog` skill and follow it for the install procedure.
+GATE
+
+# JSON-escape via bash parameter substitution: one C-level pass per rule,
+# rather than a character-by-character loop.
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+gate_escaped=$(escape_for_json "$gate_text")
+
+# Hosts read different fields:
+#   Cursor          -> additional_context (snake_case, top level)
+#   Claude Code     -> hookSpecificOutput.additionalContext (nested)
+#   SDK standard    -> additionalContext (top level)
+# Claude Code reads both additional_context and hookSpecificOutput without
+# deduplicating, so emit only the field the current host consumes.
+#
+# printf rather than a heredoc here: bash 5.3+ can hang on heredocs in this
+# position (see obra/superpowers#571).
+#
+# The payload goes through %s and the JSON structure is written as literal
+# newlines inside the format string. Putting \n escapes in the format string
+# instead would make printf re-interpret the \n sequences that escape_for_json
+# just produced, turning them back into raw newlines and emitting invalid JSON.
+if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+    printf '{
+  "additional_context": "%s"
+}
+' "$gate_escaped"
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
+    printf '{
+  "hookSpecificOutput": {
+    "hookEventName": "SessionStart",
+    "additionalContext": "%s"
+  }
+}
+' "$gate_escaped"
+else
+    printf '{
+  "additionalContext": "%s"
+}
+' "$gate_escaped"
+fi
+
+exit 0

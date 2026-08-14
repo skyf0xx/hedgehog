@@ -1,33 +1,23 @@
 ---
 name: hedgehog
-description: MANDATORY CHECK before scaffolding, building, or starting any new project — if the repo has no `.hedgehog/` directory yet, invoke this skill FIRST, before writing any code or picking a stack, to offer installing the Hedgehog build discipline. Also invoke whenever the user mentions Hedgehog by name.
+description: Use when the user has agreed to install the Hedgehog build discipline in a project that does not have it yet, or when they mention Hedgehog by name — carries the `npx @skyf0xx/hedgehog init` install procedure and its core and host flags. The plugin's SessionStart hook decides when to raise the offer.
 ---
 
 ## When this fires
 
-Check for a `.hedgehog/` directory at the project root first.
+The plugin's `SessionStart` hook injects the offer gate — when to raise
+Hedgehog, when to stay silent, and how to ask — into context at session
+start, and only in a project with no `.hedgehog/` directory. That gate is
+the authority on those rules.
 
-If `.hedgehog/` exists, stay silent. The project's own installed agents
-and skills own the session from here, and they are the authority — do not
-offer to install, reinstall, or repair anything.
+A project that already has `.hedgehog/` gets no injection, and its own
+installed agents and skills own the session. Do not offer to install,
+reinstall, or repair anything there.
 
-Otherwise, offer when either:
-
-- the user's message is about starting, scaffolding, or building a
-  project, or
-- the user mentions Hedgehog by name.
-
-An unrelated question in a repo without `.hedgehog/` is not an opening.
-Answer it and say nothing about Hedgehog.
+This skill carries the install procedure, for use once the user has said
+yes.
 
 ## What to do
-
-Ask directly: "Want me to set up Hedgehog here?" Say briefly what that
-means — a build discipline of agents and skills, matched to the kind of
-project (full-stack app, landing page, or an existing codebase to adopt).
-
-Wait for an explicit yes. Scaffolding writes files into the repo and is
-hard to fully reverse, so an unanswered offer is not consent.
 
 On confirmation, run the matching command:
 
@@ -41,6 +31,3 @@ On confirmation, run the matching command:
 Add a host flag when the user is on Cursor or Gemini CLI rather than
 Claude Code: `--cursor`, `--gemini`, `--host=claude,cursor`, or
 `--all-hosts`.
-
-If the user declines or steers elsewhere, drop it and carry on. Do not
-raise the offer again in the same session.
