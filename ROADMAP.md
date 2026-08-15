@@ -13,22 +13,42 @@ contributed to Hedgehog before, start there.
 ## Bigger items
 
 ### New pre-built cores
-Cores are preferable to [blueprints](#new-core-design-blueprints). e.g.
+Cores are preferable to [blueprints](#new-core-design-blueprints): a
+blueprint is the cheap, interim way to cover a shape before it has earned
+the cost of a pre-built workspace.
 
-1. **Mobile** (React Native or similar) — navigation, offline state, and
-   native build tooling carry enough real decisions that a
-   `hedgehog-core-design` blueprint alone won't lock them down.
-2. **CLI tool** — argument parsing, subcommand structure, and
+1. **MCP server** — tool schema, transport (stdio/SSE), and registration
+   follow a fixed shape with no UI, routing, or auth layer to design, so
+   it reuses the existing TypeScript pattern with the shortest build
+   order of any candidate here. Demand is high and rising: hand-rolled
+   MCP servers are widely reported as repetitive boilerplate (identical
+   server init, tool-list handlers, tool-call handlers, transport setup),
+   which is exactly what a layered build order plus a tool-definition
+   generator eliminates.
+2. **Slack/Discord bot** — event subscription, command routing, and the
+   OAuth install flow are fixed enough across projects to lock into a
+   workspace rather than re-derive per project. Demand is concrete and
+   current: AI-powered bots that answer from company docs, summarize
+   threads, or run standups.
+3. **CLI tool** — argument parsing, subcommand structure, and
    distribution (npm bin, single binary) are opinionated enough to
-   pre-build rather than re-derive per project.
-3. **Browser extension** — manifest version, background/content-script
+   pre-build rather than re-derive per project. Steady, durable demand;
+   less sharply scoped than MCP server or the bot core above.
+4. **Browser extension** — manifest version, background/content-script
    split, and store packaging are fixed enough across projects to lock
-   into a workspace rather than a blueprint.
-4. **MCP server** — tool schema, transport (stdio/SSE), and auth follow
-   a fixed shape, and demand for these is high right now.
+   into a workspace rather than a blueprint. Real demand, but narrower
+   right now than the three above.
 5. **Python data/ML service** — FastAPI + Pydantic + a model-serving
    layer is opinionated enough to pre-build, and the only language gap
-   in the current lineup, which is TypeScript-only.
+   in the current lineup, which is TypeScript-only. High value, but the
+   heaviest lift here: it's a new language toolchain, not just a new
+   workspace shape, so treat it as a multi-session architectural item
+   rather than a quick win.
+6. **Mobile** (React Native or similar) — navigation, offline state, and
+   native build tooling carry enough real decisions that a
+   `hedgehog-core-design` blueprint alone won't lock them down. High
+   demand, but the heaviest of the six: expect a full blueprint's worth
+   of decisions before this is buildable as a core.
 
 ### Add-ons beyond Auth, Queue, and Mobile
 
@@ -61,11 +81,12 @@ repo) covers nine shapes (CLI, library/SDK, browser extension, desktop app,
 game, data pipeline, bot/agent, compiler/language tool, infra/deploy tool)
 — each one a single 25–60 line markdown file read at planning intake for a
 system shape that isn't `full-stack-app` or `landing-page`. Shapes not yet
-covered: an MCP server, a Slack/Discord bot, a monorepo-of-services, a
-static site generator plugin. Adding one is scoped to one new file plus a
-routing entry — model it on the shortest existing blueprint (`cli.md`)
-rather than the longest. Lands as a PR against `hedgehog-core-authored`,
-not this repo.
+covered: a monorepo-of-services, a static site generator plugin. MCP
+server and Slack/Discord bot are scoped as [pre-built
+cores](#new-pre-built-cores), not blueprints. Adding one is scoped to one
+new file plus a routing entry — model it on the shortest existing
+blueprint (`cli.md`) rather than the longest. Lands as a PR against
+`hedgehog-core-authored`, not this repo.
 
 ### A generator layer as a quality bar for new opinionated cores
 
