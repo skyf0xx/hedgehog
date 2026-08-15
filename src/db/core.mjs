@@ -1,7 +1,7 @@
-// Core-definition loader. Parses `core.yaml` (shipped Golden Cores under
-// src/golden-cores/*/core.yaml, or an authored .hedgehog/core.yaml) into
-// the same in-memory shape either way. See
-// hedgehog-persistent-build-graph.md, "Core definitions".
+// Core-definition loader. Parses `core.yaml` — a Golden Core's own shipped
+// definition, or an authored .hedgehog/core.yaml — into the same in-memory
+// shape either way. See hedgehog-persistent-build-graph.md, "Core
+// definitions".
 //
 // The YAML subset here is deliberately narrow — top-level `id` (scalar)
 // and `layers` (a list of flat maps of scalars/inline string lists). That

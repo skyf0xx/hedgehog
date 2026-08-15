@@ -235,11 +235,12 @@ export function taskStatusLine(task) {
 }
 
 // full-stack-app's own layer → Nx tag shape, mirroring the tag reference
-// table `src/golden-cores/full-stack-app/packages/config/eslint-base.js`
-// ships as a comment. A layer's `depConstraints` failure is a mechanical
-// consequence of this table crossed with `core.yaml`'s `depends_on` chain
-// — printing it in the packet turns that failure into a pre-flight fact
-// instead of something `nx lint` teaches the agent after the fact. Keyed
+// table the @skyf0xx/hedgehog-core-full-stack-app package's
+// packages/config/eslint-base.js ships as a comment. A layer's
+// `depConstraints` failure is a mechanical consequence of this table crossed
+// with `core.yaml`'s `depends_on` chain — printing it in the packet turns
+// that failure into a pre-flight fact instead of something `nx lint`
+// teaches the agent after the fact. Keyed
 // by layer id, not module, since the shape is the same for every module.
 //
 // `scaffold` is the same kind of fact one step earlier: the generator in
