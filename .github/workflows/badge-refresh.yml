@@ -16,10 +16,41 @@ jobs:
         with:
           token: ${{ secrets.BADGE_REFRESH_TOKEN }}
 
+      - name: Compute total downloads across all packages
+        id: downloads
+        run: |
+          total=0
+          packages=$(python3 -c "
+          import json
+          data = json.load(open('src/registry/cores.json'))
+          names = ['@skyf0xx/hedgehog']
+          names += [c['package'] for c in data['cores']]
+          print('\n'.join(names))
+          ")
+          while IFS= read -r pkg; do
+            encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$pkg")
+            count=$(curl -sSL "https://api.npmjs.org/downloads/range/2020-01-01:$(date +%Y-%m-%d)/$encoded" \
+              | python3 -c "
+          import json, sys
+          try:
+              data = json.load(sys.stdin)
+              if 'error' in data:
+                  print(0)
+              else:
+                  print(sum(d['downloads'] for d in data.get('downloads', [])))
+          except Exception:
+              print(0)
+          ")
+            echo "$pkg: $count"
+            total=$((total + count))
+          done <<< "$packages"
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+
       - name: Fetch badges
         run: |
           mkdir -p badges
-          curl -fsSL "https://img.shields.io/npm/dt/%40skyf0xx%2Fhedgehog?style=for-the-badge" -o badges/npm-downloads.svg
+          total_formatted=$(python3 -c "print(f'{${{ steps.downloads.outputs.total }}:,}')")
+          curl -fsSL "https://img.shields.io/badge/downloads-${total_formatted}-blue?style=for-the-badge" -o badges/npm-downloads.svg
           curl -fsSL "https://img.shields.io/github/stars/skyf0xx/hedgehog?style=for-the-badge" -o badges/github-stars.svg
           curl -fsSL "https://img.shields.io/badge/support-Ko--fi-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" -o badges/kofi.svg
 
