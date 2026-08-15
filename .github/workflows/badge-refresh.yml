@@ -16,53 +16,56 @@ jobs:
         with:
           token: ${{ secrets.BADGE_REFRESH_TOKEN }}
 
-      - name: Fetch npm downloads badge
+      - name: Fetch badges
         run: |
           mkdir -p badges
           curl -fsSL "https://img.shields.io/npm/dt/%40skyf0xx%2Fhedgehog?style=for-the-badge" -o badges/npm-downloads.svg
+          curl -fsSL "https://img.shields.io/badge/support-Ko--fi-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" -o badges/kofi.svg
 
-      - name: Validate SVG
+      - name: Validate SVGs
         run: |
-          if ! grep -q "<svg" badges/npm-downloads.svg; then
-            echo "Fetched file is not an SVG, aborting" >&2
-            cat badges/npm-downloads.svg >&2
-            exit 1
-          fi
+          for f in badges/npm-downloads.svg badges/kofi.svg; do
+            if ! grep -q "<svg" "$f"; then
+              echo "Fetched file $f is not an SVG, aborting" >&2
+              cat "$f" >&2
+              exit 1
+            fi
+          done
 
-      - name: Scale badge to 40px height
+      - name: Scale badges to 40px height
         run: |
           python3 - <<'PY'
           import re
 
-          path = "badges/npm-downloads.svg"
-          with open(path) as f:
-              svg = f.read()
+          for path in ["badges/npm-downloads.svg", "badges/kofi.svg"]:
+              with open(path) as f:
+                  svg = f.read()
 
-          m = re.search(r'width="([\d.]+)" height="([\d.]+)"', svg)
-          orig_w, orig_h = float(m.group(1)), float(m.group(2))
+              m = re.search(r'width="([\d.]+)" height="([\d.]+)"', svg)
+              orig_w, orig_h = float(m.group(1)), float(m.group(2))
 
-          target_h = 40
-          scale = target_h / orig_h
-          new_w = round(orig_w * scale, 2)
+              target_h = 40
+              scale = target_h / orig_h
+              new_w = round(orig_w * scale, 2)
 
-          svg = svg.replace(
-              f'width="{m.group(1)}" height="{m.group(2)}"',
-              f'width="{new_w}" height="{target_h}" viewBox="0 0 {orig_w:g} {orig_h:g}"',
-              1,
-          )
+              svg = svg.replace(
+                  f'width="{m.group(1)}" height="{m.group(2)}"',
+                  f'width="{new_w}" height="{target_h}" viewBox="0 0 {orig_w:g} {orig_h:g}"',
+                  1,
+              )
 
-          with open(path, "w") as f:
-              f.write(svg)
+              with open(path, "w") as f:
+                  f.write(svg)
           PY
 
       - name: Commit if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if ! git diff --quiet -- badges/npm-downloads.svg; then
-            git add badges/npm-downloads.svg
-            git commit -m "chore: refresh npm downloads badge"
+          if ! git diff --quiet -- badges/npm-downloads.svg badges/kofi.svg; then
+            git add badges/npm-downloads.svg badges/kofi.svg
+            git commit -m "chore: refresh badges"
             git push
           else
-            echo "No change in badge, skipping commit"
+            echo "No change in badges, skipping commit"
           fi
