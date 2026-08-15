@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 // No-regression harness for the quoted-scalar escape fix.
 //
-// Loads every core.yaml that ships with (or lives in) this repo through
-// the real loader and prints a stable, fully-ordered dump of the parsed
-// result. Run it before and after a change to src/db/core.mjs and diff the
-// two outputs: identical output means ordinary core definitions parse
-// exactly as they did.
+// Loads every ordinary core definition this repo keeps through the real
+// loader and prints a stable, fully-ordered dump of the parsed result.
+// Run it before and after a change to src/db/core.mjs and diff the two
+// outputs: identical output means ordinary core definitions parse exactly
+// as they did.
+//
+// The definitions live in repro/fixtures/cores/ as `<core>.core.yaml`,
+// vendored from the cores that ship them so this harness has real
+// material to parse without depending on a core package being fetched.
 //
 // Run: node repro/parse-real-cores.mjs
 
@@ -16,20 +20,21 @@ import { loadCore, parseCoreYaml } from '../src/db/core.mjs';
 import { readFile } from 'node:fs/promises';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
+const FIXTURES = join(root, 'repro/fixtures/cores');
 
 function findCoreYaml(dir, found = []) {
   for (const entry of readdirSync(dir)) {
     if (entry === '.git' || entry === 'node_modules') continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) findCoreYaml(full, found);
-    else if (entry === 'core.yaml') found.push(full);
+    else if (entry === 'core.yaml' || entry.endsWith('.core.yaml')) found.push(full);
   }
   return found;
 }
 
-const files = findCoreYaml(root).sort();
+const files = findCoreYaml(FIXTURES).sort();
 if (files.length === 0) {
-  console.error('no core.yaml found — the harness would prove nothing');
+  console.error(`no core definition found under ${relative(root, FIXTURES)} — the harness would prove nothing`);
   process.exit(1);
 }
 

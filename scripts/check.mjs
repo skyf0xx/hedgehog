@@ -2,7 +2,7 @@
 // Payload integrity check. Hedgehog's product IS the agents/skills
 // payload, so this validates the things that would otherwise ship
 // silently broken: frontmatter consistency, cross-references between
-// agent/skill files, both shipped core.yaml files, the published
+// agent/skill files, the Golden Cores' core definitions, the published
 // tarball's contents, and the CLI entrypoint.
 //
 // Run with `pnpm check`. Exits non-zero on any failure — wired into
@@ -15,6 +15,8 @@ import { execFileSync } from 'node:child_process';
 import { parse } from '../src/hosts/frontmatter.mjs';
 import { AGENT_CAPABILITY } from '../src/hosts/capabilities.mjs';
 import { loadCore, lintCore } from '../src/db/core.mjs';
+import { loadRegistry } from '../src/registry/index.mjs';
+import { parseCoreManifest } from '../src/registry/manifest.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -62,17 +64,41 @@ for (const s of skills) {
   if (!s.description || !s.description.trim()) fail(`src/skills/${s.dir}/SKILL.md: missing or empty description`);
 }
 
+const agentNames = new Set(agents.map((a) => a.name));
+const cores = await loadRegistry();
+const skillNames = new Set(skills.map((s) => s.name));
+const coreNames = new Set(cores.map((c) => c.name));
+
+// The agents and skills each core ships. An engine file naming one of
+// these is referring to something a project gets from its core package
+// rather than from here, which resolves — so they count alongside the
+// engine's own names. Read from the manifests vendored under
+// repro/fixtures/cores/, so this check needs no package fetched.
+const coreOwned = new Set();
+const coreAgents = new Set();
+for (const core of cores) {
+  const manifest = parseCoreManifest(
+    await readFile(join(ROOT, `repro/fixtures/cores/${core.name}.manifest.yaml`), 'utf8'),
+    `${core.name}.manifest.yaml`,
+  );
+  for (const name of [...manifest.agents, ...manifest.skills]) coreOwned.add(name);
+  for (const name of manifest.agents) coreAgents.add(name);
+}
+
 // ── 3. Cross-references: every agent named in AGENT_CAPABILITY exists,
 //    and every agent file exists in AGENT_CAPABILITY (capabilities.mjs
 //    fails closed to 'readonly' for unknown agents, so a silently
-//    unlisted agent is a real gap, not a style nit). ────────────────────
-const agentNames = new Set(agents.map((a) => a.name));
+//    unlisted agent is a real gap, not a style nit). The table covers
+//    the cores' agents too — they install into a project alongside the
+//    engine's own, and a host that cannot register a per-agent grant
+//    reads their capability from here. ─────────────────────────────────
+const installable = new Set([...agentNames, ...coreAgents]);
 for (const capName of Object.keys(AGENT_CAPABILITY)) {
-  if (!agentNames.has(capName)) {
+  if (!installable.has(capName)) {
     fail(`src/hosts/capabilities.mjs: AGENT_CAPABILITY references unknown agent "${capName}"`);
   }
 }
-for (const name of agentNames) {
+for (const name of installable) {
   if (!(name in AGENT_CAPABILITY)) {
     fail(`src/hosts/capabilities.mjs: AGENT_CAPABILITY has no entry for agent "${name}" (would fail closed to readonly)`);
   }
@@ -81,12 +107,6 @@ for (const name of agentNames) {
 // ── 4. Cross-references: every backtick-quoted `agent-name` or
 //    `skill-name` mentioned in agent/skill bodies resolves to a real
 //    file, catching typos and stale renames. ───────────────────────────
-const skillNames = new Set(skills.map((s) => s.name));
-const coreNames = new Set(
-  (await readdir(join(ROOT, 'src/golden-cores'), { withFileTypes: true }))
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name),
-);
 const allEntries = [
   ...agents.map((a) => ({ label: `src/agents/${a.file}`, text: a.text })),
   ...skills.map((s) => ({ label: `src/skills/${s.dir}/SKILL.md`, text: s.text })),
@@ -95,7 +115,7 @@ const MENTION = /`(hedgehog-[a-z-]+|landing-[a-z-]+|nx-[a-z-]+|backend-eng|front
 for (const { label, text } of allEntries) {
   for (const m of text.matchAll(MENTION)) {
     const ref = m[1];
-    if (!agentNames.has(ref) && !skillNames.has(ref) && !coreNames.has(ref)) {
+    if (!agentNames.has(ref) && !skillNames.has(ref) && !coreNames.has(ref) && !coreOwned.has(ref)) {
       fail(`${label}: references \`${ref}\`, which is not an agent, skill, or core name`);
     }
   }
@@ -108,10 +128,10 @@ for (const { label, text } of allEntries) {
 //    here — and a shipped core tripping it is also the evidence that the
 //    heuristic cries wolf. ────────────────────────────────────────────
 for (const core of ['full-stack-app', 'landing-page']) {
-  const path = join(ROOT, 'src/golden-cores', core, 'core.yaml');
+  const path = join(ROOT, `repro/fixtures/cores/${core}.core.yaml`);
   try {
     const loaded = await loadCore(path);
-    if (loaded.id !== core) fail(`${path}: id "${loaded.id}" != directory name "${core}"`);
+    if (loaded.id !== core) fail(`${path}: id "${loaded.id}" != core name "${core}"`);
     for (const warning of lintCore(loaded)) fail(`${path}: ${warning}`);
   } catch (err) {
     fail(`${path}: failed to load — ${err.message}`);
@@ -148,8 +168,8 @@ for (const core of ['full-stack-app', 'landing-page']) {
   }
 }
 
-// ── 6. Published tarball contains every agent, every skill, both cores,
-//    and the db/hosts modules the CLI needs at runtime. ────────────────
+// ── 6. Published tarball contains every agent, every skill, and the
+//    db/hosts/registry modules the CLI needs at runtime. ───────────────
 try {
   const raw = execFileSync('npm', ['pack', '--dry-run', '--json'], { cwd: ROOT, encoding: 'utf8' });
   const parsed = JSON.parse(raw);
@@ -164,12 +184,14 @@ try {
     'src/hosts/routing.mjs',
     'src/hosts/capabilities.mjs',
     'src/hosts/frontmatter.mjs',
+    'src/registry/cores.json',
+    'src/registry/index.mjs',
+    'src/registry/fetch.mjs',
+    'src/registry/manifest.mjs',
     'src/templates/CLAUDE.md',
     'src/templates/graph.html',
     ...agents.map((a) => `src/agents/${a.file}`),
     ...skills.map((s) => `src/skills/${s.dir}/SKILL.md`),
-    'src/golden-cores/full-stack-app/core.yaml',
-    'src/golden-cores/landing-page/core.yaml',
   ];
   for (const path of required) {
     if (!packedSet.has(path)) fail(`npm pack: missing "${path}" from published tarball`);
@@ -192,4 +214,6 @@ if (failures.length > 0) {
   console.error('');
   process.exit(1);
 }
-console.log(`ok — ${agents.length} agents, ${skills.length} skills, 2 cores, tarball, CLI`);
+console.log(
+  `ok — ${agents.length} agents, ${skills.length} skills, ${cores.length} cores, tarball, CLI`,
+);

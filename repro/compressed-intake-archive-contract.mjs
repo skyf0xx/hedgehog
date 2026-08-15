@@ -34,10 +34,15 @@ import { checkContains, check, report, REPO_ROOT } from './_lib.mjs';
 // the wrapping — the wrapping is not the contract.
 const read = (p) => readFileSync(join(REPO_ROOT, p), 'utf8').replace(/\s+/g, ' ');
 
+// The contract spans the engine and the cores that consume the archive.
+// The engine's half is read where it lives; the consuming halves are
+// vendored under repro/fixtures/core-docs/ from the cores that ship them
+// (`ux-planner` from full-stack-app, `hedgehog-core-design` from
+// authored), the same way repro/fixtures/cores/ vendors core definitions.
 const INTAKE = read('src/skills/hedgehog-planning-intake/SKILL.md');
 const PLANNER = read('src/agents/planner.md');
-const UX_PLANNER = read('src/agents/ux-planner.md');
-const CORE_DESIGN = read('src/skills/hedgehog-core-design/SKILL.md');
+const UX_PLANNER = read('repro/fixtures/core-docs/ux-planner.md');
+const CORE_DESIGN = read('repro/fixtures/core-docs/hedgehog-core-design.SKILL.md');
 
 console.log('repro: compressed intake writes what its consumers read\n');
 
