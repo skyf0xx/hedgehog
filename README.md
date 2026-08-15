@@ -196,19 +196,6 @@ npx @skyf0xx/hedgehog update
 
 This refreshes the installed agents and skills in a specific repo (note, not vendor skills)
 
-### Installing a specific core
-
-``` bash
-npx @skyf0xx/hedgehog init --core full-stack-app
-npx @skyf0xx/hedgehog cores list   # every core this release can install, and what each is for
-```
-
-Each named core ships as its own npm package:
-
-- [`@skyf0xx/hedgehog-core-full-stack-app`](https://github.com/skyf0xx/hedgehog-core-full-stack-app)
-- [`@skyf0xx/hedgehog-core-landing-page`](https://github.com/skyf0xx/hedgehog-core-landing-page)
-- [`@skyf0xx/hedgehog-core-authored`](https://github.com/skyf0xx/hedgehog-core-authored)
-
 ## Why Hedgehog
 
 Most AI coding tools improve prompting.
