@@ -26,6 +26,16 @@ Tool grants are defense in depth. The enforcement is `hedgehog verify`, which ch
 
 `authored` carries no install flag — `hedgehog-core-design` chooses it during planning intake rather than a user passing it to `init`, then designs its layer sequence and writes `.hedgehog/core.yaml` directly instead of fetching a pre-built workspace.
 
+### Keeping a shipped core's workspace current
+
+A core that ships a pre-built `workspace/` (`full-stack-app`, `landing-page`) owns the staleness of its own dependencies the same way it owns everything else about that workspace — this repo has no visibility into either core's dependency tree. Each such core's repo runs its own scheduled dependency-update workflow, shaped to what that workspace actually needs to stay coherent, gated on that workspace's real build/test/lint targets (not a stub), opening a PR for human review rather than merging or publishing on its own:
+
+- `full-stack-app` runs `nx migrate latest` on a schedule, because Nx requires `nx` and every `@nx/*` plugin to be the exact same version — an ordinary per-package dependency bot would land them one PR at a time and break the workspace on every partial state. That gate also regenerates one throwaway domain module through all seven layer generators and typechecks/builds the result, since a migration can silently break generator output in a way that only surfaces the next time a consuming project scaffolds a module.
+- `landing-page` has no coupled version matrix (Astro, Tailwind, and the rest resolve independently), so its update workflow is an ordinary grouped dependency bump gated on `astro check`, `eslint`, and `astro build`.
+- `authored` ships no pre-built workspace — its stack is chosen per-project at design time, not pinned in the package — so it has no workspace dependencies to keep current.
+
+A new core that ships a pre-built workspace should add the equivalent: a scheduled workflow that updates that workspace's dependencies as a single reviewable PR, gated on real targets run against the real workspace, never merging or publishing itself.
+
 ## `full-stack-app` core
 
 Package and source: [`skyf0xx/hedgehog-core-full-stack-app`](https://github.com/skyf0xx/hedgehog-core-full-stack-app).
