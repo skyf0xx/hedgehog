@@ -261,6 +261,19 @@ function corePayload(core, h, { hostOnly = false } = {}) {
     // than generating it live. A core that scaffolds nothing (its
     // workspace is designed during planning) declares no `workspace`.
     ...(manifest.workspace ? [{ type: 'dir', root, from: manifest.workspace, to: '.' }] : []),
+    // A second CLAUDE.md section for cores whose path fills
+    // {{CORE_SECTION}} after install rather than at it — adoption reads
+    // it from the project instead of the package it ships in.
+    ...(manifest.template_adopted
+      ? [
+          {
+            type: 'file',
+            root,
+            from: manifest.template_adopted,
+            to: `.hedgehog/${manifest.template_adopted}`,
+          },
+        ]
+      : []),
   ];
 }
 
