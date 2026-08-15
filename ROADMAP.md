@@ -55,15 +55,17 @@ this only serves the project's own public presence.
 
 ### New core-design blueprints
 
-`src/skills/hedgehog-core-design/blueprints/` covers nine shapes (CLI,
-library/SDK, browser extension, desktop app, game, data pipeline,
-bot/agent, compiler/language tool, infra/deploy tool) — each one a single
-25–60 line markdown file read at planning intake for a system shape that
-isn't `full-stack-app` or `landing-page`. Shapes not yet covered: an MCP
-server, a Slack/Discord bot, a monorepo-of-services, a static site
-generator plugin. Adding one is scoped to one new file plus a routing
-entry — model it on the shortest existing blueprint (`cli.md`) rather
-than the longest.
+`hedgehog-core-design`'s `blueprints/` (in the
+[`hedgehog-core-authored`](https://github.com/skyf0xx/hedgehog-core-authored)
+repo) covers nine shapes (CLI, library/SDK, browser extension, desktop app,
+game, data pipeline, bot/agent, compiler/language tool, infra/deploy tool)
+— each one a single 25–60 line markdown file read at planning intake for a
+system shape that isn't `full-stack-app` or `landing-page`. Shapes not yet
+covered: an MCP server, a Slack/Discord bot, a monorepo-of-services, a
+static site generator plugin. Adding one is scoped to one new file plus a
+routing entry — model it on the shortest existing blueprint (`cli.md`)
+rather than the longest. Lands as a PR against `hedgehog-core-authored`,
+not this repo.
 
 ### A generator layer as a quality bar for new opinionated cores
 

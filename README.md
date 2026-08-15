@@ -138,7 +138,7 @@ Artifact
 
 ### Anything else
 
-A CLI, a library, a browser extension, a data pipeline, etc. fitting neither shape gets its own build order, designed at intake rather than chosen from a menu — starting from a [battle-tested blueprint](src/skills/hedgehog-core-design/blueprints) for the system's shape where one exists.
+A CLI, a library, a browser extension, a data pipeline, etc. fitting neither shape gets its own build order, designed at intake rather than chosen from a menu — starting from a battle-tested blueprint (in [`hedgehog-core-authored`](https://github.com/skyf0xx/hedgehog-core-authored)'s `hedgehog-core-design` skill) for the system's shape where one exists.
 
 Run `init` with no core flag: planning intake names the system shape, picks
 the stack, derives the layers, and locks them to `.hedgehog/core.yaml`,
