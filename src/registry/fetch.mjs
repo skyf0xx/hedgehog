@@ -17,9 +17,15 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
-import { parseCoreManifest } from './manifest.mjs';
+import { parseCoreManifest, assertEngineSatisfies } from './manifest.mjs';
 
 const execFileAsync = promisify(execFile);
+
+// The CLI's own version, which a core's `engine` range is checked against
+// every time a manifest is read.
+const ENGINE_VERSION = JSON.parse(
+  await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
+).version;
 
 const MANIFEST_NAME = 'hedgehog-core.yaml';
 
@@ -141,6 +147,7 @@ async function readManifest(root, entry) {
         `The package and the registry entry have to agree on the core's name.`,
     );
   }
+  assertEngineSatisfies(manifest, ENGINE_VERSION, `${entry.package}/${MANIFEST_NAME}`);
   return manifest;
 }
 

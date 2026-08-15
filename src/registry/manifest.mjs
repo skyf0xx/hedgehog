@@ -8,7 +8,7 @@
 //   name: <core name>                  matches its registry entry
 //   flag: <cli flag> | null            null when the core has no install flag
 //   language: <scalar>
-//   engine: "<semver range>"           which CLI versions can install it
+//   engine: "^<major>.<minor>.<patch>" which CLI versions can install it
 //   selects_when: >                    prose the planner reads in Phase 0
 //     ...folded block...
 //   workspace: workspace/              omitted by a core that scaffolds nothing
@@ -25,6 +25,13 @@
 
 const LIST_KEYS = new Set(['agents', 'skills', 'vendor_skills']);
 const REQUIRED_KEYS = ['name', 'language', 'template'];
+
+// The one range form a manifest's `engine` may take: a caret range over a
+// three-part version. Caret is the whole vocabulary on purpose — a core
+// declares the major line of the engine it installs against, and anything
+// wider or narrower than that is a shape this table does not resolve.
+const ENGINE_RANGE = /^\^(\d+)\.(\d+)\.(\d+)$/;
+const ENGINE_VERSION = /^(\d+)\.(\d+)\.(\d+)/;
 
 function stripComment(line) {
   let quote = null;
@@ -115,4 +122,52 @@ export function parseCoreManifest(text, source = 'hedgehog-core.yaml') {
     }
   }
   return manifest;
+}
+
+/**
+ * Check a core's declared `engine` range against the CLI installing it.
+ *
+ * A core states which engine line it installs against; an engine older
+ * than that line writes a payload the core's own skills expect features
+ * from, so the install stops here rather than part-way through.
+ *
+ * @param {object} manifest - a parsed manifest, carrying `engine`
+ * @param {string} engineVersion - the CLI's own package.json `version`
+ * @param {string} source - what to name in the error
+ */
+export function assertEngineSatisfies(manifest, engineVersion, source = 'hedgehog-core.yaml') {
+  const required = manifest.engine;
+  if (required == null) return;
+
+  const range = ENGINE_RANGE.exec(String(required).trim());
+  if (!range) {
+    throw new Error(
+      `${source}: unsupported engine range "${required}".\n` +
+        `A core states the engine line it installs against as a caret range over a\n` +
+        `three-part version, like "^5.0.0". Nothing else resolves.`,
+    );
+  }
+
+  const installed = ENGINE_VERSION.exec(String(engineVersion).trim());
+  if (!installed) {
+    throw new Error(`${source}: cannot read the installed engine version ("${engineVersion}").`);
+  }
+
+  const [, wantMajor, wantMinor, wantPatch] = range.map(Number);
+  const [, haveMajor, haveMinor, havePatch] = installed.map(Number);
+
+  // Caret semantics: the same major line, at or above the stated version.
+  const satisfied =
+    haveMajor === wantMajor &&
+    (haveMinor > wantMinor || (haveMinor === wantMinor && havePatch >= wantPatch));
+
+  if (!satisfied) {
+    throw new Error(
+      `This core needs Hedgehog ${required}, and the CLI running is ${engineVersion}.\n\n` +
+        `The core's agents and skills are written against that engine line, so installing\n` +
+        `them on this one would land a payload the core cannot drive. Run the install\n` +
+        `again through the current release:\n\n` +
+        `  npx @skyf0xx/hedgehog@latest init\n`,
+    );
+  }
 }
