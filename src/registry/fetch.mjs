@@ -70,17 +70,29 @@ export async function fetchCore(entry) {
   const version = await packageVersion(staged.root);
   const cached = join(CORE_CACHE_ROOT, entry.name, version);
 
+  // Read the manifest off the staged copy first. The cache is what
+  // `cores list` reports as reusable and what an offline `update` reads
+  // back, so only a core this engine can actually install belongs in it —
+  // a manifest that fails here throws before anything is cached.
+  let manifest;
+  try {
+    manifest = await readManifest(staged.root, entry);
+  } catch (err) {
+    await rm(staged.tmp, { recursive: true, force: true });
+    throw err;
+  }
+
   // Another install may have cached this exact version between the pack
   // and now; its copy is as good as this one, so keep it and drop ours.
   if (await exists(cached)) {
     await rm(staged.tmp, { recursive: true, force: true });
-    return { manifest: await readManifest(cached, entry), root: cached, version };
+    return { manifest, root: cached, version };
   }
 
   await mkdir(join(CORE_CACHE_ROOT, entry.name), { recursive: true });
   await rename(staged.root, cached);
   await rm(staged.tmp, { recursive: true, force: true });
-  return { manifest: await readManifest(cached, entry), root: cached, version };
+  return { manifest, root: cached, version };
 }
 
 /**
