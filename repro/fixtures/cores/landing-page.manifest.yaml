@@ -2,13 +2,6 @@ name: landing-page
 flag: --landing-page
 language: typescript
 engine: "^5.0.0"
-selects_when: >
-  The description is a marketing/announcement/waitlist/portfolio page
-  (or a small handful of such pages) with no persistent domain data of
-  its own. A page that only collects an email into a third-party form
-  service, or has no state at all, qualifies. The bar is "no domain
-  module" — a landing page with a dozen sections is still landing-page,
-  not promoted to full-stack-app for being long.
 workspace: workspace/
 template: CLAUDE.core.md
 agents: [landing-strategist, landing-systems, landing-sequencer,

@@ -231,10 +231,10 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 
 A core is an npm package carrying a pre-built, pre-verified workspace plus the agents and skills that build it. The package contract, at the package root:
 
-- `hedgehog-core.yaml` — the manifest naming the core (matching its registry entry), its language, which CLI versions can install it, the `selects_when` prose `planner` reads in Phase 0, and where each contributed piece lives in the package: `workspace/` (the scaffold, omitted by a core that scaffolds nothing), `CLAUDE.core.md` (fills the installed `CLAUDE.md` shell's core section), `agents/<name>.md`, `skills/<name>/`, and any `vendor_skills/<name>/`.
+- `hedgehog-core.yaml` — the manifest naming the core (matching its registry entry), its language, which CLI versions can install it, and where each contributed piece lives in the package: `workspace/` (the scaffold, omitted by a core that scaffolds nothing), `CLAUDE.core.md` (fills the installed `CLAUDE.md` shell's core section), `agents/<name>.md`, `skills/<name>/`, and any `vendor_skills/<name>/`.
 - `core.yaml` — the layer sequence and per-layer verify commands, in the same shape `src/db/core.mjs` loads for an authored core.
 
-Adding the package to the CLI's `init` menu is one entry in `src/registry/cores.json`: the package name, the version range to resolve, an install flag, and the `selects_when` prose.
+Adding the package to the CLI's `init` menu is one entry in `src/registry/cores.json`: the package name, the version range to resolve, an install flag, and the `selects_when` prose. That entry owns the selection prose — `planner` reads it in Phase 0, before any core package is fetched — so a manifest that carries a `selects_when` of its own is refused at install.
 
 ## Credits
 

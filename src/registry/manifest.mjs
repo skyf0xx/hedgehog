@@ -9,14 +9,18 @@
 //   flag: <cli flag> | null            null when the core has no install flag
 //   language: <scalar>
 //   engine: "^<major>.<minor>.<patch>" which CLI versions can install it
-//   selects_when: >                    prose the planner reads in Phase 0
-//     ...folded block...
 //   workspace: workspace/              omitted by a core that scaffolds nothing
 //   template: CLAUDE.core.md           fills the CLAUDE.md shell's core section
 //   template_adopted: <path>           optional second section, for adoption
 //   agents: [<name>, ...]              agents/<name>.md in the package
 //   skills: [<name>, ...]              skills/<name>/ in the package
 //   vendor_skills: [<name>, ...]       vendor-skills/<name>/ in the package
+//
+// The prose the planner reads in Phase 0 to choose a core is not among
+// these keys. Core selection happens before any package is fetched, so
+// `src/registry/cores.json` owns that prose as its `selects_when` field
+// and is the only copy anything reads. A manifest carrying that key is
+// refused, since a second copy could only drift from the one in use.
 //
 // The YAML subset is top-level keys only: scalars, `null`, inline lists
 // (which may wrap across lines), and folded block scalars (`>`). Nothing
@@ -120,6 +124,14 @@ export function parseCoreManifest(text, source = 'hedgehog-core.yaml') {
     else if (!Array.isArray(manifest[key])) {
       throw new Error(`${source}: "${key}" must be a list`);
     }
+  }
+  if (manifest.selects_when != null) {
+    throw new Error(
+      `${source}: carries "selects_when", which src/registry/cores.json owns.\n` +
+        `The planner reads that prose in Phase 0, before any core package is fetched, so\n` +
+        `the registry entry is the only copy anything reads. Drop the key from the\n` +
+        `manifest and revise the core's entry in cores.json instead.`,
+    );
   }
   return manifest;
 }

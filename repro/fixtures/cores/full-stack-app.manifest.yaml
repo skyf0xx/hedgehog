@@ -2,16 +2,6 @@ name: full-stack-app
 flag: --ts-full-stack-app
 language: typescript
 engine: "^5.0.0"
-selects_when: >
-  The description names persistent domain data with its own lifecycle:
-  something that gets created, changes state, gets queried back later, or
-  needs accounts/auth, background jobs, or a real app beyond a single
-  page. Data that gets stored is this core at any size — a todo list, a
-  notes app, a tracker of any kind — never talked down to browser-local
-  storage or a single-file page for sounding small. If the project has
-  both a marketing page and a real app behind it, this is still
-  full-stack-app: the page becomes routes inside apps/web, not a
-  separate project.
 workspace: workspace/
 template: CLAUDE.core.md
 agents: [backend-eng, ux-planner, front-end-eng]
