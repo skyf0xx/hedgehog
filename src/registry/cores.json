@@ -1,0 +1,30 @@
+{
+  "cores": [
+    {
+      "name": "full-stack-app",
+      "flag": "--ts-full-stack-app",
+      "package": "@skyf0xx/hedgehog-core-full-stack-app",
+      "version": "^1.0.0",
+      "language": "typescript",
+      "repository": "https://github.com/skyf0xx/hedgehog-core-full-stack-app",
+      "selects_when": "The description names persistent domain data with its own lifecycle: something that gets created, changes state, gets queried back later, or needs accounts/auth, background jobs, or a real app beyond a single page. Data that gets stored is this core at any size — a todo list, a notes app, a tracker of any kind — never talked down to browser-local storage or a single-file page for sounding small. If the project has both a marketing page and a real app behind it, this is still full-stack-app: the page becomes routes inside apps/web, not a separate project."
+    },
+    {
+      "name": "landing-page",
+      "flag": "--landing-page",
+      "package": "@skyf0xx/hedgehog-core-landing-page",
+      "version": "^1.0.0",
+      "language": "typescript",
+      "repository": "https://github.com/skyf0xx/hedgehog-core-landing-page",
+      "selects_when": "The description is a marketing/announcement/waitlist/portfolio page (or a small handful of such pages) with no persistent domain data of its own. A page that only collects an email into a third-party form service, or has no state at all, qualifies. The bar is \"no domain module\" — a landing page with a dozen sections is still landing-page, not promoted to full-stack-app for being long."
+    },
+    {
+      "name": "authored",
+      "package": "@skyf0xx/hedgehog-core-authored",
+      "version": "^1.0.0",
+      "language": "typescript",
+      "repository": "https://github.com/skyf0xx/hedgehog-core-authored",
+      "selects_when": "Neither shipped core fits, but the description names a real artifact a Builder step would produce — just not in either Golden Core's shape. This core is designed by the planner rather than chosen from a fixed set: hedgehog-planning-intake's Phase 0 elicits the drivers first, then hedgehog-core-design names the system shape, picks the stack, derives the layers, and writes .hedgehog/core.yaml. It carries the same enforcement as a Golden Core — ordered layers, scoped file access, verification before completion — but the sequence is designed for this project rather than battle-tested across many."
+    }
+  ]
+}
