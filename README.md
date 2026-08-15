@@ -197,14 +197,16 @@ This refreshes the installed agents and skills in a specific repo (note, not ven
 
 ### Installing a specific core
 
-Naming a core up front installs it with the shared payload. Without one, `init` installs the shared payload alone and leaves the choice to planning intake, where `planner` selects a core — `full-stack-app`, `landing-page`, or one it designs for the project:
-
 ``` bash
 npx @skyf0xx/hedgehog init --core full-stack-app
 npx @skyf0xx/hedgehog cores list   # every core this release can install, and what each is for
 ```
 
-Each named core ships as its own npm package — [`@skyf0xx/hedgehog-core-full-stack-app`](https://github.com/skyf0xx/hedgehog-core-full-stack-app), [`@skyf0xx/hedgehog-core-landing-page`](https://github.com/skyf0xx/hedgehog-core-landing-page) — and `init` fetches the version `src/registry/cores.json` names and caches it locally, so a repeat install on the same version needs no network. The core planning intake designs for a project that fits neither, [`@skyf0xx/hedgehog-core-authored`](https://github.com/skyf0xx/hedgehog-core-authored), carries no `--core` flag of its own — `planner` chooses it, rather than a user naming it at `init`.
+Each named core ships as its own npm package:
+
+- [`@skyf0xx/hedgehog-core-full-stack-app`](https://github.com/skyf0xx/hedgehog-core-full-stack-app)
+- [`@skyf0xx/hedgehog-core-landing-page`](https://github.com/skyf0xx/hedgehog-core-landing-page)
+- [`@skyf0xx/hedgehog-core-authored`](https://github.com/skyf0xx/hedgehog-core-authored)
 
 ## Why Hedgehog
 

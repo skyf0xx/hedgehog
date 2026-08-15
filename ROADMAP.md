@@ -12,21 +12,23 @@ contributed to Hedgehog before, start there.
 
 ## Bigger items
 
-### A mobile core
+### New pre-built cores
+Cores are preferable to [blueprints](#new-core-design-blueprints). e.g.
 
-The two existing cores with pre-built workspaces (`full-stack-app`,
-`landing-page`) are hand-built, pre-verified, and each ships as its own
-npm package — reserved for shapes common and opinionated enough to
-deserve that treatment. Mobile (React Native or similar) is the strongest
-candidate for a third: navigation, offline state, and native build
-tooling carry enough real architectural decisions that a
-`hedgehog-core-design` blueprint alone won't lock them the way a
-pre-built core does. Scope: a new `@skyf0xx/hedgehog-core-mobile`
-package, its own repo, carrying a pre-built, pre-verified workspace and a
-generator/scaffold layer (see "A generator layer as a quality bar for new
-opinionated cores" below), plus a `src/registry/cores.json` entry in this
-repo with a `--mobile` install flag and the phase/layer build order that
-goes with it — modeled on `@skyf0xx/hedgehog-core-full-stack-app`.
+1. **Mobile** (React Native or similar) — navigation, offline state, and
+   native build tooling carry enough real decisions that a
+   `hedgehog-core-design` blueprint alone won't lock them down.
+2. **CLI tool** — argument parsing, subcommand structure, and
+   distribution (npm bin, single binary) are opinionated enough to
+   pre-build rather than re-derive per project.
+3. **Browser extension** — manifest version, background/content-script
+   split, and store packaging are fixed enough across projects to lock
+   into a workspace rather than a blueprint.
+4. **MCP server** — tool schema, transport (stdio/SSE), and auth follow
+   a fixed shape, and demand for these is high right now.
+5. **Python data/ML service** — FastAPI + Pydantic + a model-serving
+   layer is opinionated enough to pre-build, and the only language gap
+   in the current lineup, which is TypeScript-only.
 
 ### Add-ons beyond Auth, Queue, and Mobile
 
@@ -69,11 +71,12 @@ than the longest.
 `workspace/tools/generators/` (Nx generators for schema, contract,
 repository, service, controller, hook, and screen), driven by the
 `nx-generate` skill instead of an agent writing that boilerplate
-freehand. A core proposing a new pre-built workspace (the mobile core
-above, or any future one) should propose what it generates alongside the
-workspace itself, not add a generator layer later as an afterthought —
-this is a first-class part of what makes a core's build order
-mechanically enforced rather than convention the AI is asked to follow.
+freehand. A core proposing a new pre-built workspace (one of the
+candidates above, or any future one) should propose what it generates
+alongside the workspace itself, not add a generator layer later as an
+afterthought — this is a first-class part of what makes a core's build
+order mechanically enforced rather than convention the AI is asked to
+follow.
 Scope for any single such proposal: identify the repeatable per-module
 boilerplate the new core's build order produces, and design the
 generator(s) for it modeled on `full-stack-app`'s, as part of the same
