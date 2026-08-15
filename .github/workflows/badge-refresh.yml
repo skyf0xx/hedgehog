@@ -20,11 +20,12 @@ jobs:
         run: |
           mkdir -p badges
           curl -fsSL "https://img.shields.io/npm/dt/%40skyf0xx%2Fhedgehog?style=for-the-badge" -o badges/npm-downloads.svg
+          curl -fsSL "https://img.shields.io/github/stars/skyf0xx/hedgehog?style=for-the-badge" -o badges/github-stars.svg
           curl -fsSL "https://img.shields.io/badge/support-Ko--fi-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" -o badges/kofi.svg
 
       - name: Validate SVGs
         run: |
-          for f in badges/npm-downloads.svg badges/kofi.svg; do
+          for f in badges/npm-downloads.svg badges/github-stars.svg badges/kofi.svg; do
             if ! grep -q "<svg" "$f"; then
               echo "Fetched file $f is not an SVG, aborting" >&2
               cat "$f" >&2
@@ -37,7 +38,7 @@ jobs:
           python3 - <<'PY'
           import re
 
-          for path in ["badges/npm-downloads.svg", "badges/kofi.svg"]:
+          for path in ["badges/npm-downloads.svg", "badges/github-stars.svg", "badges/kofi.svg"]:
               with open(path) as f:
                   svg = f.read()
 
@@ -62,8 +63,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if ! git diff --quiet -- badges/npm-downloads.svg badges/kofi.svg; then
-            git add badges/npm-downloads.svg badges/kofi.svg
+          if ! git diff --quiet -- badges/npm-downloads.svg badges/github-stars.svg badges/kofi.svg; then
+            git add badges/npm-downloads.svg badges/github-stars.svg badges/kofi.svg
             git commit -m "chore: refresh badges"
             git push
           else

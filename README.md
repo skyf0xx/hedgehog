@@ -243,6 +243,8 @@ pnpm-only workspace convention.
 
 ## Support Hedgehog
 
-If Hedgehog helps you build better software with AI, give it a ⭐ on GitHub.
+If Hedgehog helps you build better software with AI, give it a ⭐ on GitHub, or [buy me a coffee on Ko-fi](https://ko-fi.com/skyf0xx).
 
-[![GitHub stars](https://img.shields.io/github/stars/skyf0xx/hedgehog?style=social)](https://github.com/skyf0xx/hedgehog/stargazers)
+[![GitHub stars](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/badges/github-stars.svg)](https://github.com/skyf0xx/hedgehog/stargazers)
+[![Total downloads](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/badges/npm-downloads.svg)](https://www.npmjs.com/package/@skyf0xx/hedgehog)
+[![Support on Ko-fi](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/badges/kofi.svg)](https://ko-fi.com/skyf0xx)
