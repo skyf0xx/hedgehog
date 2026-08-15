@@ -43,6 +43,7 @@ Hedgehog combines:
 - **TDD and progressive layering** — build one tested layer at a time
 - **Mechanical enforcement** — use tooling and phase gates instead of trusting the AI to follow instructions
 - **Small context loops** — keep every change focused, verifiable, and easy to review
+- **Deterministic scaffolding** — generate boilerplate and schemas instead of asking the AI to write it freehand
 
 Software that stays structured as it grows.
 
