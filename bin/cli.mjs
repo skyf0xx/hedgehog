@@ -139,9 +139,9 @@ async function namedCore(args) {
 // may rename (templates lose their src/templates/ prefix at the root);
 // `merge` entries concatenate a shared shell with a core-specific include
 // at {{CORE_SECTION}} (see CLAUDE.md template plumbing below).
-// Agents and skills for every core install regardless of which one is
-// chosen — planner needs the full toolset to run core selection at all,
-// and a project can only switch cores before it's bootstrapped anyway.
+// A core's own agents and skills install only for the core the project
+// chose; `planner` runs core selection from `hedgehog cores list`, which
+// reads the registry rather than whatever is installed on disk.
 //
 // `core` is `null` on a deferred install (plain `init`, no explicit
 // flag): the payload is the shared agents/skills/build-graph only, with
@@ -2731,10 +2731,19 @@ async function main() {
     // Fetched once, before any host is written: every host installs from
     // the same extraction, and a core that cannot be resolved has to stop
     // the install before it writes a partial payload.
+    // A host added to a project that already has a core installs that
+    // core's agents and skills too, so every host carries the same
+    // payload whether or not the core is named again.
+    let entry = coreEntry;
+    if (!entry) {
+      const record = await installedCore(DEST_ROOT);
+      if (record) entry = await resolveCore(record.name);
+    }
+
     let core = null;
-    if (coreEntry) {
+    if (entry) {
       try {
-        core = await fetchCore(coreEntry);
+        core = await fetchCore(entry);
       } catch (err) {
         console.error(`\n${red(bold('Core unavailable.'))} ${err.message}\n`);
         process.exitCode = 1;
