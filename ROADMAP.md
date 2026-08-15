@@ -12,18 +12,21 @@ contributed to Hedgehog before, start there.
 
 ## Bigger items
 
-### A mobile Golden Core
+### A mobile core
 
-The two existing Golden Cores (`full-stack-app`, `landing-page`) are
-hand-built, pre-verified workspaces reserved for shapes common and
-opinionated enough to deserve that treatment. Mobile (React Native or
-similar) is the strongest candidate for a third: navigation, offline state,
-and native build tooling carry enough real architectural decisions that a
-`hedgehog-core-design` blueprint alone won't lock them the way a Golden Core
-does. Scope: a new `@skyf0xx/hedgehog-core-mobile` package carrying a
-pre-built, pre-verified workspace, a `src/registry/cores.json` entry with
-a `--mobile` install flag, and the phase/layer build order that goes with
-it — modeled on `@skyf0xx/hedgehog-core-full-stack-app`.
+The two existing cores with pre-built workspaces (`full-stack-app`,
+`landing-page`) are hand-built, pre-verified, and each ships as its own
+npm package — reserved for shapes common and opinionated enough to
+deserve that treatment. Mobile (React Native or similar) is the strongest
+candidate for a third: navigation, offline state, and native build
+tooling carry enough real architectural decisions that a
+`hedgehog-core-design` blueprint alone won't lock them the way a
+pre-built core does. Scope: a new `@skyf0xx/hedgehog-core-mobile`
+package, its own repo, carrying a pre-built, pre-verified workspace and a
+generator/scaffold layer (see "A generator layer as a quality bar for new
+opinionated cores" below), plus a `src/registry/cores.json` entry in this
+repo with a `--mobile` install flag and the phase/layer build order that
+goes with it — modeled on `@skyf0xx/hedgehog-core-full-stack-app`.
 
 ### Add-ons beyond Auth, Queue, and Mobile
 
@@ -39,7 +42,7 @@ add-on is roughly its own small item once the pattern is followed — see
 Hedgehog has no public-facing site — `README.md` is the only front door
 right now. A landing page would pitch the discipline (what it is, the
 stance in `README.md`, install instructions) to someone who hasn't cloned
-the repo yet. Scope: a static site (the `landing-page` Golden Core's own
+the repo yet. Scope: a static site (the `landing-page` core's own
 Astro + Tailwind v4 workspace is the natural build tool for this, eating
 Hedgehog's own dog food) living outside `src/` — e.g. `site/` — plus a
 GitHub Actions workflow that builds and deploys it to GitHub Pages on
@@ -54,10 +57,27 @@ this only serves the project's own public presence.
 library/SDK, browser extension, desktop app, game, data pipeline,
 bot/agent, compiler/language tool, infra/deploy tool) — each one a single
 25–60 line markdown file read at planning intake for a system shape that
-isn't a Golden Core. Shapes not yet covered: an MCP server, a Slack/Discord
-bot, a monorepo-of-services, a static site generator plugin. Adding one is
-scoped to one new file plus a routing entry — model it on the shortest
-existing blueprint (`cli.md`) rather than the longest.
+isn't `full-stack-app` or `landing-page`. Shapes not yet covered: an MCP
+server, a Slack/Discord bot, a monorepo-of-services, a static site
+generator plugin. Adding one is scoped to one new file plus a routing
+entry — model it on the shortest existing blueprint (`cli.md`) rather
+than the longest.
+
+### A generator layer as a quality bar for new opinionated cores
+
+`full-stack-app` is the only core with a scaffold layer of its own —
+`workspace/tools/generators/` (Nx generators for schema, contract,
+repository, service, controller, hook, and screen), driven by the
+`nx-generate` skill instead of an agent writing that boilerplate
+freehand. A core proposing a new pre-built workspace (the mobile core
+above, or any future one) should propose what it generates alongside the
+workspace itself, not add a generator layer later as an afterthought —
+this is a first-class part of what makes a core's build order
+mechanically enforced rather than convention the AI is asked to follow.
+Scope for any single such proposal: identify the repeatable per-module
+boilerplate the new core's build order produces, and design the
+generator(s) for it modeled on `full-stack-app`'s, as part of the same
+PR that proposes the workspace.
 
 ### New host support
 

@@ -53,12 +53,28 @@ follow:
 
 ## Stack changes
 
-The stack in `README.md`'s Architecture table is locked because it's what
-makes the build order mechanically enforced (Nx boundaries, phase gates,
-lefthook) rather than a convention the AI is asked to follow. Proposing a
-stack swap means proposing an equivalent enforcement mechanism in the new
-tooling, not just a preference. See `ROADMAP.md` for where stack flexibility
-is headed.
+Each core locks its own stack, in its own repo — `full-stack-app`'s and
+`landing-page`'s tables live in `ARCHITECTURE.md` here, but the workspace,
+agents, and skills that implement them live in that core's own npm
+package (`hedgehog-core-full-stack-app`, `hedgehog-core-landing-page`).
+A stack is locked because it's what makes that core's build order
+mechanically enforced (Nx boundaries, phase gates, lefthook) rather than
+a convention the AI is asked to follow. Proposing a stack swap for an
+existing core means proposing an equivalent enforcement mechanism in the
+new tooling, not just a preference, and lands as a PR against that core's
+own repo rather than this one. `authored` has no locked stack table —
+`hedgehog-core-design` picks the stack per project instead.
+
+When a core's own workspace template needs a new piece of repeatable
+boilerplate — a new module shape, a new generated file type — prefer
+building or extending a generator over hand-authoring the output once.
+Building the generator costs more up front than writing the one-off by
+hand, but pays that back many times over across every future use of that
+generator; this repo's own `CLAUDE.md` states the same rule for the
+engine's own `src/`. `hedgehog-core-full-stack-app`'s
+`workspace/tools/generators/` (Nx generators for every domain-module
+layer) is the concrete, running example to model new scaffolding
+against — for a fix in a core repo, not this one.
 
 ## Commit style
 
