@@ -24,6 +24,16 @@ const ROOT = resolve(__dirname, '..');
 const failures = [];
 const fail = (msg) => failures.push(msg);
 
+// Two copies of the same file, compared for content: line endings and
+// trailing blank space are the checkout's business, not the manifest's.
+const normalize = (text) =>
+  text
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .trim();
+
 async function agentEntries() {
   const dir = join(ROOT, 'src/agents');
   const files = (await readdir(dir)).filter((f) => f.endsWith('.md'));
@@ -97,15 +107,32 @@ for (const core of cores) {
 // rather than from here, which resolves — so they count alongside the
 // engine's own names. Read from the manifests vendored under
 // repro/fixtures/cores/, so this check needs no package fetched.
+//
+// Each vendored manifest stands in for the real one in that core's own
+// repo. When that repo is checked out beside this one, the two are
+// compared so a fixture cannot quietly stop representing the core it
+// speaks for; when it isn't (CI clones this repo alone), the comparison
+// is skipped, since the fixture is what makes these checks work without
+// the sibling repos in the first place.
 const coreOwned = new Set();
 const coreAgents = new Set();
 for (const core of cores) {
-  const manifest = parseCoreManifest(
-    await readFile(join(ROOT, `repro/fixtures/cores/${core.name}.manifest.yaml`), 'utf8'),
-    `${core.name}.manifest.yaml`,
-  );
+  const fixturePath = join(ROOT, `repro/fixtures/cores/${core.name}.manifest.yaml`);
+  const fixture = await readFile(fixturePath, 'utf8');
+  const manifest = parseCoreManifest(fixture, `${core.name}.manifest.yaml`);
   for (const name of [...manifest.agents, ...manifest.skills]) coreOwned.add(name);
   for (const name of manifest.agents) coreAgents.add(name);
+
+  // The core's own repo, as a sibling checkout of this one.
+  const siblingPath = resolve(ROOT, `../hedgehog-core-${core.name}/hedgehog-core.yaml`);
+  const sibling = await readFile(siblingPath, 'utf8').catch(() => null);
+  if (sibling === null) continue;
+  if (normalize(sibling) !== normalize(fixture)) {
+    fail(
+      `repro/fixtures/cores/${core.name}.manifest.yaml: differs from ${siblingPath} — ` +
+        `copy the core's manifest over the fixture so it speaks for what that core ships`,
+    );
+  }
 }
 
 // ── 3. Cross-references: every agent named in AGENT_CAPABILITY exists,
