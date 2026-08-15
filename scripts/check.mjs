@@ -120,6 +120,16 @@ for (const core of cores) {
   const fixturePath = join(ROOT, `repro/fixtures/cores/${core.name}.manifest.yaml`);
   const fixture = await readFile(fixturePath, 'utf8');
   const manifest = parseCoreManifest(fixture, `${core.name}.manifest.yaml`);
+
+  // Selection prose has one owner, src/registry/cores.json — the planner
+  // reads it in Phase 0, before any package is fetched. A manifest copy
+  // is never read, so it can only drift away from the one in use.
+  if (/^selects_when:/m.test(fixture)) {
+    fail(
+      `repro/fixtures/cores/${core.name}.manifest.yaml: carries "selects_when", which ` +
+        `src/registry/cores.json owns — drop it from the core's manifest`,
+    );
+  }
   for (const name of [...manifest.agents, ...manifest.skills]) coreOwned.add(name);
   for (const name of manifest.agents) coreAgents.add(name);
 

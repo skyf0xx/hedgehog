@@ -19,8 +19,9 @@
 // The prose the planner reads in Phase 0 to choose a core is not among
 // these keys. Core selection happens before any package is fetched, so
 // `src/registry/cores.json` owns that prose as its `selects_when` field
-// and is the only copy anything reads. A manifest carrying that key is
-// refused, since a second copy could only drift from the one in use.
+// and is the only copy anything reads. A `selects_when` in a manifest is
+// dropped here and flagged by scripts/check.mjs, which is where a core's
+// own manifest is held to that ownership.
 //
 // The YAML subset is top-level keys only: scalars, `null`, inline lists
 // (which may wrap across lines), and folded block scalars (`>`). Nothing
@@ -125,14 +126,11 @@ export function parseCoreManifest(text, source = 'hedgehog-core.yaml') {
       throw new Error(`${source}: "${key}" must be a list`);
     }
   }
-  if (manifest.selects_when != null) {
-    throw new Error(
-      `${source}: carries "selects_when", which src/registry/cores.json owns.\n` +
-        `The planner reads that prose in Phase 0, before any core package is fetched, so\n` +
-        `the registry entry is the only copy anything reads. Drop the key from the\n` +
-        `manifest and revise the core's entry in cores.json instead.`,
-    );
-  }
+  // Selection prose belongs to the registry alone. A package carrying its
+  // own copy is installable — the key is simply not read — so this drops
+  // it rather than refusing the core, and `scripts/check.mjs` is where a
+  // manifest carrying one is called out.
+  delete manifest.selects_when;
   return manifest;
 }
 
