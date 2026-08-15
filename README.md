@@ -195,6 +195,17 @@ npx @skyf0xx/hedgehog update
 
 This refreshes the installed agents and skills in a specific repo (note, not vendor skills)
 
+### Installing a specific core
+
+`init` prompts for which core to build (`full-stack-app`, `landing-page`, or lets planning intake design one) unless a core is named up front:
+
+``` bash
+npx @skyf0xx/hedgehog init --core full-stack-app
+npx @skyf0xx/hedgehog cores list   # every core this release can install, and what each is for
+```
+
+Each named core ships as its own npm package (`@skyf0xx/hedgehog-core-full-stack-app`, `@skyf0xx/hedgehog-core-landing-page`); `init` fetches the version `src/registry/cores.json` names and caches it locally, so a repeat install on the same version needs no network.
+
 ## Why Hedgehog
 
 Most AI coding tools improve prompting.
@@ -215,6 +226,15 @@ Hedgehog improves the **system AI builds inside**.
 Hedgehog uses a fixed stack and build order for each core. The tooling enforces architectural boundaries so correctness does not depend on the AI remembering instructions.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
+
+## Authoring a new core
+
+A core is an npm package carrying a pre-built, pre-verified workspace plus the agents and skills that build it. The package contract, at the package root:
+
+- `hedgehog-core.yaml` — the manifest naming the core (matching its registry entry), its language, which CLI versions can install it, the `selects_when` prose `planner` reads in Phase 0, and where each contributed piece lives in the package: `workspace/` (the scaffold, omitted by a core that scaffolds nothing), `CLAUDE.core.md` (fills the installed `CLAUDE.md` shell's core section), `agents/<name>.md`, `skills/<name>/`, and any `vendor_skills/<name>/`.
+- `core.yaml` — the layer sequence and per-layer verify commands, in the same shape `src/db/core.mjs` loads for an authored core.
+
+Adding the package to the CLI's `init` menu is one entry in `src/registry/cores.json`: the package name, the version range to resolve, an install flag, and the `selects_when` prose.
 
 ## Credits
 

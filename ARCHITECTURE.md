@@ -18,6 +18,14 @@ Every install also generates `AGENTS.md` at the repo root from the agents' and s
 
 Tool grants are defense in depth. The enforcement is `hedgehog verify`, which checks the touched files against the task packet's ALLOWED SCOPE and gates the commit — so the ordered steps, scoped file access, and per-layer verification hold on every host regardless of what it granted.
 
+## Core resolution
+
+`src/agents/` and `src/skills/` above are shared by every core. Each core's own build agents, skills, and (for `full-stack-app` and `landing-page`) pre-built workspace ship in that core's own npm package rather than in this repo.
+
+`src/registry/cores.json` is the fixed table naming every core: its npm package, the version range `init` resolves, its install flag, and the `selects_when` prose `planner` reads aloud in Phase 0 to choose one. `init` resolves the requested core against that table (`src/registry/index.mjs`), then fetches the package with `npm pack` and extracts it (`src/registry/fetch.mjs`), caching the extraction at `~/.hedgehog/cores/<name>/<version>/` so a repeat install on the same version needs no network. The extracted package carries a `hedgehog-core.yaml` manifest at its root (`src/registry/manifest.mjs`) naming which agents, skills, vendored shelves, workspace, and CLAUDE.md section it contributes; the installer writes those into the consuming project alongside the shared agents and skills above. `installed.mjs` records which core and version a project installed, so `update` refreshes that core from the same package rather than re-resolving the registry.
+
+`authored` carries no install flag — `hedgehog-core-design` chooses it during planning intake rather than a user passing it to `init`, then designs its layer sequence and writes `.hedgehog/core.yaml` directly instead of fetching a pre-built workspace.
+
 ## `full-stack-app` core
 
 | Layer | Choice | Why |
