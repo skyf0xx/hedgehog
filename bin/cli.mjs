@@ -51,6 +51,9 @@ import { loadOverrides, addOverride, orphanedOverrides, OVERRIDES_DIR } from '..
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
 import { recordVersion, checkForUpdate, installedVersion } from '../src/hosts/version.mjs';
+import { loadRegistry, resolveCore } from '../src/registry/index.mjs';
+import { fetchCore, cachedCore, cachedVersions } from '../src/registry/fetch.mjs';
+import { recordCore, installedCore } from '../src/registry/installed.mjs';
 
 const AUTHORED_CORE_PATH = '.hedgehog/core.yaml';
 
@@ -63,7 +66,6 @@ const BLOCKED_REASON_LABELS = {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, '..');
 const DEST_ROOT = process.cwd();
-const CORES_ROOT = join(PKG_ROOT, 'src/golden-cores');
 const DEFAULT_CORE = 'full-stack-app';
 
 // The version of the payload this CLI carries — what `init` and
@@ -72,15 +74,19 @@ const PKG_VERSION = JSON.parse(
   await readFile(join(PKG_ROOT, 'package.json'), 'utf8'),
 ).version;
 
-// One install flag per core, named for what a user is asking to build
-// rather than the internal src/golden-cores/<name> directory — the two
-// diverge deliberately so the CLI's public surface can stay stable
-// while cores are renamed or added underneath it. Adding a core means
-// adding one entry here (and a matching src/golden-cores/<dir>).
-const CORE_FLAGS = {
-  '--ts-full-stack-app': 'full-stack-app',
-  '--landing-page': 'landing-page',
-};
+// One install flag per core that has one, named for what a user is asking
+// to build rather than for the package that ships it — the two diverge
+// deliberately so the CLI's public surface stays stable while cores are
+// renamed or added underneath it. Derived from src/registry/cores.json,
+// which owns the core → package → flag table: adding a core means adding
+// one entry there and nothing here. A core with no flag (`authored`) is
+// absent from this map on purpose; it is chosen during planning, never
+// off a fixed list at install time.
+async function coreFlags() {
+  return Object.fromEntries(
+    (await loadRegistry()).filter((c) => c.flag).map((c) => [c.flag, c.name]),
+  );
+}
 
 // ── tiny ANSI helpers (no deps) ─────────────────────────────────────────
 const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
@@ -104,14 +110,28 @@ const DOTFILE_RENAMES = { 'gitignore.template': '.gitignore' };
 // everyone else (e.g. a dangling optional-dependency symlink).
 const SKIP_DIR_NAMES = new Set(['node_modules', '.nx', 'dist', '.next', 'out-tsc']);
 
-// Every subdirectory of src/golden-cores/ is a valid --core value —
-// discovered from disk so a new core added under golden-cores/ doesn't
-// need this list touched separately.
+// Every core the registry lists is a valid --core value.
 async function availableCores() {
-  return (await readdir(CORES_ROOT, { withFileTypes: true }))
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name)
-    .sort();
+  return (await loadRegistry()).map((c) => c.name).sort();
+}
+
+// The core named on the command line, or null when none was — which is
+// the deferred install, where planner picks the core at planning intake.
+// `--core <name>`, `--core=<name>` and a core's own shorthand flag all
+// name one; the value is returned as written and resolved by the caller,
+// so an unknown name reports itself rather than being read as "none".
+async function namedCore(args) {
+  const flags = await coreFlags();
+  const shorthand = args.find((a) => a in flags);
+  if (shorthand) return flags[shorthand];
+
+  const eq = args.find((a) => a.startsWith('--core='));
+  if (eq) return eq.slice('--core='.length);
+
+  const at = args.indexOf('--core');
+  if (at !== -1) return args[at + 1] ?? '';
+
+  return null;
 }
 
 // ── the payload: what gets copied, and to where under the target repo ───
@@ -126,10 +146,17 @@ async function availableCores() {
 // `core` is `null` on a deferred install (plain `init`, no explicit
 // flag): the payload is the shared agents/skills/build-graph only, with
 // which core applies left for `planner` to decide. `bootstrap` lands the
-// golden-core workspace and fills the CLAUDE.md section for whichever
-// core `planner` picks — the first time either way. An explicit flag
+// core workspace and fills the CLAUDE.md section for whichever core
+// `planner` picks — the first time either way. An explicit flag
 // (`--ts-full-stack-app`, `--landing-page`) is a confirmed choice, so it
 // scaffolds that workspace immediately, at install time.
+//
+// A core is passed in as `{ manifest, root }` from fetchCore — the parsed
+// hedgehog-core.yaml and the directory that package extracted to. Its
+// entries carry `root`, so they resolve against the package rather than
+// against this one; every other entry is engine payload and resolves
+// against PKG_ROOT.
+//
 // `hostOnly` plans just the parts that differ per host — used when a
 // second host is added to a project whose shared payload (the vendored
 // shelves, the core workspace) is already on disk.
@@ -153,9 +180,6 @@ function plan(core, host = DEFAULT_HOST, { hostOnly = false } = {}) {
         // path (vendor-skills/BMAD/...), so it lands there rather than under
         // a host's own directory.
         { type: 'dir', from: 'vendor-skills/BMAD', to: 'vendor-skills/BMAD' },
-        // The vendored GSAP animation skill shelf that front-end-eng loads
-        // for motion work — same repo-root-relative referencing.
-        { type: 'dir', from: 'vendor-skills/GSAP', to: 'vendor-skills/GSAP' },
       ];
 
   const base = [...perHost, ...shared];
@@ -178,36 +202,89 @@ function plan(core, host = DEFAULT_HOST, { hostOnly = false } = {}) {
 
   return [
     ...base,
+    ...corePayload(core, h, { hostOnly }),
     {
       type: 'merge',
       shell: 'src/templates/CLAUDE.md',
-      include: `src/templates/CLAUDE.core.${core}.md`,
+      // The core's own CLAUDE.md section, read from the package it ships
+      // in rather than from the engine.
+      include: core.manifest.template,
+      includeRoot: core.root,
       dispatch: `src/hosts/${host}/DISPATCH.md`,
       to: h.bootstrapFile,
     },
-    // The pre-built, pre-verified workspace for the chosen core —
-    // everything a fresh project of that shape needs at repo root
-    // (lands the root package.json too, so there's no separate
-    // placeholder for it). The relevant bootstrap-core skill verifies
-    // this on first run rather than generating it live.
-    ...(hostOnly ? [] : [{ type: 'dir', from: `src/golden-cores/${core}`, to: '.' }]),
+  ];
+}
+
+// What a core package contributes to a project: the agents and skills it
+// names, the shelves it vendors, and — for a core that scaffolds one —
+// its pre-built workspace at repo root.
+//
+// The manifest names each agent and skill individually rather than
+// shipping a directory to copy wholesale, so only the pieces this core
+// declares land: a project on one core never picks up another's toolset.
+function corePayload(core, h, { hostOnly = false } = {}) {
+  const { manifest, root } = core;
+
+  const perHost = [
+    ...manifest.agents.map((name) => ({
+      type: 'file',
+      root,
+      from: `agents/${name}.md`,
+      to: `${h.agentsDir}/${name}.md`,
+      emit: h.emitAgent,
+    })),
+    ...manifest.skills.map((name) => ({
+      type: 'dir',
+      root,
+      from: `skills/${name}`,
+      to: `${h.skillsDir}/${name}`,
+    })),
+  ];
+
+  if (hostOnly) return perHost;
+
+  return [
+    ...perHost,
+    // Vendored shelves this core's agents load, referenced by
+    // repo-root-relative path the same way the engine's own are.
+    ...manifest.vendor_skills.map((name) => ({
+      type: 'dir',
+      root,
+      from: `vendor-skills/${name}`,
+      to: `vendor-skills/${name}`,
+    })),
+    // The pre-built, pre-verified workspace for this core — everything a
+    // fresh project of that shape needs at repo root (lands the root
+    // package.json too, so there's no separate placeholder for it). The
+    // relevant bootstrap-core skill verifies this on first run rather
+    // than generating it live. A core that scaffolds nothing (its
+    // workspace is designed during planning) declares no `workspace`.
+    ...(manifest.workspace ? [{ type: 'dir', root, from: manifest.workspace, to: '.' }] : []),
   ];
 }
 
 // The subset of plan() that's the discipline's payload rather than
 // project-specific or write-once content: `update` re-copies exactly
 // this, always overwriting, since a consuming project's installed agents
-// and skills are supposed to match upstream verbatim. The bootstrap file
-// carries project-filled content, the build graph and core workspace are
-// verified once by their own init/bootstrap-core steps, and
-// vendor-skills/BMAD and vendor-skills/GSAP are re-vendored only
-// deliberately (a manual re-vendor,
-// per each shelf's ATTRIBUTION.md) — none of those belong in an update.
-function updatePlan(host = DEFAULT_HOST) {
+// and skills are supposed to match upstream verbatim. That payload is
+// the engine's shared agents and skills plus the installed core's own —
+// both are upstream content a project is meant to hold verbatim, and a
+// core release ships fixes to its agents and skills the same way the
+// engine does.
+//
+// The bootstrap file carries project-filled content, the build graph and
+// core workspace are verified once by their own init/bootstrap-core
+// steps, and vendored shelves are re-vendored only deliberately (a manual
+// re-vendor, per each shelf's ATTRIBUTION.md) — none of those belong in
+// an update, so a core's `workspace` and `vendor_skills` are left alone
+// here while its agents and skills are refreshed.
+function updatePlan(host = DEFAULT_HOST, core = null) {
   const h = HOSTS[host];
   return [
     { type: 'dir', from: 'src/agents', to: h.agentsDir, emit: h.emitAgent },
     { type: 'dir', from: 'src/skills', to: h.skillsDir },
+    ...(core ? corePayload(core, h, { hostOnly: true }) : []),
     // Derived from the agents and skills above — an agent added, renamed,
     // or redescribed upstream has to be reflected in the index that
     // points at it, so it is regenerated alongside them.
@@ -319,7 +396,10 @@ async function writePlannedFile(f) {
     // for whichever bootstrap-core skill runs first to fill in. The host
     // is always known at install time, so {{HOST_DISPATCH}} never is.
     if (f.merge.include) {
-      const section = await readFile(join(PKG_ROOT, f.merge.include), 'utf8');
+      const section = await readFile(
+        join(f.merge.includeRoot ?? PKG_ROOT, f.merge.include),
+        'utf8',
+      );
       out = out.replaceAll('{{CORE_SECTION}}', section.trimEnd());
     }
     const dispatch = await readFile(join(PKG_ROOT, f.merge.dispatch), 'utf8');
@@ -350,7 +430,10 @@ async function plannedFiles(entry) {
   if (entry.type === 'generated') {
     return [{ dest: join(DEST_ROOT, entry.to), generate: entry.generate }];
   }
-  const src = join(PKG_ROOT, entry.from);
+  // `root` names the package an entry's sources come from — a fetched
+  // core's extraction directory. Engine payload carries none and resolves
+  // against this package.
+  const src = join(entry.root ?? PKG_ROOT, entry.from);
   if (entry.type === 'file') {
     return [{ src, dest: join(DEST_ROOT, entry.to), emit: entry.emit }];
   }
@@ -384,8 +467,10 @@ the discipline is committed alongside your code.
 
 ${bold('Usage')}
   npx @skyf0xx/hedgehog init                      install; planner picks the core at intake
+  npx @skyf0xx/hedgehog init --core <name>        install that core now, by name
   npx @skyf0xx/hedgehog init --ts-full-stack-app  scaffold the full-stack-app core now
   npx @skyf0xx/hedgehog init --landing-page       scaffold the landing-page core now
+  npx @skyf0xx/hedgehog cores list                every core this release can install
   npx @skyf0xx/hedgehog init --cursor             install for Cursor (default: Claude Code)
   npx @skyf0xx/hedgehog init --host=claude,gemini install for several coding agents at once
   npx @skyf0xx/hedgehog init --all-hosts          install for every supported coding agent
@@ -429,8 +514,13 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog debt list [<task-id>]     list declared debt, oldest first
   npx @skyf0xx/hedgehog --help
 
-Available cores: ${cores.join(', ')}
+Available cores: ${cores.join(', ')} (${bold('cores list')} for what each one is for)
 Available hosts: ${availableHosts().join(', ')} (default: ${DEFAULT_HOST})
+
+Each core ships as its own package, fetched at install time and cached
+under ~/.hedgehog/cores/ so a repeat install of the same version needs no
+network. Only the named core's agents and skills land — a project stays
+on the toolset its own core defines.
 
 Every command that writes to the build graph prints the absolute path of
 the database it opened, and exits non-zero when it matched no task —
@@ -442,21 +532,21 @@ what you want to build — the planner agent runs planning intake, then
 hands off to bootstrap.
 
 Building something else (a CLI, library, browser extension, data
-pipeline, desktop app, etc.)? Run plain 'init' with no core flag rather
-than picking --ts-full-stack-app or --landing-page by elimination — it
-installs the agents, skills, and build graph, the payload every core
-shares. The planner agent designs a core at planning intake
-(hedgehog-core-design) and bootstrap generates that workspace once it's
-confirmed. Describe the actual project and let Phase 0 route it.
+pipeline, desktop app, etc.)? Run plain 'init' naming no core rather than
+picking one by elimination — it installs the agents, skills, and build
+graph, the payload every core shares. The planner agent designs a core at
+planning intake (hedgehog-core-design) and bootstrap generates that
+workspace once it's confirmed. Describe the actual project and let Phase
+0 route it.
 
 ${bold('update')} re-copies the agents and skills (and the AGENTS.md index
-derived from them) from the installed Hedgehog version, so an
-already-bootstrapped project can pick up changes from a newer release. It
-refreshes every host the project was installed for, always overwriting
-those directories. The instructions file, the build graph, the core
-workspace, and vendor-skills/BMAD and vendor-skills/GSAP stay as they
-are — those are project-specific or updated deliberately, not by this
-command.
+derived from them) from the installed Hedgehog version and from the
+project's own core package, so an already-bootstrapped project can pick
+up changes from a newer release of either. It refreshes every host the
+project was installed for, always overwriting those directories. The
+instructions file, the build graph, the core workspace, and the vendored
+shelves stay as they are — those are project-specific or updated
+deliberately, not by this command.
 
 Both ${bold('init')} and ${bold('update')} stamp the version they wrote into
 .hedgehog/version.json. ${bold('update --check')} compares that stamp against
@@ -469,23 +559,14 @@ the @latest tag matters, since a bare npx may reuse a cached older CLI.
 `);
 }
 
-async function init({ force, core, explicitCore, host = DEFAULT_HOST, hostOnly = false }) {
-  if (explicitCore) {
-    const cores = await availableCores();
-    if (!cores.includes(core)) {
-      console.error(
-        `${red('Unknown core:')} ${core}\n\nAvailable cores: ${cores.join(', ')}\n`,
-      );
-      process.exitCode = 1;
-      return;
-    }
-  }
-
+// `core` is the fetched core — `{ manifest, root, version }` — or null on
+// a deferred install, where planner picks one later.
+async function init({ force, core, host = DEFAULT_HOST, hostOnly = false }) {
   // Resolve the full list of writes up front so we can detect conflicts
-  // before touching anything. A deferred install (no explicit core) plans
-  // against `null` — the shared agents/skills/build-graph payload only.
+  // before touching anything. A deferred install plans against `null` —
+  // the shared agents/skills/build-graph payload only.
   const groups = [];
-  for (const entry of plan(explicitCore ? core : null, host, { hostOnly })) {
+  for (const entry of plan(core, host, { hostOnly })) {
     const files = await plannedFiles(entry);
     groups.push({ entry, files });
   }
@@ -518,6 +599,7 @@ async function init({ force, core, explicitCore, host = DEFAULT_HOST, hostOnly =
   // from this list, so it has to already name the host being installed.
   await recordHosts(DEST_ROOT, [host]);
   await recordVersion(DEST_ROOT, PKG_VERSION);
+  if (core) await recordCore(DEST_ROOT, { name: core.manifest.name, version: core.version });
 
   let written = 0;
   let overwritten = 0;
@@ -542,7 +624,9 @@ async function init({ force, core, explicitCore, host = DEFAULT_HOST, hostOnly =
     )}\n`,
   );
   console.log('Next steps:');
-  if (explicitCore) {
+  // A core that landed a workspace landed its root package.json with it,
+  // so there are dependencies to install before the first commit.
+  if (core?.manifest.workspace) {
     // `pnpm install` before the first commit, not after it. The core's
     // commit gate is lefthook, and lefthook's hooks are written by its
     // own postinstall — so a commit made before the install is a commit
@@ -585,16 +669,9 @@ async function init({ force, core, explicitCore, host = DEFAULT_HOST, hostOnly =
     ),
   );
   console.log();
-  if (explicitCore) {
-    console.log(dim(`Core: ${bold(core)}.`));
-    console.log(
-      dim(
-        core === DEFAULT_CORE
-          ? '(Nx, packages/config, packages/db, apps/api, apps/web) — bootstrap\n' +
-              'runs whichever add-ons (Auth, Queue, Mobile) intake calls for.'
-          : 'bootstrap runs whichever add-on steps this core defines, if any.',
-      ),
-    );
+  if (core) {
+    console.log(dim(`Core: ${bold(core.manifest.name)} ${dim(`(${core.version})`)}.`));
+    console.log(dim('bootstrap runs whichever add-on steps this core defines, if any.'));
   } else {
     console.log(
       dim(
@@ -645,9 +722,20 @@ async function updateCheck() {
 async function update({ hosts }) {
   const targets = hosts?.length ? hosts : await installedHosts(DEST_ROOT);
 
+  // A project's payload is the engine's agents and skills and its core's,
+  // sharing one directory per host. Refreshing that directory means
+  // clearing and rewriting it whole, so both halves have to be in hand
+  // before anything is removed — refreshing one against a missing other
+  // would delete the core's agents and skills with nothing to write back.
+  const core = await resolveInstalledCore();
+  if (core === UNRESOLVED) {
+    process.exitCode = 1;
+    return;
+  }
+
   let written = 0;
   for (const host of targets) {
-    const entries = updatePlan(host);
+    const entries = updatePlan(host, core);
 
     // Full replace, not a merge: clear each payload directory first so a
     // rename or removal upstream (e.g. an agent renamed between releases)
@@ -697,11 +785,51 @@ async function update({ hosts }) {
   const bootstraps = [...new Set(targets.map((h) => HOSTS[h].bootstrapFile))].join(', ');
   console.log(
     dim(
-      `${bootstraps}, the build graph, the core workspace, and\n` +
-        'vendor-skills/BMAD and vendor-skills/GSAP are untouched — those carry\n' +
-        'project-specific or write-once content.',
+      `${bootstraps}, the build graph, the core workspace, and the\n` +
+        'vendored shelves are untouched — those carry project-specific or\n' +
+        'write-once content.',
     ),
   );
+}
+
+// Returned by resolveInstalledCore when the project has a core but its
+// package cannot be produced — distinct from `null`, which means the
+// project has no core yet and the shared payload is all there is to
+// refresh.
+const UNRESOLVED = Symbol('unresolved core');
+
+// The core package `update` should refresh agents and skills from: the
+// one this project recorded at install, re-resolved so a newer release of
+// that core is picked up, falling back to the extraction already cached
+// for the recorded version when the registry is out of reach.
+async function resolveInstalledCore() {
+  const record = await installedCore(DEST_ROOT);
+  if (!record) return null;
+
+  const entry = await resolveCore(record.name);
+  if (!entry) {
+    console.error(
+      `\n${red(bold('Core not in this release:'))} ${bold(record.name)}\n\n` +
+        `This project's payload includes that core's agents and skills, and refreshing\n` +
+        `the payload means rewriting them. This Hedgehog release does not list that\n` +
+        `core, so it has nothing to write back and has changed nothing.\n\n` +
+        `Run ${bold('npx @skyf0xx/hedgehog@latest update')} for a release that still ships it.\n`,
+    );
+    return UNRESOLVED;
+  }
+
+  try {
+    return await fetchCore(entry);
+  } catch (err) {
+    const cached = record.version ? await cachedCore(entry, record.version) : null;
+    if (cached) return cached;
+    console.error(
+      `\n${red(bold('Core unavailable.'))} ${err.message}\n\n` +
+        `Nothing was changed: this project's agents and skills include ${bold(record.name)}'s,\n` +
+        `and refreshing them means rewriting them from that package.\n`,
+    );
+    return UNRESOLVED;
+  }
 }
 
 async function dbRebuildCommand() {
@@ -754,11 +882,11 @@ async function dbCommand(args) {
 }
 
 // Resolves the project's core definition: an authored .hedgehog/core.yaml
-// takes precedence (spec: "Authored cores"); otherwise the shipped Golden
-// Core landed at repo root by `bootstrap` (its core.yaml copies there
-// along with the rest of src/golden-cores/<core>). Neither exists yet on
-// a deferred install (plain `init`, no explicit core flag) until
-// `bootstrap` runs — this returns null until then.
+// takes precedence (spec: "Authored cores"); otherwise the Golden Core's
+// own core.yaml, which lands at repo root along with the rest of that
+// core package's workspace. Neither exists yet on a deferred install
+// (plain `init`, no core named) until `bootstrap` runs — this returns
+// null until then.
 // Synchronous on purpose: formatPacket renders in one pass and takes this
 // as a predicate, so the FIRST ARRIVAL check cannot be an await. Paths are
 // repo-relative, the same way scope globs are.
@@ -2477,6 +2605,47 @@ async function debtCommand(args) {
   process.exitCode = 1;
 }
 
+// `hedgehog cores list` — every core this release can install, the
+// package that ships it, and which of its versions are already extracted
+// locally. The prose each entry carries is what planner reads in Phase 0
+// to decide which core a project is, so it prints here too rather than
+// living only in the registry file.
+async function coresCommand(args) {
+  const sub = args[0] ?? 'list';
+  if (sub !== 'list') {
+    console.error(`${red('Unknown cores subcommand:')} ${sub}\n\nUsage: hedgehog cores list\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const active = await installedCore(DEST_ROOT);
+  for (const core of await loadRegistry()) {
+    const cached = await cachedVersions(core.name);
+    const marker = active?.name === core.name ? green(' (installed)') : '';
+    console.log(`${bold(core.name)}${marker}`);
+    console.log(`  ${dim('package')}  ${core.package}@${core.version}`);
+    console.log(`  ${dim('flag')}     ${core.flag ?? dim('none — chosen at planning intake')}`);
+    console.log(`  ${dim('cached')}   ${cached.length ? cached.join(', ') : dim('not fetched')}`);
+    console.log(`  ${dim('when')}     ${wrapProse(core.selects_when, 68, '           ')}`);
+    console.log('');
+  }
+}
+
+// Wraps prose to `width`, indenting every line after the first so it sits
+// under the column its label opened.
+function wrapProse(text, width, indent) {
+  const lines = [];
+  let line = '';
+  for (const word of String(text ?? '').split(/\s+/).filter(Boolean)) {
+    if (line && line.length + word.length + 1 > width) {
+      lines.push(line);
+      line = word;
+    } else line = line ? `${line} ${word}` : word;
+  }
+  if (line) lines.push(line);
+  return lines.join(`\n${indent}`);
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help') || args.includes('-h') || args.length === 0) {
@@ -2485,17 +2654,23 @@ async function main() {
   }
   const cmd = args[0];
   const force = args.includes('--force') || args.includes('-f');
-  const coreFlag = args.find((a) => a in CORE_FLAGS);
-  if (coreFlag === undefined && args.some((a) => a.startsWith('--core='))) {
-    const attempted = args.find((a) => a.startsWith('--core='));
-    console.error(
-      `${red('Unknown flag:')} ${attempted}\n\n` +
-        `Use an explicit core flag instead: ${Object.keys(CORE_FLAGS).join(', ')}\n`,
-    );
-    process.exitCode = 1;
-    return;
+
+  // Which core to install now, named either by `--core <name>` /
+  // `--core=<name>` or by that core's own shorthand flag — the two are
+  // equivalent, and both resolve through the registry. Absent either, the
+  // core is left for planner to choose at planning intake.
+  const requestedCore = await namedCore(args);
+  let coreEntry = null;
+  if (requestedCore !== null) {
+    coreEntry = await resolveCore(requestedCore);
+    if (!coreEntry) {
+      console.error(
+        `${red('Unknown core:')} ${requestedCore}\n\nAvailable cores: ${(await availableCores()).join(', ')}\n`,
+      );
+      process.exitCode = 1;
+      return;
+    }
   }
-  const core = coreFlag ? CORE_FLAGS[coreFlag] : DEFAULT_CORE;
 
   // Which coding agent this repo is being set up for. `--host=<name>` and
   // the per-host shorthand flags are equivalent; absent either, the
@@ -2520,18 +2695,31 @@ async function main() {
   const hosts = allHosts ? availableHosts() : named;
 
   if (cmd === 'init') {
+    // Fetched once, before any host is written: every host installs from
+    // the same extraction, and a core that cannot be resolved has to stop
+    // the install before it writes a partial payload.
+    let core = null;
+    if (coreEntry) {
+      try {
+        core = await fetchCore(coreEntry);
+      } catch (err) {
+        console.error(`\n${red(bold('Core unavailable.'))} ${err.message}\n`);
+        process.exitCode = 1;
+        return;
+      }
+    }
+
     // The shared payload — vendored shelves, core workspace — lands with
     // the first host; the rest add only what differs per host.
     const targets = hosts.length ? hosts : [DEFAULT_HOST];
     for (const [i, host] of targets.entries()) {
-      await init({
-        force,
-        core,
-        explicitCore: Boolean(coreFlag),
-        host,
-        hostOnly: i > 0,
-      });
+      await init({ force, core, host, hostOnly: i > 0 });
     }
+    return;
+  }
+
+  if (cmd === 'cores') {
+    await coresCommand(args.slice(1));
     return;
   }
 
