@@ -69,6 +69,29 @@ const cores = await loadRegistry();
 const skillNames = new Set(skills.map((s) => s.name));
 const coreNames = new Set(cores.map((c) => c.name));
 
+// ── 2b. Registry entries are well-formed: every required field present,
+//    names unique, and flags unique among the cores that carry one
+//    (`authored` has none — it's chosen during planning, not passed to
+//    `init`, so a missing flag there is correct, not a gap). ─────────────
+const CORE_REQUIRED_FIELDS = ['name', 'package', 'version', 'language', 'repository', 'selects_when'];
+const seenCoreNames = new Set();
+const seenFlags = new Set();
+for (const core of cores) {
+  for (const field of CORE_REQUIRED_FIELDS) {
+    if (!core[field] || typeof core[field] !== 'string' || !core[field].trim()) {
+      fail(`src/registry/cores.json: core "${core.name ?? '<unnamed>'}" missing required field "${field}"`);
+    }
+  }
+  if (core.name) {
+    if (seenCoreNames.has(core.name)) fail(`src/registry/cores.json: duplicate core name "${core.name}"`);
+    seenCoreNames.add(core.name);
+  }
+  if (core.flag != null) {
+    if (seenFlags.has(core.flag)) fail(`src/registry/cores.json: duplicate flag "${core.flag}"`);
+    seenFlags.add(core.flag);
+  }
+}
+
 // The agents and skills each core ships. An engine file naming one of
 // these is referring to something a project gets from its core package
 // rather than from here, which resolves — so they count alongside the
