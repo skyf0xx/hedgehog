@@ -197,7 +197,7 @@ This refreshes the installed agents and skills in a specific repo (note, not ven
 
 ### Installing a specific core
 
-`init` prompts for which core to build (`full-stack-app`, `landing-page`, or lets planning intake design one) unless a core is named up front:
+Naming a core up front installs it with the shared payload. Without one, `init` installs the shared payload alone and leaves the choice to planning intake, where `planner` selects a core — `full-stack-app`, `landing-page`, or one it designs for the project:
 
 ``` bash
 npx @skyf0xx/hedgehog init --core full-stack-app
