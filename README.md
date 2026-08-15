@@ -195,7 +195,11 @@ npx @skyf0xx/hedgehog update
 
 This refreshes the installed agents and skills in a specific repo (note, not vendor skills)
 
-### Installing a specific core
+### Choosing a core yourself
+
+`init` with no flag lets planning intake pick the core by describing what
+you want to build — the normal path above. Pass `--core` to skip that
+and install a specific one directly:
 
 ``` bash
 npx @skyf0xx/hedgehog init --core full-stack-app
