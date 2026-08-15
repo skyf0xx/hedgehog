@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - package.json
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -18,12 +19,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
+      # On a push, "before" is package.json at the pre-push state of the
+      # branch (github.event.before), so any number of commits landing in
+      # one push is still compared correctly. workflow_dispatch carries no
+      # push event to read that from, so a manual run instead compares
+      # against the version actually live on npm right now — the real
+      # ground truth for whether this version still needs releasing.
       - id: version
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
-          before=$(git show HEAD^:package.json | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version' 2>/dev/null || echo "")
           after=$(node -p 'require("./package.json").version')
+          if [ -n "$BEFORE_SHA" ]; then
+            before=$(git show "$BEFORE_SHA:package.json" | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version' 2>/dev/null || echo "")
+          else
+            before=$(npm view "$(node -p 'require("./package.json").name')" version 2>/dev/null || echo "")
+          fi
           echo "before=$before" >> "$GITHUB_OUTPUT"
           echo "after=$after" >> "$GITHUB_OUTPUT"
 
