@@ -33,7 +33,7 @@
           - "nx.json"
           - "*.code-workspace"
           - "src/db/core.mjs"
-          - "src/golden-cores/**"
+          - "src/registry/**"
           - "src/hosts/**"
 
 "risk:data":
