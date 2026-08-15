@@ -798,13 +798,46 @@ async function update({ hosts }) {
 // refresh.
 const UNRESOLVED = Symbol('unresolved core');
 
+// A root `core.yaml` is a Golden Core's own file: `corePayload` lands it
+// as part of that core's `workspace` at install time, so its presence is
+// direct evidence a core package's files are on disk — independent of
+// `.hedgehog/core.yaml`, the authored-core path, which is a different
+// mechanism with no npm package and no `core.json` record of its own.
+// `installedCore` returning null is ambiguous between "no core yet" (a
+// deferred install, nothing to detect) and "a core is installed but
+// unrecorded"; a root `core.yaml` resolves that ambiguity.
+async function detectUnrecordedCore() {
+  const rootCorePath = join(DEST_ROOT, 'core.yaml');
+  if (!(await exists(rootCorePath))) return null;
+  try {
+    return (await loadCore(rootCorePath)).id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // The core package `update` should refresh agents and skills from: the
 // one this project recorded at install, re-resolved so a newer release of
 // that core is picked up, falling back to the extraction already cached
 // for the recorded version when the registry is out of reach.
 async function resolveInstalledCore() {
   const record = await installedCore(DEST_ROOT);
-  if (!record) return null;
+  if (!record) {
+    const unrecordedId = await detectUnrecordedCore();
+    if (unrecordedId) {
+      console.error(
+        `\n${red(bold('Core installed but not recorded:'))} ${bold(unrecordedId)}\n\n` +
+          `This project has ${bold(unrecordedId)}'s agents and skills on disk, but nothing\n` +
+          `recorded which core they came from — refreshing the payload would rewrite\n` +
+          `only what this release plans and delete the rest. Nothing was changed.\n\n` +
+          `Run ${bold(`npx @skyf0xx/hedgehog@latest init --core ${unrecordedId} --force`)} to reinstall\n` +
+          `${bold(unrecordedId)} from this release and record it, then review ${bold('git diff')} before\n` +
+          `committing. Update again afterward.\n`,
+      );
+      return UNRESOLVED;
+    }
+    return null;
+  }
 
   const entry = await resolveCore(record.name);
   if (!entry) {
