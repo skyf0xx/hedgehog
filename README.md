@@ -204,7 +204,7 @@ npx @skyf0xx/hedgehog init --core full-stack-app
 npx @skyf0xx/hedgehog cores list   # every core this release can install, and what each is for
 ```
 
-Each named core ships as its own npm package (`@skyf0xx/hedgehog-core-full-stack-app`, `@skyf0xx/hedgehog-core-landing-page`); `init` fetches the version `src/registry/cores.json` names and caches it locally, so a repeat install on the same version needs no network.
+Each named core ships as its own npm package — [`@skyf0xx/hedgehog-core-full-stack-app`](https://github.com/skyf0xx/hedgehog-core-full-stack-app), [`@skyf0xx/hedgehog-core-landing-page`](https://github.com/skyf0xx/hedgehog-core-landing-page) — and `init` fetches the version `src/registry/cores.json` names and caches it locally, so a repeat install on the same version needs no network. The core planning intake designs for a project that fits neither, [`@skyf0xx/hedgehog-core-authored`](https://github.com/skyf0xx/hedgehog-core-authored), carries no `--core` flag of its own — `planner` chooses it, rather than a user naming it at `init`.
 
 ## Why Hedgehog
 

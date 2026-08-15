@@ -22,11 +22,13 @@ Tool grants are defense in depth. The enforcement is `hedgehog verify`, which ch
 
 `src/agents/` and `src/skills/` above are shared by every core. Each core's own build agents, skills, and (for `full-stack-app` and `landing-page`) pre-built workspace ship in that core's own npm package rather than in this repo.
 
-`src/registry/cores.json` is the fixed table naming every core: its npm package, the version range `init` resolves, its install flag, and the `selects_when` prose `planner` reads aloud in Phase 0 to choose one. `init` resolves the requested core against that table (`src/registry/index.mjs`), then fetches the package with `npm pack` and extracts it (`src/registry/fetch.mjs`), caching the extraction at `~/.hedgehog/cores/<name>/<version>/` so a repeat install on the same version needs no network. The extracted package carries a `hedgehog-core.yaml` manifest at its root (`src/registry/manifest.mjs`) naming which agents, skills, vendored shelves, workspace, and CLAUDE.md section it contributes; the installer writes those into the consuming project alongside the shared agents and skills above. `installed.mjs` records which core and version a project installed, so `update` refreshes that core from the same package rather than re-resolving the registry.
+`src/registry/cores.json` is the fixed table naming every core: its npm package, the version range `init` resolves, its install flag, its GitHub repository, and the `selects_when` prose `planner` reads aloud in Phase 0 to choose one. `init` resolves the requested core against that table (`src/registry/index.mjs`), then fetches the package with `npm pack` and extracts it (`src/registry/fetch.mjs`), caching the extraction at `~/.hedgehog/cores/<name>/<version>/` so a repeat install on the same version needs no network. The extracted package carries a `hedgehog-core.yaml` manifest at its root (`src/registry/manifest.mjs`) naming which agents, skills, vendored shelves, workspace, and CLAUDE.md section it contributes; the installer writes those into the consuming project alongside the shared agents and skills above. `installed.mjs` records which core and version a project installed, so `update` refreshes that core from the same package rather than re-resolving the registry.
 
 `authored` carries no install flag — `hedgehog-core-design` chooses it during planning intake rather than a user passing it to `init`, then designs its layer sequence and writes `.hedgehog/core.yaml` directly instead of fetching a pre-built workspace.
 
 ## `full-stack-app` core
+
+Package and source: [`skyf0xx/hedgehog-core-full-stack-app`](https://github.com/skyf0xx/hedgehog-core-full-stack-app).
 
 | Layer | Choice | Why |
 | --- | --- | --- |
@@ -52,6 +54,8 @@ Tool grants are defense in depth. The enforcement is `hedgehog verify`, which ch
 
 ## `landing-page` core
 
+Package and source: [`skyf0xx/hedgehog-core-landing-page`](https://github.com/skyf0xx/hedgehog-core-landing-page).
+
 Every choice below maps to a specific dial or phase in the Chain
 Method: nothing here is a default reached for out of habit.
 
@@ -70,3 +74,14 @@ Method: nothing here is a default reached for out of habit.
 | Section boundary treatment | CSS `clip-path` irregular edges + `mix-blend-mode` overlap + negative-margin overlap | Breaks the hard horizontal seam between sections without any new dependency. |
 | Texture/grain | CSS `mask-image` + noise pattern | Materiality layer, no SVG filter needed. |
 | 3D | React Three Fiber | Only when the subject is genuinely spatial; skipped by default. |
+
+## `authored` core
+
+Package and source: [`skyf0xx/hedgehog-core-authored`](https://github.com/skyf0xx/hedgehog-core-authored).
+
+Unlike `full-stack-app` and `landing-page`, this core ships no pre-built
+workspace and no fixed stack table — `hedgehog-core-design` picks the
+stack and derives the layer sequence per project, then generates and
+verifies the workspace live. The same package also carries the design
+for adopting Hedgehog's discipline into an existing repo without
+bootstrapping a workspace at all.
