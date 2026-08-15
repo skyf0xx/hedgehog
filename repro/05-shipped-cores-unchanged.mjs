@@ -25,7 +25,7 @@ const WRITE = process.argv.includes('--write-baseline');
 // that filters layers.
 function compileShippedCore(coreName) {
   const coreYaml = readFileSync(
-    join(REPO_ROOT, 'src/golden-cores', coreName, 'core.yaml'),
+    join(REPO_ROOT, 'repro/fixtures/cores', `${coreName}.core.yaml`),
     'utf8',
   );
   const dir = makeProject(coreYaml);

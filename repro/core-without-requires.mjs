@@ -11,7 +11,7 @@
 // missing binary.
 //
 // Asserts:
-//   1. both shipped cores (src/golden-cores/*/core.yaml) load and
+//   1. both shipped cores (repro/fixtures/cores/*.core.yaml) load and
 //      validate, with every other field unchanged;
 //   2. every layer of them exposes requires === [] — declaring nothing;
 //   3. a hand-written core.yaml with no requires: plans, and `hedgehog
@@ -29,7 +29,7 @@ console.log('repro: core-without-requires');
 
 // ── 1-2. shipped cores ────────────────────────────────────────────────
 for (const name of ['full-stack-app', 'landing-page']) {
-  const path = join(REPO_ROOT, 'src/golden-cores', name, 'core.yaml');
+  const path = join(REPO_ROOT, 'repro/fixtures/cores', `${name}.core.yaml`);
   let core;
   try {
     core = await loadCore(path);

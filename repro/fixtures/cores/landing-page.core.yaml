@@ -1,0 +1,41 @@
+# Shipped core definition for landing-page. A linear chain, no module
+# axis — the degenerate case of the layer graph (spec: MVP scope item 5).
+# Each phase groups the rows of src/skills/hedgehog-landing-loop's Chain
+# Method table that share one agent context and one commit:
+#   brief    — planning intake's mined subject statement (Phase 0)
+#   feeling  — Strategist/Brand Anthropologist/Psychologist/Perfumer (landing-strategist)
+#   tokens   — Ingredient Director/Copywriter/Systems Designer/Signature Element (landing-systems)
+#   sequence — Sequencer, Headline, per-section Copywriter (landing-sequencer, landing-headline-writer, landing-copywriter)
+#   artifact — Critic + Builder (landing-critic, landing-builder)
+#
+# feeling, tokens, and sequence each write their own chain-record file
+# (same pattern "brief" already uses) as the artifact hedgehog verify
+# checks for — a test -s only proves the file was written, not that the
+# judgment inside it is sound; that judgment stays landing-critic's job
+# at the artifact layer, unchanged.
+id: landing-page
+layers:
+  - id: brief
+    scope: [".hedgehog/chain/00-brief.md"]
+    verify: "test -s .hedgehog/chain/00-brief.md"
+    commit: "chore(planning): intake"
+  - id: feeling
+    depends_on: brief
+    scope: [".hedgehog/chain/01-feeling.md"]
+    verify: "test -s .hedgehog/chain/01-feeling.md"
+    commit: "feat(landing): strategy"
+  - id: tokens
+    depends_on: feeling
+    scope: [".hedgehog/chain/02-tokens.md", "src/styles/global.css"]
+    verify: "test -s .hedgehog/chain/02-tokens.md"
+    commit: "feat(landing): systems"
+  - id: sequence
+    depends_on: tokens
+    scope: [".hedgehog/chain/03-sequence.md"]
+    verify: "test -s .hedgehog/chain/03-sequence.md"
+    commit: "feat(landing): sequence"
+  - id: artifact
+    depends_on: sequence
+    scope: ["src/**"]
+    verify: "pnpm build"
+    commit: "feat(landing): build"

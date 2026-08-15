@@ -150,7 +150,7 @@ for (const [label, text] of [
 //    narrow by flag (`--testPathPattern={module}`), not by path, which
 //    is not evidence the check can read — it abstains. ────────────────
 for (const name of ['full-stack-app', 'landing-page']) {
-  const core = await loadCore(join(ROOT, 'src/golden-cores', name, 'core.yaml'));
+  const core = await loadCore(join(ROOT, 'repro/fixtures/cores', `${name}.core.yaml`));
   const warnings = lintCore(core);
   if (warnings.length !== 0) {
     failures.push(

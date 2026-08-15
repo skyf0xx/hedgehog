@@ -32,7 +32,7 @@ import {
 } from './_lib.mjs';
 
 const shippedCore = (name) =>
-  readFileSync(join(REPO_ROOT, 'src/golden-cores', name, 'core.yaml'), 'utf8');
+  readFileSync(join(REPO_ROOT, 'repro/fixtures/cores', `${name}.core.yaml`), 'utf8');
 
 // Writes the intent file directly, bypassing `intent add` entirely — the
 // hand-written-file route, and what `db rebuild` replays.

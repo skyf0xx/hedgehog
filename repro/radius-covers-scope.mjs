@@ -205,7 +205,7 @@ try {
   // ── 6. No false alarm: both shipped cores still load, and neither
   //    trips the "cannot prove" warning. ──────────────────────────────
   for (const core of ['full-stack-app', 'landing-page']) {
-    const path = join(ROOT, 'src/golden-cores', core, 'core.yaml');
+    const path = join(ROOT, 'repro/fixtures/cores', `${core}.core.yaml`);
     try {
       const loaded = await loadCore(path);
       const unprovable = lintCore(loaded).filter((w) => w.includes('cannot prove'));

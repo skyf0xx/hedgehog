@@ -1,0 +1,68 @@
+# Shipped core definition for full-stack-app. Layer order, scope, and
+# verify commands are the same shape src/skills/hedgehog-loop's Domain
+# Module step tables describe in prose — this file is their data form.
+# {module} is filled in by the compiler with the domain module name a
+# task is generated for.
+#
+# Every per-module layer's scope carries {module} — module-disjoint by
+# construction, so two modules' tasks never touch the same file
+# (src/db/core.mjs's validateCore enforces this: a module-axis core
+# rejects any non-exclusive layer whose scope omits {module}). schema and
+# hook run Vitest anchored to their own module's directory (`nx test db
+# -- src/schema/{module}/`), a distinct Nx target from typecheck under
+# this workspace's target inference (nx.json), so the command's real
+# radius is exactly its scope — no wider declaration to make. Cross-module
+# type/integration breakage isn't caught at the task that caused it; join
+# is exclusive: true and scoped to everything, running full typecheck and
+# every test once after every module's layers land, in exchange for those
+# layers running in parallel.
+id: full-stack-app
+layers:
+  - id: schema
+    scope: ["packages/db/src/schema/{module}/**", "packages/db/src/schema/index.ts"]
+    verify: "pnpm nx test db -- src/schema/{module}/"
+    commit: "feat({module}): schema"
+  - id: contract
+    depends_on: schema
+    scope: ["packages/contracts/src/{module}/**"]
+    verify: "pnpm nx test contracts -- src/{module}/"
+    commit: "feat({module}): contract"
+  - id: repository
+    depends_on: contract
+    scope: ["libs/{module}/repository/**"]
+    verify: "pnpm nx test {module}-repository"
+    commit: "feat({module}): repository"
+  - id: service
+    depends_on: repository
+    scope: ["libs/{module}/service/**"]
+    verify: "pnpm nx test {module}-service"
+    commit: "feat({module}): service"
+  - id: controller
+    depends_on: service
+    scope: ["apps/api/src/app/{module}/**"]
+    verify: "pnpm nx test api -- src/app/{module}/"
+    commit: "feat({module}): api"
+  - id: hook
+    depends_on: controller
+    scope: ["packages/hooks/src/{module}/**"]
+    verify: "pnpm nx test hooks -- src/{module}/"
+    commit: "feat({module}): hooks"
+  # Web only, because apps/mobile only exists when the Mobile add-on is
+  # on. A layer scoped to a project that was never scaffolded fails its
+  # own verify on every module, so the Mobile clause is added by
+  # hedgehog-bootstrap's Expo step — which is also what creates the Nx
+  # project the extra verify target needs — rather than shipped here and
+  # broken by default.
+  - id: screen
+    depends_on: hook
+    scope: ["apps/web/src/app/{module}/**"]
+    verify: "pnpm nx test web -- src/app/{module}/"
+    commit: "feat({module}): screen-web"
+  # Workspace-wide by design: the only gate that can see cross-module
+  # breakage, since every layer above is parallel and module-scoped.
+  - id: join
+    depends_on: screen
+    scope: ["**"]
+    verify: "pnpm nx run-many -t typecheck && pnpm nx run-many -t test"
+    exclusive: true
+    commit: "chore({module}): join"
