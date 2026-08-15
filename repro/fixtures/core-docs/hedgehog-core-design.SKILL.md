@@ -1,11 +1,11 @@
 ---
 name: hedgehog-core-design
-description: Use on full-stack-app and landing-page alike only when neither shipped Golden Core fits a project that is still building something real — picks the stack and designs the layer sequence for it, and writes `.hedgehog/core.yaml`. Invoked by the `planner` agent as Phase 0's third outcome, after the vendored BMAD shelf has run; don't run standalone and don't run when a shipped core fits.
+description: Use on full-stack-app and landing-page alike only when neither shipped core fits a project that is still building something real — picks the stack and designs the layer sequence for it, and writes `.hedgehog/core.yaml`. Invoked by the `planner` agent as Phase 0's third outcome, after the vendored BMAD shelf has run; don't run standalone and don't run when a shipped core fits.
 ---
 
 # Hedgehog Core Design
 
-Designs a core definition for a project no shipped Golden Core fits.
+Designs a core definition for a project no shipped core fits.
 Hedgehog decides the architecture here — the stack, the layers, their
 order, their file scope, their verification — and shows it back for
 confirmation. The user is asked about their product, never asked to pick
@@ -170,7 +170,7 @@ alike:
   whoever designs the core — check every layer's scope glob against every
   other layer's by hand before Step 5, not just against its immediate
   neighbour.
-- **Don't reproduce a Golden Core's sequence under new names.** If
+- **Don't reproduce a shipped core's sequence under new names.** If
   schema → contract → repository → service → controller is genuinely
   right, Phase 0 picked the wrong outcome.
 
@@ -622,7 +622,7 @@ to change only until the file lands. Hard stop.
   arbitrator.
 - That this is an authored core: the sequence was designed for this
   project, not battle-tested across many, and it carries the same
-  enforcement as a Golden Core but a weaker guarantee.
+  enforcement as a shipped core but a weaker guarantee.
 - If `.hedgehog/BMAD/00-manifest.md` records a compressed intake: that
   this architecture was designed from a brief and one batched round
   rather than from elicited drivers, so the stack and layer choices rest

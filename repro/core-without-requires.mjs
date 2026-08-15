@@ -5,7 +5,7 @@
 // The failure this guards against is the obvious way to implement the
 // declaration — making `requires` a validated field — which would reject
 // every core.yaml written before it existed, including both shipped
-// Golden Cores. It also pins the shape the rest of the fix relies on:
+// shipped cores. It also pins the shape the rest of the fix relies on:
 // an omitted `requires` parses to [] (not undefined), so consumers never
 // need a null check and a core that declares nothing can never report a
 // missing binary.

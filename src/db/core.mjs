@@ -1,4 +1,4 @@
-// Core-definition loader. Parses `core.yaml` — a Golden Core's own shipped
+// Core-definition loader. Parses `core.yaml` — a shipped core's own
 // definition, or an authored .hedgehog/core.yaml — into the same in-memory
 // shape either way. See hedgehog-persistent-build-graph.md, "Core
 // definitions".

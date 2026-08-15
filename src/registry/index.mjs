@@ -1,6 +1,6 @@
 // Core package registry. One entry per Hedgehog core — full-stack-app,
 // landing-page, authored — naming the npm package that ships its agents,
-// skills, and (for the two Golden Cores) scaffold, plus the CLI flag
+// skills, and (for the two shipped cores) scaffold, plus the CLI flag
 // `hedgehog init` accepts for it and the prose `planner` reads aloud in
 // Phase 0 to choose one. A fixed table, one entry per core, discovered by
 // name or flag rather than convention.

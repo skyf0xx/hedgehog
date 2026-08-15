@@ -2,7 +2,7 @@
 // Payload integrity check. Hedgehog's product IS the agents/skills
 // payload, so this validates the things that would otherwise ship
 // silently broken: frontmatter consistency, cross-references between
-// agent/skill files, the Golden Cores' core definitions, the published
+// agent/skill files, the cores' definitions, the published
 // tarball's contents, and the CLI entrypoint.
 //
 // Run with `pnpm check`. Exits non-zero on any failure — wired into
