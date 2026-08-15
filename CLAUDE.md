@@ -155,7 +155,14 @@ Each core package carries a third version, in its own repo and released
 from there — a change to a core's workspace, agents, or skills is a
 release of that package, not of this one. `src/registry/cores.json` names
 the version range `init` resolves for each, so widening a core's range is
-the one edit here that a core release calls for.
+the one edit here that a core release calls for. Each core repo carries
+its own `.github/workflows/publish.yml`, structured the same way as this
+repo's: a version bump to that core's own `package.json`, committed and
+merged to that repo's own `main`, is the trigger — the workflow diffs the
+version before and after the push, and when it changed, tags, publishes
+to npm via OIDC trusted publishing, and creates the GitHub release, all
+in one job on the runner's own token, exactly as this repo's own
+bump-and-merge triggers its own release.
 
 The two versions move independently: a change scoped to `src/` or `bin/`
 only bumps `package.json`; a change scoped to `skills/hedgehog/SKILL.md`
