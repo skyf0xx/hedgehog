@@ -192,7 +192,7 @@ and any shared config or generators the discipline references.
   reference it by name rather than restating the substance.
 - Where a deterministic generator (e.g. an Nx generator or template) can
   produce a piece of code — tests, modules, boilerplate — prefer it over
-  having an agent write that code freehand, in golden cores and
+  having an agent write that code freehand, in cores and
   elsewhere. Generated output is cheaper, faster, and more consistent
   than LLM-authored equivalents; reach for an agent only for the parts a
   generator can't cover. Building the generator costs more up front than

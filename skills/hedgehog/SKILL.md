@@ -33,7 +33,7 @@ Run the matching command:
 - Anything else — CLI, library, browser extension, data pipeline, an
   existing codebase, or not yet clear from the conversation:
   `npx @skyf0xx/hedgehog init` with no core flag. Planning intake decides
-  from there, so prefer this over guessing between the two golden cores.
+  from there, so prefer this over guessing between the two shipped cores.
 
 Add a host flag when the user is on Cursor or Gemini CLI rather than
 Claude Code: `--cursor`, `--gemini`, `--host=claude,cursor`, or

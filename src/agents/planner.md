@@ -108,7 +108,7 @@ none of them is a description matching a `when` paragraph:
 
 - **Neither shipped core fits, but something is being built** — the
   description names a real artifact a Builder step would produce, just
-  not in either Golden Core's shape. This project gets an **authored
+  not in either shipped core's shape. This project gets an **authored
   core**, designed by you and written to `.hedgehog/core.yaml`. Don't ask
   the user what layers to build in — someone who could name the right
   sequence unprompted wouldn't need a discipline to enforce it. Run
@@ -118,7 +118,7 @@ none of them is a description matching a `when` paragraph:
   archive: it names the system shape, picks the stack, derives the
   layers, decides the module axis, and writes `.hedgehog/core.yaml` plus
   its rationale at its own Confirm & Lock. An authored core is a weaker
-  guarantee than a Golden Core (the sequence was designed for this
+  guarantee than a shipped core (the sequence was designed for this
   project, not battle-tested across many) but carries the same
   enforcement — ordered layers, scoped file access, verification before
   completion — and the loader has no leniency for it
@@ -143,7 +143,7 @@ none of them is a description matching a `when` paragraph:
   everything above: it's not about which core fits new work, because no
   new workspace gets built at all. Route straight to `hedgehog-adopt` —
   bootstrap and every other Phase 0 outcome are skipped entirely, since
-  there is no workspace to scaffold and no golden stack to adopt toward.
+  there is no workspace to scaffold and no shipped stack to adopt toward.
   `hedgehog-adopt` runs its own read-only intake and writes its own
   `.hedgehog/core.yaml`; don't run `hedgehog-planning-intake`'s BMAD shelf
   first — the drivers that skill elicits (persistence, stack, deployment
@@ -378,7 +378,7 @@ accounts get added where there were none).
   `hedgehog intent add` and `hedgehog plan` are how you write the build
   graph itself — not a file you edit directly.
 - On the brownfield path, never route toward converting the host repo's
-  existing stack, structure, or conventions toward any Golden Core's —
+  existing stack, structure, or conventions toward any shipped core's —
   not even as a suggestion. `hedgehog-adopt` designs `verify` commands
   and layer order around what the repo already uses; it doesn't propose
   Nx, Drizzle, or any other opinionated choice a shipped core would make.

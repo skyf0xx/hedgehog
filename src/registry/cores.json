@@ -24,7 +24,7 @@
       "version": "^1.0.0",
       "language": "typescript",
       "repository": "https://github.com/skyf0xx/hedgehog-core-authored",
-      "selects_when": "Neither shipped core fits, but the description names a real artifact a Builder step would produce — just not in either Golden Core's shape. This core is designed by the planner rather than chosen from a fixed set: hedgehog-planning-intake's Phase 0 elicits the drivers first, then hedgehog-core-design names the system shape, picks the stack, derives the layers, and writes .hedgehog/core.yaml. It carries the same enforcement as a Golden Core — ordered layers, scoped file access, verification before completion — but the sequence is designed for this project rather than battle-tested across many."
+      "selects_when": "Neither shipped core fits, but the description names a real artifact a Builder step would produce — just not in either shipped core's shape. This core is designed by the planner rather than chosen from a fixed set: hedgehog-planning-intake's Phase 0 elicits the drivers first, then hedgehog-core-design names the system shape, picks the stack, derives the layers, and writes .hedgehog/core.yaml. It carries the same enforcement as a shipped core — ordered layers, scoped file access, verification before completion — but the sequence is designed for this project rather than battle-tested across many."
     }
   ]
 }
