@@ -6,80 +6,32 @@ skills — the executable payload a consuming project copies in to work
 Hedgehog-style, and is the source of the method. See `README.md` for the
 discipline's stance and rationale.
 
+This repo is the engine: the CLI, the build graph, the host adapters, the
+core registry, and the agents and skills every core shares. Each core —
+`full-stack-app`, `landing-page`, `authored` — ships as its own npm
+package holding that core's workspace, agents, skills, and CLAUDE.md
+section. `src/registry/cores.json` names them; `init` fetches the one a
+project asks for.
+
 ## Layout
 
-- `src/agents/` — the subagent roles a consuming project copies into its
-  own `.claude/agents/`: `planner` (planning intake, module scoping),
-  `bootstrap` (Bootstrap step sequencing), `backend-eng` (Phase A build
-  steps), `ux-planner` (Phase B UX rationale), `front-end-eng` (Phase B
-  build steps), `layer-eng` (authored-core layer build steps), `reviewer`
-  (phase and layer transition checks, Correction Protocol review), plus
-  the `landing-page` core's own chain agents
-  (`landing-strategist`, `landing-systems`, `landing-sequencer`,
-  `landing-headline-writer`, `landing-copywriter`, `landing-critic`,
-  `landing-builder`), plus that core's Polish Loop agents
-  (`landing-executor`, `landing-visual-reviewer`, `landing-ux-reviewer`)
-  that run after `landing-builder` and before the handoff to `tweaker`.
-  `tweaker` (post-build tweak requests and friction-log-driven Hedgehog
-  issue suggestions) is shared by every core.
-- `src/skills/` — the packaged procedures a consuming project copies into
-  its own `.claude/skills/`:
-  - `hedgehog-bootstrap-full-stack-app-core` — lands the always-on core workspace (Nx,
-    enforcement config, `packages/db`, `apps/api`, `apps/web`) from a
-    pre-built, pre-verified template, one pass, before any add-on step.
-  - `hedgehog-bootstrap` — scaffolds whichever add-ons (Auth, Queue,
-    Mobile) planning intake turned on, one commit per step, after core
-    has landed.
+- `src/agents/` — the subagent roles every core shares, copied into a
+  consuming project's own `.claude/agents/`: `planner` (planning intake,
+  core selection, module scoping), `bootstrap` (Bootstrap step
+  sequencing), `reviewer` (phase and layer transition checks, Correction
+  Protocol review), and `tweaker` (post-build tweak requests and
+  friction-log-driven Hedgehog issue suggestions). A core's own build
+  agents ship in that core's package and install alongside these.
+- `src/skills/` — the packaged procedures every core shares, copied into a
+  consuming project's own `.claude/skills/`. A core's own loop, bootstrap,
+  and reference skills ship in that core's package and install alongside
+  these.
   - `hedgehog-planning-intake` — runs the vendored BMAD-METHOD planning
-    shelf (`vendor-skills/BMAD/`), shared by every core, and mines its output
-    into scope boundary, domain modules, and the Add-ons decision on
-    `full-stack-app`. Invoked by `planner`; `landing-page` runs this
+    shelf (`vendor-skills/BMAD/`), shared by every core, and mines its
+    output into scope boundary, domain modules, and the Add-ons decision
+    on `full-stack-app`. Invoked by `planner`; `landing-page` runs this
     skill's shelf too, then mines the same archive through
     `hedgehog-landing-loop`'s own planning-intake section instead.
-  - `hedgehog-core-design` — designs a layer sequence and writes
-    `.hedgehog/core.yaml` when neither Golden Core fits a project that is
-    still building something real. Invoked by `planner` as Phase 0's
-    third outcome, after the BMAD shelf has run; Hedgehog designs the
-    architecture here rather than asking the user to.
-  - `hedgehog-bootstrap-authored-core` — generates the workspace for the
-    stack `hedgehog-core-design` chose, one pass, closing Bootstrap on an
-    authored core.
-  - `hedgehog-adopt` — brings Hedgehog's discipline to an existing repo
-    without bootstrapping a workspace: reads the repo read-only, proposes
-    a linear-chain `.hedgehog/core.yaml` whose `verify` commands are the
-    repo's own, confirmed with the user, and writes only `.hedgehog/`
-    (`core.yaml`, plus `adoption.md`'s rationale and its dated, refreshable
-    repo-shape snapshot). Invoked by `planner` as Phase 0's fourth
-    outcome, in place of any bootstrap skill — the graph this produces is
-    change-scoped only, and `hedgehog-authored-loop` runs it unmodified
-    once it's locked.
-  - `hedgehog-adopt-elicit` — a short clarifying pass for a large or
-    under-specified change request on an already-adopted repo, run by
-    `hedgehog-adopt` before adding that intent; a clear, bounded request
-    skips it.
-  - `hedgehog-bootstrap-landing-page-core` — lands the pre-verified
-    Astro + Tailwind v4 workspace for the `landing-page` core, one pass,
-    with no add-on step after it. Invoked automatically by `planner`
-    after Confirm & Lock.
-  - `hedgehog-loop` — the operating loop for every unit of work on
-    `full-stack-app` once bootstrap has run: the domain module step
-    sequence, phase rules, and Correction Protocol.
-  - `hedgehog-authored-loop` — the same role on an authored core: one
-    layer per `hedgehog next` packet via `layer-eng`, the module-axis
-    reading, Correction Protocol, and Stop Condition, all driven from
-    `.hedgehog/core.yaml`.
-  - `hedgehog-landing-loop` — the same role on the `landing-page` core:
-    the Chain Method's brief → feeling → tokens/element → sequence →
-    artifact pipeline, gated by `hedgehog verify` and committed one phase
-    at a time; also runs that core's own planning intake and Correction
-    Protocol.
-  - `landing-shapes`, `landing-copy-hero`, `landing-copy-problem`,
-    `landing-copy-mechanism`, `landing-copy-proof`,
-    `landing-copy-objection`, `landing-copy-headline`,
-    `landing-copy-cta` — reference procedures the `landing-page` core's
-    chain agents load for a specific construction technique (signature
-    element geometry, icon sourcing) or copy archetype (one skill per
-    section type in the Chain Method's sequence).
   - `conventional-commits` — reconstructs step-shaped, conventional
     commit history when work didn't land cleanly as it went (mainly
     Correction Protocol cleanups).
@@ -91,12 +43,19 @@ discipline's stance and rationale.
     procedure for contributing a fix or `ROADMAP.md` item back to the
     Hedgehog project itself, as opposed to a consuming project's own
     code.
-  - `nx-generate`, `nx-run-tasks`, `nx-workspace`,
-    `link-workspace-packages` — Nx tooling procedures (scaffolding,
-    running tasks, read-only workspace exploration, wiring workspace
-    package dependencies) used by `backend-eng` and `front-end-eng`.
-    Adapted from `nrwl/nx-ai-agents-config` (MIT-licensed, see
-    `README.md`'s Credits section) for Hedgehog's pnpm-only convention.
+- `src/registry/` — the core table and the fetcher that acts on it.
+  `cores.json` names every core, the npm package that ships it, its
+  version range, its install flag (absent on `authored`, which is chosen
+  during planning rather than at install time), and the prose `planner`
+  reads in Phase 0 to pick one; `index.mjs` loads and resolves it by name
+  or flag. `manifest.mjs` owns the shape of the `hedgehog-core.yaml` every
+  core package carries at its root — which agents, skills, vendored
+  shelves, workspace, and CLAUDE.md section that core contributes.
+  `fetch.mjs` resolves a core package with `npm pack`, extracts it, and
+  caches the extraction at `~/.hedgehog/cores/<name>/<version>/` so a
+  repeat install needs no network; `installed.mjs` records which core a
+  project installed, so `update` refreshes that core's agents and skills
+  from the same package.
 - `vendor-skills/BMAD/` — BMAD-METHOD (`bmad-code-org/BMAD-METHOD`,
   MIT-licensed), vendored in full: the planning shelf
   `hedgehog-planning-intake` runs. See `vendor-skills/BMAD/ATTRIBUTION.md`
@@ -106,13 +65,12 @@ discipline's stance and rationale.
   deletes) rather than running as-is: `CLAUDE.md`, the project-root guide
   the installer drops in (project-context placeholders the `planner`
   fills at planning intake, plus the Hedgehog constants — stack, layout,
-  rules, skill/agent pointers, and context-management guidance). One
-  `CLAUDE.core.<core>.md` section per core fills that shell's
-  `{{CORE_SECTION}}` — at install time when `init` is given an explicit
-  core flag, or by the matching bootstrap-core skill when `init` ran with
-  no flag and the shell landed with that placeholder still unfilled.
-  `{{HOST_DISPATCH}}` is filled at install time from the chosen host's
-  `DISPATCH.md`.
+  rules, skill/agent pointers, and context-management guidance). Each
+  core package's own `CLAUDE.core.md` fills that shell's
+  `{{CORE_SECTION}}` — at install time when `init` names a core, or by
+  the matching bootstrap-core skill when `init` ran naming none and the
+  shell landed with that placeholder still unfilled. `{{HOST_DISPATCH}}`
+  is filled at install time from the chosen host's `DISPATCH.md`.
 - `src/db/` — the SQLite build graph a consuming project's Bootstrap
   initializes at `.hedgehog/hedgehog.db`: schema, intents/tasks, `plan`
   (compiles intents into the task graph), `next`/`ready`/`status`/`claim`
@@ -192,6 +150,12 @@ triggers and never touched by the same automation:
   `claude plugin marketplace` update check reads to decide a user has a
   new version to pull. No CI bumps or publishes this one; it ships by the
   marketplace re-reading the repo at whatever commit `master` is on.
+
+Each core package carries a third version, in its own repo and released
+from there — a change to a core's workspace, agents, or skills is a
+release of that package, not of this one. `src/registry/cores.json` names
+the version range `init` resolves for each, so widening a core's range is
+the one edit here that a core release calls for.
 
 The two versions move independently: a change scoped to `src/` or `bin/`
 only bumps `package.json`; a change scoped to `skills/hedgehog/SKILL.md`
