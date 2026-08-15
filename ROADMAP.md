@@ -20,9 +20,10 @@ opinionated enough to deserve that treatment. Mobile (React Native or
 similar) is the strongest candidate for a third: navigation, offline state,
 and native build tooling carry enough real architectural decisions that a
 `hedgehog-core-design` blueprint alone won't lock them the way a Golden Core
-does. Scope: a pre-built, pre-verified workspace under `src/golden-cores/`,
+does. Scope: a new `@skyf0xx/hedgehog-core-mobile` package carrying a
+pre-built, pre-verified workspace, a `src/registry/cores.json` entry with
 a `--mobile` install flag, and the phase/layer build order that goes with
-it — modeled on `src/golden-cores/full-stack-app/`.
+it — modeled on `@skyf0xx/hedgehog-core-full-stack-app`.
 
 ### Add-ons beyond Auth, Queue, and Mobile
 

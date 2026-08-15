@@ -143,7 +143,8 @@ without raising this tradeoff to the user again.
 ## Constraints
 
 - Never auto-run this on a schedule or "while you're in the area" — only
-  on explicit request, same posture as `src/golden-cores/full-stack-app` regeneration.
+  on explicit request, same posture as a core package's own workspace
+  regeneration.
 - Never hand-patch a single vendored file to fix an upstream bug without
   also updating `ATTRIBUTION.md` — a silent local fork is worse than a
   stale pin, since nothing records that `vendor-skills/BMAD/` has diverged from

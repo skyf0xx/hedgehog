@@ -33,10 +33,16 @@ consuming project installs. The interesting boundaries:
   scope, and anything that lets the build graph or a gate be bypassed
   or silently weakened.
 - **The installed payload** (`src/agents/`, `src/skills/`,
-  `src/templates/`, `src/golden-cores/`) — these files are copied
-  verbatim into every consuming project, so a change that makes an
-  agent take instructions from untrusted content, or that weakens a
-  gate a project relies on, is a supply-chain issue.
+  `src/templates/`) — these files are copied verbatim into every
+  consuming project, so a change that makes an agent take instructions
+  from untrusted content, or that weakens a gate a project relies on,
+  is a supply-chain issue.
+- **The core registry and fetcher** (`src/registry/`) — each core
+  (`full-stack-app`, `landing-page`, `authored`) ships as its own npm
+  package that `init` resolves and fetches; a bug here that lets a core
+  install from an unintended source, or that skips validating what it
+  fetched, is the same class of supply-chain issue as the payload
+  above.
 - **Prompt injection reaching an agent** through content it reads — a
   file in the working tree, a fetched page, an issue body. Reports here
   are welcome and are treated as real, not theoretical.
