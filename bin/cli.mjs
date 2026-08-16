@@ -1222,7 +1222,9 @@ async function intentCommand(args) {
   try {
     intent = await addIntent(db, record);
   } catch (err) {
-    console.error(`${red('Failed to add intent:')} ${err.message}\n`);
+    console.error(
+      `${red('Failed to add intent:')} ${err.message}\n\nUsage: hedgehog intent add --id <id> --goal <goal> --outcome <outcome> [--rule <r>]... [--depends-on <id>]...\n   or: hedgehog intent add --file <path.json>\n`,
+    );
     process.exitCode = 1;
     return;
   } finally {
@@ -2612,7 +2614,9 @@ async function debtCommand(args) {
     try {
       entry = addDebt(db, { taskId, note });
     } catch (err) {
-      console.error(`${red('Failed to declare debt:')} ${err.message}\n`);
+      console.error(
+        `${red('Failed to declare debt:')} ${err.message}\n\nRun ${bold('hedgehog status')} to see valid task ids.\n`,
+      );
       process.exitCode = 1;
       return;
     } finally {
@@ -2696,6 +2700,10 @@ async function main() {
   const args = process.argv.slice(2);
   if (args.includes('--help') || args.includes('-h') || args.length === 0) {
     await help();
+    return;
+  }
+  if (args.includes('--version') || args.includes('-v')) {
+    console.log(PKG_VERSION);
     return;
   }
   const cmd = args[0];
