@@ -52,7 +52,7 @@ jobs:
           total_formatted=$(python3 -c "print(f'{${{ steps.downloads.outputs.total }}:,}')")
           curl -fsSL "https://img.shields.io/badge/downloads-${total_formatted}-blue?style=for-the-badge" -o badges/npm-downloads.svg
           curl -fsSL "https://img.shields.io/github/stars/skyf0xx/hedgehog?style=for-the-badge&color=gold" -o badges/github-stars.svg
-          curl -fsSL "https://img.shields.io/badge/support-Coffee-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" -o badges/kofi.svg
+          curl -fsSL "https://img.shields.io/badge/support%20hedgehog-buy%20me%20a%20coffee-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" -o badges/kofi.svg
 
       - name: Validate SVGs
         run: |
