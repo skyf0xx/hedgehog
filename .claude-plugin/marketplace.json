@@ -8,15 +8,14 @@
     {
       "name": "hedgehog",
       "description": "Offers to set up the Hedgehog build discipline in any project you open",
-      "version": "1.4.2",
+      "version": "1.4.3",
       "source": "./",
       "skills": [
         "./skills/"
       ],
       "author": {
         "name": "skyf0xx"
-      },
-      "hooks": "./hooks/hooks.json"
+      }
     }
   ]
 }
