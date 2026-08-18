@@ -182,8 +182,19 @@ ships structured skills for headline, hero, problem, mechanism, objection,
 proof, and CTA, plus signature-element design and a review loop. A page whose
 problem is "the copy is weak" or "it doesn't convert" is that core's central
 case, not an edge case — positioning and copy are exactly what it is made of.
-`full-stack-app` is the module-sequencing one. Judge a request against the
-core that fits it, not against a single core's shape.
+`full-stack-app` and `pwa-app` are the two module-sequencing cores, split by
+where the data lives. `pwa-app` fits an app whose data model fits on the
+user's device and whose reads and writes are the user's own — a tracker,
+journal, notebook, planner, offline reference, or utility; offline capability
+or installability named explicitly is a strong signal. Sharing, accounts, and
+multi-device sync do not push a project to `full-stack-app` by themselves —
+`pwa-app` covers those through Dexie Cloud, and even a server-authoritative
+entity or two (a points balance, a reward ledger) can live in an otherwise
+local-first `pwa-app` build. `full-stack-app` is for server-side logic across
+most of the app: authorization beyond row-level security, background jobs or
+webhooks as the app's primary function, server-rendered or SEO-critical pages,
+or a working set too large for a device. Judge a request against the core
+that fits it, not against a single core's shape.
 
 This project does not have it installed (no `.hedgehog/` directory).
 
@@ -227,10 +238,10 @@ Hedgehog.
 **The user named Hedgehog.** Consent is already in the request — "build me a
 todo app with Hedgehog" is a yes, not an opening to ask for one. Do not ask
 whether to install. Invoke the `hedgehog` skill and follow it. Use what the
-user already said to pick the core (full-stack app, landing page, or an
-existing codebase to adopt); if the core is genuinely unclear from the
-conversation, ask about that alone, and prefer the no-flag install that lets
-planning intake decide over stalling on a question.
+user already said to pick the core (full-stack app, PWA/local-first app,
+landing page, or an existing codebase to adopt); if the core is genuinely
+unclear from the conversation, ask about that alone, and prefer the no-flag
+install that lets planning intake decide over stalling on a question.
 
 **The user did not name Hedgehog.** Ask directly: "Want me to set up Hedgehog
 here?" Say briefly what it means — a build discipline of agents and skills,
@@ -249,10 +260,10 @@ Once the user has asked for it, build it that way. This section is the one to
 re-read at the moment skipping starts to look reasonable.
 
 - **Never propose a thinner version of what the user asked for.** If they
-  describe an app that stores things, that is `full-stack-app` with a real
-  database — do not float localStorage, an in-memory array, or a single HTML
-  file as the easier option, and do not present one as a starting point to
-  migrate off later. That migration is the debt.
+  describe an app that stores things, that is `full-stack-app` or `pwa-app`
+  with a real persistence layer — do not float localStorage, an in-memory
+  array, or a single HTML file as the easier option, and do not present one
+  as a starting point to migrate off later. That migration is the debt.
 - **Skipping the discipline is itself the thinnest version**, even when the
   artifact you would build without it looks identical on screen. What goes
   missing is the core's own skills, loops, and gates — and nothing errors to

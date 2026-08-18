@@ -174,6 +174,17 @@ only bumps the plugin version; a change touching both (as most
 `src/skills/hedgehog-*` fixes end up also touching the top-level
 `skills/hedgehog` offer skill) bumps both, in the same PR.
 
+Adding or changing a core in `src/registry/cores.json` also touches a set
+of places that enumerate cores by hand rather than reading the registry,
+and each one drifts silently if skipped — no error surfaces, the text just
+goes stale. Sweep all of them in the same PR as the registry change:
+`skills/hedgehog/SKILL.md`, `hooks/session-start`'s gate text, `CLAUDE.md`,
+`SECURITY.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `CONTRIBUTING.md`, and the
+code comments in `src/registry/` and `src/db/`. `hooks/session-start` is
+easy to miss because it isn't under `skills/`, but it ships as part of the
+plugin payload and needs the same plugin-version bump as everything else
+in this list.
+
 ## Working in this repo
 
 This repo's own content is the product. Changes here are edits to the
