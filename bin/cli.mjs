@@ -1403,7 +1403,11 @@ async function noteAvailableUpdate() {
 // same as a failed staleness check — the current process keeps running on
 // whatever code it already loaded rather than failing the command over
 // an advisory step.
-async function ensureGlobalInstall() {
+//
+// The install/update itself always runs regardless of `quiet` — silence
+// governs only whether this prints, matching `boundary --quiet`'s "exit
+// code only, nothing on either stream" contract for shell hooks.
+async function ensureGlobalInstall({ quiet = false } = {}) {
   if (process.env.HEDGEHOG_NO_UPDATE_CHECK) return;
   try {
     const globalRoot = execFileSync('npm', ['root', '-g'], {
@@ -1419,13 +1423,15 @@ async function ensureGlobalInstall() {
       stdio: 'ignore',
       timeout: 60_000,
     });
-    console.error(
-      `\n${dim(
-        runningFromGlobal
-          ? `Updated hedgehog ${PKG_VERSION} → ${latest}. This run continues on ${PKG_VERSION}; the next command picks up ${latest}.`
-          : `Installed hedgehog ${latest} globally. Future commands resolve to it directly.`,
-      )}`,
-    );
+    if (!quiet) {
+      console.error(
+        `\n${dim(
+          runningFromGlobal
+            ? `Updated hedgehog ${PKG_VERSION} → ${latest}. This run continues on ${PKG_VERSION}; the next command picks up ${latest}.`
+            : `Installed hedgehog ${latest} globally. Future commands resolve to it directly.`,
+        )}`,
+      );
+    }
   } catch {
     // Advisory only — a failed check or install is never worth failing a
     // command over.
@@ -2774,7 +2780,7 @@ async function main() {
     console.log(PKG_VERSION);
     return;
   }
-  await ensureGlobalInstall();
+  await ensureGlobalInstall({ quiet: args.includes('--quiet') });
   const cmd = args[0];
   const force = args.includes('--force') || args.includes('-f');
 
