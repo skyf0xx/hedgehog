@@ -17,7 +17,7 @@ import { cp, mkdir, access, readdir, stat, rm, readFile, writeFile } from 'node:
 import { constants, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { dbInit, DB_PATH, dbAbsPath, openDb } from '../src/db/init.mjs';
 import { loadCore, lintCore, isModuleAxis } from '../src/db/core.mjs';
 import { planTasks, CORE_INTENT_ID } from '../src/db/plan.mjs';
@@ -52,7 +52,12 @@ import { rebuildDb } from '../src/db/rebuild.mjs';
 import { loadOverrides, addOverride, orphanedOverrides, OVERRIDES_DIR } from '../src/db/overrides.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
-import { recordVersion, checkForUpdate, installedVersion } from '../src/hosts/version.mjs';
+import {
+  recordVersion,
+  checkForUpdate,
+  checkBinaryStaleness,
+  installedVersion,
+} from '../src/hosts/version.mjs';
 import { loadRegistry, resolveCore } from '../src/registry/index.mjs';
 import { fetchCore, cachedCore, cachedVersions } from '../src/registry/fetch.mjs';
 import { recordCore, installedCore } from '../src/registry/installed.mjs';
@@ -1363,14 +1368,67 @@ async function noteAvailableUpdate() {
   if (process.env.HEDGEHOG_NO_UPDATE_CHECK) return;
   try {
     const { installed, latest, stale } = await checkForUpdate(DEST_ROOT);
-    if (!stale) return;
+    if (stale) {
+      console.error(
+        `\n${yellow(bold('Hedgehog update available.'))} ${dim(
+          `${installed} → ${latest}. Run \`npx @skyf0xx/hedgehog@latest update\` to refresh this project's agents and skills.`,
+        )}`,
+      );
+    }
+  } catch {
+    // Advisory only — a failed check is never worth failing a command over.
+  }
+}
+
+// Hedgehog runs as a global install: every host (Claude Code, Cursor,
+// Gemini CLI) drives it through the `hedgehog` binary on PATH, and `npx
+// @skyf0xx/hedgehog` is expected to arrive at that same global install
+// rather than an ephemeral, unmanaged copy. This makes both halves of
+// that true on every invocation, before any command's real work starts:
+//
+// - **No global install yet** (a fresh `npx` fetch, or a dev checkout
+//   run directly): install the latest release globally now.
+// - **A global install exists but is behind latest** (the running code's
+//   own version, not any project's stamped `.hedgehog/version.json` —
+//   that stamp answers a different question, whether a project's payload
+//   is current): update it to latest now.
+//
+// Either way this reuses `latestVersion`'s day-long cache, so it costs a
+// network round trip at most once a day, not on every invocation. Runs
+// unattended — `npm install -g`, no confirmation prompt. Every caller of
+// this binary is either an agent driving it non-interactively or a human
+// who ran a command expecting it to just work, and there is no stdin
+// channel to prompt on in the general case. A failure here (offline,
+// permission-restricted global dir, npm itself missing) is swallowed the
+// same as a failed staleness check — the current process keeps running on
+// whatever code it already loaded rather than failing the command over
+// an advisory step.
+async function ensureGlobalInstall() {
+  if (process.env.HEDGEHOG_NO_UPDATE_CHECK) return;
+  try {
+    const globalRoot = execFileSync('npm', ['root', '-g'], {
+      encoding: 'utf8',
+      timeout: 5_000,
+    }).trim();
+    const runningFromGlobal = PKG_ROOT === join(globalRoot, '@skyf0xx/hedgehog');
+    const { latest, stale } = await checkBinaryStaleness(DEST_ROOT, PKG_VERSION);
+    if (runningFromGlobal && !stale) return;
+    if (!latest) return;
+
+    execFileSync('npm', ['install', '-g', `@skyf0xx/hedgehog@${latest}`], {
+      stdio: 'ignore',
+      timeout: 60_000,
+    });
     console.error(
-      `\n${yellow(bold('Hedgehog update available.'))} ${dim(
-        `${installed} → ${latest}. Run \`npx @skyf0xx/hedgehog@latest update\` to refresh this project's agents and skills.`,
+      `\n${dim(
+        runningFromGlobal
+          ? `Updated hedgehog ${PKG_VERSION} → ${latest}. This run continues on ${PKG_VERSION}; the next command picks up ${latest}.`
+          : `Installed hedgehog ${latest} globally. Future commands resolve to it directly.`,
       )}`,
     );
   } catch {
-    // Advisory only — a failed check is never worth failing a command over.
+    // Advisory only — a failed check or install is never worth failing a
+    // command over.
   }
 }
 
@@ -2716,6 +2774,7 @@ async function main() {
     console.log(PKG_VERSION);
     return;
   }
+  await ensureGlobalInstall();
   const cmd = args[0];
   const force = args.includes('--force') || args.includes('-f');
 

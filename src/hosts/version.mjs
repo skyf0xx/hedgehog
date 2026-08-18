@@ -152,3 +152,26 @@ export async function checkForUpdate(root, { force = false } = {}) {
     stale: Boolean(installed && latest && isNewer(latest, installed)),
   };
 }
+
+/**
+ * Whether the CLI binary actually executing right now — `binaryVersion`,
+ * read from this package's own package.json, not from any project's
+ * `.hedgehog/version.json` — is behind the newest published release.
+ *
+ * This is a distinct question from `checkForUpdate`: that one compares a
+ * *project's* stamped version against latest, so a shadowed, stale global
+ * install (a `hedgehog` binary resolved from PATH ahead of the scoped
+ * `npx @skyf0xx/hedgehog` package) reads its own old code, sees the
+ * project's stamp already at-or-past whatever it thinks "latest" is, and
+ * says nothing — the exact case this function exists to catch instead, by
+ * comparing the running code's own version rather than a file the running
+ * code could itself be stale relative to.
+ */
+export async function checkBinaryStaleness(root, binaryVersion, { force = false } = {}) {
+  const latest = await latestVersion(root, { force });
+  return {
+    binaryVersion,
+    latest,
+    stale: Boolean(binaryVersion && latest && isNewer(latest, binaryVersion)),
+  };
+}
