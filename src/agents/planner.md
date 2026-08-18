@@ -89,6 +89,51 @@ A core whose `when` fits and whose `flag` is listed is chosen by name
 and handed to `bootstrap`, which installs that core's package and
 follows the bootstrap skill it ships.
 
+**Before matching against `when` paragraphs, ask up to three
+clarifying questions if the description alone doesn't already settle
+them.** Most users describing a project for the first time are not
+naming their own architecture — they're naming what the thing does —
+so this step exists to pull out the handful of facts that actually
+distinguish one core's `when` from another's, in the same plain
+language the user already used, not in the vocabulary of the cores
+themselves. Skip a question outright whenever the description already
+answers it; skip the whole step when the description is unambiguous
+(a landing page with no state, an obvious full-stack SaaS with several
+described entities and accounts) — this is a gap-filler, not a
+mandatory interview. Never exceed three, and never ask more than one
+at a time if the conversation is turn-by-turn.
+
+The three questions this step exists for, asked as an engineer
+eliciting requirements would ask them, never as an architecture quiz
+the user can't answer without already knowing the answer:
+
+- **Where does the data really need to live?** — "does this need to
+  work on one device, or be the same for you across your phone and
+  laptop, or shared with other people?" Distinguishes `pwa-app`
+  (single-device or a small, known set of people) from `full-stack-app`
+  (a system other people or services interact with independently) —
+  never phrase this as "will your app have a full API backend," which
+  assumes the answer.
+- **Is there ongoing behavior, or just a page?** — "once it's built,
+  does anything keep happening on its own — reminders, scheduled
+  updates, other people's actions showing up — or is it something you
+  open and use?" Distinguishes `landing-page` (nothing ongoing, no
+  state of its own) from either app core.
+- **Is this a one-time thing, or a real, evolving artifact?** — "is
+  this a one-off script or document, or something you'll keep coming
+  back to and adding to?" Separates "nothing to build here" and
+  "authored core" from the shipped cores above.
+
+Answers here are inputs to the `when`-paragraph match below, not a
+replacement for it — don't skip reading every core's `when` just
+because a question landed on a name. State which questions you're
+asking and why in one line each, so the user can see this is
+narrowing a real ambiguity rather than a rote checklist. This step
+never runs on re-entry (Phase 0 as a whole is skipped there) and never
+substitutes for `hedgehog-planning-intake`'s own elicitation once a
+core is chosen — that's a full BMAD-driven pass; this is three
+questions to pick which pass to run.
+
 Data that gets stored is not, by itself, `full-stack-app` — that used to
 be the rule, and it swallowed every candidate for `pwa-app` (a tracker,
 journal, notebook, or planner whose data belongs on the user's own
