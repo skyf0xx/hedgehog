@@ -89,19 +89,33 @@ A core whose `when` fits and whose `flag` is listed is chosen by name
 and handed to `bootstrap`, which installs that core's package and
 follows the bootstrap skill it ships.
 
-Data that gets stored is `full-stack-app`, at any size: a todo list, a
-notes app, a tracker of any kind. Never talk the user down to
-browser-local storage, an in-memory array, or a single-file page because
-the app sounds small, and never offer that as a quicker start — the core
-ships a real database, and reaching for less is the drift this
-discipline exists to prevent.
+Data that gets stored is not, by itself, `full-stack-app` — that used to
+be the rule, and it swallowed every candidate for `pwa-app` (a tracker,
+journal, notebook, or planner whose data belongs on the user's own
+device). The real question is where the data lives and who needs to
+enforce the rules around it. A description naming a local-first app —
+offline capability or installability named explicitly is a strong
+signal — is `pwa-app`, even with sharing, accounts, or multi-device sync
+in scope (Dexie Cloud covers that), and even with a small number of
+entities that must be server-authoritative (those go `--remote`, backed
+by Supabase, without moving the whole project off `pwa-app`). What
+routes a project to `full-stack-app` instead is server-side logic across
+*most* of the app: authorization more expressive than per-object
+row-level security, background jobs or webhooks as the app's primary
+function, server-rendered or SEO-critical pages, or a working set too
+large for a device. Never talk the user down to browser-local storage
+for `full-stack-app` shape sounding small, and never talk them up to a
+server for `pwa-app` shape sounding real — the core ships a real
+database either way, and picking the wrong one because of what a core
+"sounds like" is the drift this discipline exists to prevent.
 
 This is a distinct question from project *size*. A single-table, single-
-user tool (one person's task list, a personal habit tracker) is still
-`full-stack-app`, scoped through the Add-ons decision, not routed to
-landing-page for being small. Likewise a landing page with a dozen
-sections is still `landing-page`, not promoted to `full-stack-app` for
-being long. Shape decides the core; size decides nothing.
+user tool (one person's task list, a personal habit tracker) fits
+`pwa-app` if its data is local, or `full-stack-app` scoped through the
+Add-ons decision if it isn't — size alone decides neither. Likewise a
+landing page with a dozen sections is still `landing-page`, not promoted
+to `full-stack-app` for being long. Shape decides the core; size decides
+nothing.
 
 Three outcomes are decided here rather than in the registry, because
 none of them is a description matching a `when` paragraph:
@@ -174,6 +188,15 @@ the first-run shape; on re-entry, run `hedgehog-planning-intake`'s
   Hedgehog's own build discipline."* BMAD elicits and produces planning
   documents; it has no execution discipline of its own — Hedgehog starts
   where BMAD's output ends.
+- **`pwa-app`** → open `hedgehog-planning-intake` and follow it in full,
+  exactly as `full-stack-app` does: Phase 0 runs the same vendored BMAD
+  shelf, archived to `.hedgehog/BMAD/`; Phase 1 mines `04-prd.md` into
+  intent records the same way, one domain module per PRD Feature; the
+  same Confirm & Lock stage is the hard stop before anything gets
+  written. State the same BMAD attribution as full-stack-app before that
+  Phase 0 begins. The one addition: this core's own Add-ons-equivalent
+  decision (sync, remote entities — see below) instead of
+  full-stack-app's Auth/Queue/Mobile.
 - **`landing-page`** → open `hedgehog-landing-loop`'s planning-intake
   section and follow it: it opens with `hedgehog-planning-intake`'s
   Phase 0 (the same vendored BMAD shelf `full-stack-app` runs, in full,
@@ -190,9 +213,9 @@ the first-run shape; on re-entry, run `hedgehog-planning-intake`'s
   `hedgehog-planning-intake`.
 
 Either way, this is the mechanical procedure; the judgment — what's
-actually in scope, where a table becomes a module (full-stack-app) or
-what the page's single job actually is (landing-page) — stays yours
-throughout.
+actually in scope, where a table becomes a module (full-stack-app,
+pwa-app) or what the page's single job actually is (landing-page) —
+stays yours throughout.
 
 ## The Add-ons decision (full-stack-app only)
 
@@ -246,6 +269,42 @@ differently. Written once at Phase 1; a later run (new scope entering
 play) only edits it if new scope genuinely changes a trigger (e.g.
 accounts get added where there were none).
 
+## The sync/remote-entities decision (pwa-app only)
+
+Two independent booleans, the `pwa-app` counterpart to full-stack-app's
+Add-ons decision above — same mechanism (`.hedgehog/addons.yaml`, decided
+once while mining `04-prd.md`, shown at Confirm & Lock), different
+triggers, since this core has no Auth/Queue/Mobile infra to decide:
+
+- **Sync** — on if the PRD describes more than one user or more than one
+  device sharing the same data (a shared list, a two-person journal, a
+  small team's board) — Dexie Cloud, wired by this core's bootstrap skill.
+- **Remote entities** — on if the PRD names at least one entity a client
+  must not be able to write to directly (a points balance, a reward
+  ledger, anything server-arbitrated) — Supabase, wired the same way.
+  This is a project-wide bootstrap decision (whether the Supabase client
+  gets wired at all); *which* entities are generated `--remote` is a
+  later, per-entity, build-time choice, not decided here.
+
+Infer first, gap-fill second, same discipline as the Add-ons decision:
+"is this used by more than one person, or shared across your own
+devices?" for sync, "is there any balance or record here a user
+shouldn't be able to edit directly?" for remote entities. A "no" is a
+resolved answer. Neither disqualifies `pwa-app` as the core — see Phase
+0 above — they only decide what bootstrap wires.
+
+```yaml
+sync:
+  on: true
+  reason: shared list, two members
+remote_entities:
+  on: false
+  reason: no server-authoritative entity in scope
+```
+
+A project can take either, both, or neither — independent booleans, same
+as full-stack-app's Auth/Queue/Mobile trio.
+
 ## Core Responsibilities
 
 - Decide which core applies before running any planning-intake skill —
@@ -256,6 +315,10 @@ accounts get added where there were none).
   artifacts; the
   intent records Phase 1 writes via `hedgehog intent add` live in the
   build graph, not a file this agent owns.
+- **pwa-app**: same shape as full-stack-app — owns `.hedgehog/BMAD/` and
+  `.hedgehog/addons.yaml` (sync, remote entities, per "The sync/
+  remote-entities decision" above) as artifacts; intent records live in
+  the build graph.
 - **landing-page**: owns `.hedgehog/BMAD/` and
   `.hedgehog/chain/00-brief.md` as artifacts.
 - **brownfield adoption**: owns nothing here — `hedgehog-adopt` owns
@@ -294,7 +357,9 @@ accounts get added where there were none).
 
    Read the commit log alongside it for what's already built —
    full-stack-app: `feat(<module>): api` commits and each task's status in
-   the graph mark modules with a closed Phase A. Landing-page: a
+   the graph mark modules with a closed Phase A. pwa-app: `feat(<module>):
+   screen` commits and each task's status mark a module's closed
+   sequence, per its own five-layer `core.yaml`. Landing-page: a
    `complete` phase task marks that phase's artifact as committed.
    Authored core: each `complete` task marks that layer committed, per
    `.hedgehog/core.yaml`'s own commit messages. On re-entry this is what
@@ -319,6 +384,9 @@ accounts get added where there were none).
      the user directly only for whatever the PRD leaves unresolved. The
      mining step is the same either way; only how the archive was
      produced differs.
+   - **First run, pwa-app**: identical procedure to full-stack-app above,
+     substituting the sync/remote-entities decision for the Add-ons
+     decision.
    - **First run, landing-page**: run the same vendored BMAD shelf in
      full, then mine `.hedgehog/BMAD/` into a draft subject statement
      (subject, audience, single page job) — asking the user directly only
@@ -328,7 +396,8 @@ accounts get added where there were none).
      only what's new — the BMAD shelf does not run again.
 6. **Run the matching Confirm & Lock** before writing anything — the
    first-run stage on a first run, the extension variant on re-entry.
-7. **Write the intent records**: full-stack-app writes each intent via
+7. **Write the intent records**: full-stack-app and pwa-app each write
+   every intent via
    `hedgehog intent add`, one call per PRD Feature (per new module, on
    re-entry), plus `.hedgehog/addons.yaml`; landing-page writes
    `.hedgehog/chain/00-brief.md` per its own Confirm & Lock, in the shape
@@ -344,8 +413,8 @@ accounts get added where there were none).
    `chore(planning): intake` on a first run, `chore(planning): extend
    scope` on re-entry, so the passes are distinguishable in the log. It
    carries the committed `.hedgehog/hedgehog.db` (its new intent and task
-   rows), `.hedgehog/addons.yaml` (full-stack-app only, and on re-entry
-   only if a trigger actually changed), this core's own archival planning
+   rows), `.hedgehog/addons.yaml` (full-stack-app and pwa-app only, and on
+   re-entry only if a trigger actually changed), this core's own archival planning
    output (`.hedgehog/BMAD/` or `.hedgehog/chain/`, first run only), the
    authored core's `.hedgehog/core.yaml` and `.hedgehog/core-design.md` if
    step 4 ran, and root `CLAUDE.md`'s filled placeholders (first run
@@ -354,8 +423,9 @@ accounts get added where there were none).
    intake's own unit of work, landed before `bootstrap` touches anything.
 9. **First run only, and not on the brownfield path — hand off to the
    `bootstrap` agent** once the commit lands. It scaffolds the chosen
-   core's workspace (and, for full-stack-app, whichever add-ons are on)
-   before any build step starts. On re-entry on any other core the
+   core's workspace (and, for full-stack-app, whichever add-ons are on;
+   for pwa-app, whichever of sync/remote entities is on) before any build
+   step starts. On re-entry on any other core the
    workspace already exists: hand straight to that core's loop skill
    instead, which picks the new work up from `hedgehog next`.
 10. **Return a summary**: which core (naming it as authored or adopted,
@@ -365,8 +435,9 @@ accounts get added where there were none).
 ## Constraints
 
 - Never write or modify application code. Read-only against the
-  codebase; you may write `.hedgehog/addons.yaml` (full-stack-app only —
-  see "The Add-ons decision" below), `.hedgehog/core.yaml` and
+  codebase; you may write `.hedgehog/addons.yaml` (full-stack-app and
+  pwa-app only — see "The Add-ons decision" and "The sync/remote-entities
+  decision" below), `.hedgehog/core.yaml` and
   `.hedgehog/core-design.md` (authored cores only, via
   `hedgehog-core-design`), `.hedgehog/core.yaml` and
   `.hedgehog/adoption.md` (brownfield adoption only, via

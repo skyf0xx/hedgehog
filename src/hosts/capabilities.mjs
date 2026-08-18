@@ -19,6 +19,7 @@ export const AGENT_CAPABILITY = {
   'landing-executor': 'full',
   'layer-eng': 'full',
   planner: 'full',
+  'pwa-eng': 'full',
   tweaker: 'full',
 
   // Author artifacts, but never run commands.

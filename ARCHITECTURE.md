@@ -28,9 +28,10 @@ Tool grants are defense in depth. The enforcement is `hedgehog verify`, which ch
 
 ### Keeping a shipped core's workspace current
 
-A core that ships a pre-built `workspace/` (`full-stack-app`, `landing-page`) owns the staleness of its own dependencies the same way it owns everything else about that workspace — this repo has no visibility into either core's dependency tree. Each such core's repo runs its own scheduled dependency-update workflow, shaped to what that workspace actually needs to stay coherent, gated on that workspace's real build/test/lint targets (not a stub), opening a PR for human review rather than merging or publishing on its own:
+A core that ships a pre-built `workspace/` (`full-stack-app`, `pwa-app`, `landing-page`) owns the staleness of its own dependencies the same way it owns everything else about that workspace — this repo has no visibility into any core's dependency tree. Each such core's repo runs its own scheduled dependency-update workflow, shaped to what that workspace actually needs to stay coherent, gated on that workspace's real build/test/lint targets (not a stub), opening a PR for human review rather than merging or publishing on its own:
 
 - `full-stack-app` runs `nx migrate latest` on a schedule, because Nx requires `nx` and every `@nx/*` plugin to be the exact same version — an ordinary per-package dependency bot would land them one PR at a time and break the workspace on every partial state. That gate also regenerates one throwaway domain module through all seven layer generators and typechecks/builds the result, since a migration can silently break generator output in a way that only surfaces the next time a consuming project scaffolds a module.
+- `pwa-app` runs the same `nx migrate latest` shape for the same coupled-version reason, gated on `typecheck`/`lint`/`test`/`build` plus a throwaway module scaffolded through all three generators (`feature`, `entity`, `integration`) and rebuilt, since a migration can just as easily break generator output here.
 - `landing-page` has no coupled version matrix (Astro, Tailwind, and the rest resolve independently), so its update workflow is an ordinary grouped dependency bump gated on `astro check`, `eslint`, and `astro build`.
 - `authored` ships no pre-built workspace — its stack is chosen per-project at design time, not pinned in the package — so it has no workspace dependencies to keep current.
 
@@ -61,6 +62,37 @@ Package and source: [`skyf0xx/hedgehog-core-full-stack-app`](https://github.com/
 | Testing | Vitest + Playwright | Every step is verifiable before progressing. |
 | Commits | Conventional Commits | Architectural decisions become permanent history. |
 | Observability | Sentry | Failures map cleanly back to module boundaries. |
+
+## `pwa-app` core
+
+Package and source: [`skyf0xx/hedgehog-core-pwa-app`](https://github.com/skyf0xx/hedgehog-core-pwa-app).
+
+| Layer | Choice | Why |
+| --- | --- | --- |
+| Framework | Next.js (App Router, static export) | Same framework family as `full-stack-app`'s web app; no server runtime needed. |
+| Build/graph | Nx | Boundary enforcement and generators, single-app layout (no `apps/`, no `libs/`). |
+| Package manager | pnpm | Matches every other core. |
+| Local DB | Dexie 4 | The one supported IndexedDB abstraction; raw IndexedDB/`localStorage` are lint-forbidden. |
+| Sync + auth | `dexie-cloud-addon` (optional, off by default) | Two-way sync, passwordless OTP/OAuth, and server-enforced realm access control on the same Dexie instance. |
+| Remote entities (optional, off by default) | Supabase (Postgres + RLS + Auth + Edge Functions) | The one supported backing store for an entity declared `--remote`, addressed through the same repository interface as Dexie. |
+| Validation | Zod | Entities, imports, and external responses; types are inferred, never hand-maintained. |
+| Remote state | TanStack Query | External API responses only — never a substitute for the local DB. |
+| Styling | Tailwind v4 + hand-built ShadCN base | Same base as `full-stack-app`'s `apps/web`. |
+| PWA | `@serwist/next` | Manifest, service worker, precached app shell, offline fallback. |
+| IDs | Dexie's sharded auto-generated string keys | Collision-free across devices, and the form Dexie Cloud requires. |
+| Testing | Vitest + `fake-indexeddb` + Testing Library | Repository tests run against a real IndexedDB implementation in-process. |
+| E2E | Playwright | Offline-mode and install-manifest checks. |
+| Linting | ESLint + Prettier + `@nx/enforce-module-boundaries` | Architecture rules are lint rules. |
+| Commits | Conventional Commits | Enforced by `commitlint` + `lefthook`, same as every core. |
+
+Five layers, module-axis, no server tier: `schema → repository → hook →
+screen → join`. The app owns its state locally through a repository
+boundary above Dexie; sync (Dexie Cloud) and remote-backed entities
+(Supabase, per-entity via `--remote`) are both opt-in and sit behind the
+same repository interface, so a hook or screen can't tell which backs
+it. A project whose server-side logic spans most of the app — not one or
+two server-authoritative entities — belongs on `full-stack-app` instead;
+see that core's `selects_when` in `src/registry/cores.json`.
 
 ## `landing-page` core
 

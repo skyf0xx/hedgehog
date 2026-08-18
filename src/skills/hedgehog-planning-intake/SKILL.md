@@ -1,24 +1,25 @@
 ---
 name: hedgehog-planning-intake
-description: Use on any core for first-run planning intake — Phase 0 runs the vendored BMAD-METHOD planning shelf, shared by every core, and Phase 1 (mining `04-prd.md` into intent records plus the Add-ons decision) is full-stack-app's own procedure. Phase 0 also defines compressed intake, the path a user's explicit "just build it" choice takes on full-stack-app and authored cores: one batched round of questions in place of the shelf, writing the same archive at the same path so Phase 1, `ux-planner`, and the Re-entry pass all keep their documented source. Also use for the Re-entry pass, which mines new scope into additional intents without re-running the shelf, on any core with a module axis to add an intent to (full-stack-app, authored) — landing-page has none, so its own new-scope path runs through `hedgehog-landing-loop`'s Correction Protocol instead. Invoked by the `planner` agent, which decides the path; don't run standalone. landing-page runs this skill's Phase 0 on first run, then mines the same archive through `hedgehog-landing-loop`'s own planning-intake section, that core's counterpart to this skill's Phase 1. An authored core runs this skill's Phase 0, then `hedgehog-core-design`, then this skill's Phase 1 mining against the designed layer sequence. A brownfield adoption (`hedgehog-adopt`) never runs this skill's shelf at all — the drivers BMAD elicits are already settled facts of a repo that already exists.
+description: Use on any core for first-run planning intake — Phase 0 runs the vendored BMAD-METHOD planning shelf, shared by every core, and Phase 1 (mining `04-prd.md` into intent records plus the Add-ons/sync-and-remote-entities decision) is full-stack-app's and pwa-app's shared procedure — identical mechanics, a different decision at step 5/8. Phase 0 also defines compressed intake, the path a user's explicit "just build it" choice takes on full-stack-app, pwa-app, and authored cores: one batched round of questions in place of the shelf, writing the same archive at the same path so Phase 1, `ux-planner`, and the Re-entry pass all keep their documented source. Also use for the Re-entry pass, which mines new scope into additional intents without re-running the shelf, on any core with a module axis to add an intent to (full-stack-app, pwa-app, authored) — landing-page has none, so its own new-scope path runs through `hedgehog-landing-loop`'s Correction Protocol instead. Invoked by the `planner` agent, which decides the path; don't run standalone. landing-page runs this skill's Phase 0 on first run, then mines the same archive through `hedgehog-landing-loop`'s own planning-intake section, that core's counterpart to this skill's Phase 1. An authored core runs this skill's Phase 0, then `hedgehog-core-design`, then this skill's Phase 1 mining against the designed layer sequence. A brownfield adoption (`hedgehog-adopt`) never runs this skill's shelf at all — the drivers BMAD elicits are already settled facts of a repo that already exists.
 ---
 
 # Hedgehog Planning Intake
 
 Turns a person's description of a problem into planning material, by
-running the vendored BMAD-METHOD planning shelf (Phase 0, shared by both
-cores) and mining its output. On full-stack-app that mining is this
-skill's own Phase 1, into intent records written via `hedgehog intent
+running the vendored BMAD-METHOD planning shelf (Phase 0, shared by
+every core) and mining its output. On full-stack-app and pwa-app that
+mining is this skill's own Phase 1, into intent records written via
+`hedgehog intent
 add`; on landing-page it's `hedgehog-landing-loop`'s planning-intake
 section, into a subject/audience/job statement. This is the mechanics
 `planner` calls once its Phase 0 core-selection check has picked a core —
 the interpretive judgment (which Feature becomes which intent, Confirm &
 Lock either way) belongs to `planner`; this skill (Phase 0, and Phase 1 on
-full-stack-app) and `hedgehog-landing-loop` (landing-page's own mining)
-are the fixed procedures that judgment runs inside.
+full-stack-app and pwa-app) and `hedgehog-landing-loop` (landing-page's
+own mining) are the fixed procedures that judgment runs inside.
 
 That shelf run is a **first run**, once per project. When new scope
-enters play later on a core with a module axis (full-stack-app,
+enters play later on a core with a module axis (full-stack-app, pwa-app,
 authored), `planner` runs the **Re-entry pass** at the end of this file
 instead: it reads the existing archive as context and elicits only what's
 new, adding intents to a graph that keeps everything already built.
@@ -98,7 +99,7 @@ states the source repo, pinned version (`vendor-skills/BMAD/ATTRIBUTION.md` has
 the pinned commit), date, which intake mode ran (`full`, below, or
 `compressed`), and which skills ran.
 
-### Compressed intake (full-stack-app, authored core)
+### Compressed intake (full-stack-app, pwa-app, authored core)
 
 A user who opens with "just build it" — no clarifying questions — is
 asking for something Phase 0's live elicitation can't give them.
@@ -120,11 +121,13 @@ compressing the elicitation removes the thing the chain audits against.
 A "just build it" landing-page request is a conflict to surface, not a
 mode to switch into.
 
-**The Add-ons decision is what the batched round is for.** Auth, Queue,
-and Mobile must each be *answered* — inferred from a concrete trigger in
-the user's brief, or asked directly in that one round. Compressed intake
-compresses BMAD's elicitation, never `planner`'s gate; an add-on left as
-a guess is the same error here as on a full run.
+**The Add-ons decision (or, on pwa-app, the sync/remote-entities
+decision) is what the batched round is for.** Each of that core's
+booleans — Auth, Queue, and Mobile on full-stack-app; sync and remote
+entities on pwa-app — must be *answered*: inferred from a concrete
+trigger in the user's brief, or asked directly in that one round.
+Compressed intake compresses BMAD's elicitation, never `planner`'s gate;
+a boolean left as a guess is the same error here as on a full run.
 
 Write the manifest and the PRD always, and the experience spec where the
 brief gives it something to say — at the same path and in the same
@@ -174,11 +177,12 @@ drivers, and that's the user's call to accept there.
 Nothing in `hedgehog-loop`'s day-to-day operation, `hedgehog-bootstrap`,
 or `reviewer` reads this folder live — `planner` reads it exactly once,
 right after the shelf completes, to mine it (this skill's Phase 1 below
-on full-stack-app; `hedgehog-landing-loop`'s planning-intake section on
+on full-stack-app and pwa-app; `hedgehog-landing-loop`'s planning-intake
+section on
 landing-page). After that it's historical record only, the same
 relationship the commit log has to a merged PR.
 
-## Phase 1 — Mining (full-stack-app only)
+## Phase 1 — Mining (full-stack-app, pwa-app)
 
 landing-page's counterpart to this Phase 1 is
 `hedgehog-landing-loop`'s own planning-intake section, run once Phase 0
@@ -211,7 +215,8 @@ Procedure:
    description across the two if it names both the capability and the
    result; otherwise the same sentence can serve both).
 
-   On a module-axis core (`full-stack-app`, and any authored core whose
+   On a module-axis core (`full-stack-app`, `pwa-app`, and any authored
+   core whose
    layers scope by `{module}`), **name the id plural** — `tasks`, not
    `task`; `order-items`, not `order-item`. The id is substituted as
    `{module}` into every layer's scope glob and verify command, and the
@@ -238,8 +243,10 @@ Procedure:
    holding the foreign key depends on the intent for the entity it
    references. A relationship entirely inside one Feature's entities
    produces no row — it's already the same intent.
-5. **Run the Add-ons decision** (`planner`'s own judgment call — see that
-   agent's "The Add-ons decision") for Auth, Queue, and Mobile.
+5. **Run this core's Add-ons-equivalent decision** (`planner`'s own
+   judgment call): full-stack-app's "The Add-ons decision" (Auth, Queue,
+   Mobile), or pwa-app's "The sync/remote-entities decision" (sync,
+   remote entities) — see that agent.
 6. **Run Confirm & Lock** (below) before writing anything.
 7. **Write each intent via `hedgehog intent add`** — one invocation per
    Feature: `--acceptance` per row from step 2, `--rule` per row from step
@@ -247,7 +254,7 @@ Procedure:
    <path.json>` batch matching the same shape (`{ id, goal, outcome,
    rules, acceptance, depends_on, priority }`). This is Phase 1's only
    write to the build graph.
-8. **Write `.hedgehog/addons.yaml`** with the Add-ons decision from step 5.
+8. **Write `.hedgehog/addons.yaml`** with the decision from step 5.
 9. **Fill root `CLAUDE.md`'s `{{PROJECT_NAME}}` and `{{PROJECT_SUMMARY}}`
    placeholders**, first run only, then delete the installer's HTML
    comment block at the top of that file. Leave every other line
@@ -266,8 +273,9 @@ stops being true, so it's a hard stop, not a recap in passing.
 
 - Each intent about to be added: `id`, `goal`, `outcome`, its
   `requirements` (rule/acceptance), and its `depends_on` list.
-- The Add-ons decision (Auth / Queue / Mobile, each explicitly on or
-  off, with the one-line reason).
+- This core's Add-ons-equivalent decision, each boolean explicitly on or
+  off with the one-line reason (Auth / Queue / Mobile on full-stack-app;
+  sync / remote entities on pwa-app).
 - Which intake mode ran, and on a full run which BMAD skills ran — or,
   on a compressed run, what the batched round asked and what was inferred
   from the brief without asking. Either way, where the output lives
@@ -276,7 +284,7 @@ stops being true, so it's a hard stop, not a recap in passing.
 Then state plainly what happens on confirmation, before it happens:
 
 > This writes each intent above via `hedgehog intent add` and the
-> Add-ons decision to `.hedgehog/addons.yaml`, then shows the compiled
+> decision above to `.hedgehog/addons.yaml`, then shows the compiled
 > graph with `hedgehog status`. Phase A build (schema first) starts on
 > the first ready task once that closes. Anything wrong or missing — say
 > so now; it's a normal edit before this point, and a Correction Protocol
@@ -288,7 +296,7 @@ the confirmation holds. Once confirmed, after every `hedgehog intent add`
 call lands, run `hedgehog status` and show it in full as the graph's
 confirmation view.
 
-## Re-entry pass — new scope on an existing project (full-stack-app, authored core)
+## Re-entry pass — new scope on an existing project (full-stack-app, pwa-app, authored core)
 
 Runs when `planner`'s Workflow step 2 finds intents already in the graph,
 on a core with a module axis to add an intent to: new scope entering play
@@ -321,8 +329,8 @@ their commits.
 3. **Elicit only what's new.** A short, scoped set of questions — not a
    full interview:
    - What is the new scope, in the project's own vocabulary?
-   - Which entities/tables does it introduce? On full-stack-app each
-     table is its own module, same rule as Phase 1.
+   - Which entities/tables does it introduce? On full-stack-app and
+     pwa-app each table is its own module, same rule as Phase 1.
    - What does it depend on that already exists? Each answer becomes a
      `--depends-on` onto an existing intent.
    - What has to be true for it to be done? Each answer becomes an
@@ -334,10 +342,13 @@ their commits.
    If the answers reveal this isn't new scope at all but a change to
    something already built, stop: that's the Correction Protocol, not an
    extension.
-4. **Check whether any add-on trigger actually changed** (full-stack-app).
-   Usually none has. Only if the new scope genuinely introduces one — the
-   first accounts in a project that had none, the first long-running job —
-   edit `.hedgehog/addons.yaml`, and say plainly that turning an add-on on
+4. **Check whether any boolean trigger actually changed**
+   (full-stack-app's Add-ons, or pwa-app's sync/remote-entities). Usually
+   none has. Only if the new scope genuinely introduces one — the
+   first accounts in a project that had none, the first long-running job,
+   the first shared device on a pwa-app project, the first entity that
+   must be server-authoritative —
+   edit `.hedgehog/addons.yaml`, and say plainly that turning a boolean on
    after bootstrap needs its Bootstrap step run before anything depends on
    it. Never rewrite root `CLAUDE.md`'s `{{PROJECT_NAME}}`/
    `{{PROJECT_SUMMARY}}` placeholders here; they describe the project,

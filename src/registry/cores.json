@@ -7,7 +7,16 @@
       "version": "^1.0.0",
       "language": "typescript",
       "repository": "https://github.com/skyf0xx/hedgehog-core-full-stack-app",
-      "selects_when": "The description names persistent domain data with its own lifecycle: something that gets created, changes state, gets queried back later, or needs accounts/auth, background jobs, or a real app beyond a single page. Data that gets stored is this core at any size — a todo list, a notes app, a tracker of any kind — never talked down to browser-local storage or a single-file page for sounding small. If the project has both a marketing page and a real app behind it, this is still full-stack-app: the page becomes routes inside apps/web, not a separate project."
+      "selects_when": "The description names server-side logic across most of the app: authorization more expressive than per-object row-level security, background jobs, scheduled work or webhook receivers as the app's primary function, server-rendered or SEO-critical pages beyond an app shell, or a data model whose working set doesn't sensibly fit on a device. Persistent domain data alone is not the signal — a tracker, journal, notebook, or planner whose data fits on the user's device is pwa-app, even with sharing, accounts, or multi-device sync in scope, and even with one or two entities that must be server-authoritative. If the project has both a marketing page and a real app behind it, this is still full-stack-app: the page becomes routes inside apps/web, not a separate project."
+    },
+    {
+      "name": "pwa-app",
+      "flag": "--pwa-app",
+      "package": "@skyf0xx/hedgehog-core-pwa-app",
+      "version": "^1.0.0",
+      "language": "typescript",
+      "repository": "https://github.com/skyf0xx/hedgehog-core-pwa-app",
+      "selects_when": "The description names an app whose data model fits on the user's device and whose reads and writes are the user's own — a tracker, journal, notebook, planner, offline reference, or utility. Offline capability or installability named explicitly is a strong signal. Sharing, collaboration, accounts, and multi-device sync do NOT disqualify a project: Dexie Cloud provides sync, authentication, and server-enforced per-object access control, so a shared list, a family calendar, or a small team's board is still this core. A small number of entities that must be server-authoritative — a points balance, a reward ledger, anything a client must not write to directly — do NOT disqualify a project either: those entities are declared --remote and backed by Supabase (Postgres + RLS + Edge Functions) behind the same repository interface, while the rest of the app stays local-first. What routes a project to full-stack-app is server-side logic across most of the app, not the presence of one or two such entities: authorization beyond row-level policies, background jobs or webhooks as the app's primary function, server-rendered pages, or a working set too large for a device."
     },
     {
       "name": "landing-page",

@@ -1,0 +1,8 @@
+name: pwa-app
+flag: --pwa-app
+language: typescript
+engine: "^5.0.0"
+workspace: workspace/
+template: CLAUDE.core.md
+agents: [pwa-eng]
+skills: [hedgehog-loop, hedgehog-bootstrap-pwa-app-core]
