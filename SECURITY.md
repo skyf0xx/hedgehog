@@ -38,11 +38,11 @@ consuming project installs. The interesting boundaries:
   from untrusted content, or that weakens a gate a project relies on,
   is a supply-chain issue.
 - **The core registry and fetcher** (`src/registry/`) — each core
-  (`full-stack-app`, `landing-page`, `authored`) ships as its own npm
-  package that `init` resolves and fetches; a bug here that lets a core
-  install from an unintended source, or that skips validating what it
-  fetched, is the same class of supply-chain issue as the payload
-  above.
+  (`full-stack-app`, `pwa-app`, `landing-page`, `authored`) ships as its
+  own npm package that `init` resolves and fetches; a bug here that lets
+  a core install from an unintended source, or that skips validating
+  what it fetched, is the same class of supply-chain issue as the
+  payload above.
 - **Prompt injection reaching an agent** through content it reads — a
   file in the working tree, a fetched page, an issue body. Reports here
   are welcome and are treated as real, not theoretical.

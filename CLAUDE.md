@@ -8,8 +8,8 @@ discipline's stance and rationale.
 
 This repo is the engine: the CLI, the build graph, the host adapters, the
 core registry, and the agents and skills every core shares. Each core —
-`full-stack-app`, `landing-page`, `authored` — ships as its own npm
-package holding that core's workspace, agents, skills, and CLAUDE.md
+`full-stack-app`, `pwa-app`, `landing-page`, `authored` — ships as its own
+npm package holding that core's workspace, agents, skills, and CLAUDE.md
 section. `src/registry/cores.json` names them; `init` fetches the one a
 project asks for.
 

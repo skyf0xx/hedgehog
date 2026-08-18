@@ -90,20 +90,20 @@ blueprint (`cli.md`) rather than the longest. Lands as a PR against
 
 ### A generator layer as a quality bar for new opinionated cores
 
-`full-stack-app` is the only core with a scaffold layer of its own —
-`workspace/tools/generators/` (Nx generators for schema, contract,
-repository, service, controller, hook, and screen), driven by the
-`nx-generate` skill instead of an agent writing that boilerplate
-freehand. A core proposing a new pre-built workspace (one of the
-candidates above, or any future one) should propose what it generates
-alongside the workspace itself, not add a generator layer later as an
-afterthought — this is a first-class part of what makes a core's build
-order mechanically enforced rather than convention the AI is asked to
-follow.
+`full-stack-app` and `pwa-app` each carry a scaffold layer of their own —
+`workspace/tools/generators/`, driven by the `nx-generate` skill instead
+of an agent writing that boilerplate freehand: seven generators (schema,
+contract, repository, service, controller, hook, screen) on
+`full-stack-app`, three (feature, entity, integration) on `pwa-app`. A
+core proposing a new pre-built workspace (one of the candidates above, or
+any future one) should propose what it generates alongside the workspace
+itself, not add a generator layer later as an afterthought — this is a
+first-class part of what makes a core's build order mechanically
+enforced rather than convention the AI is asked to follow.
 Scope for any single such proposal: identify the repeatable per-module
 boilerplate the new core's build order produces, and design the
-generator(s) for it modeled on `full-stack-app`'s, as part of the same
-PR that proposes the workspace.
+generator(s) for it modeled on `full-stack-app`'s or `pwa-app`'s, as part
+of the same PR that proposes the workspace.
 
 ### New host support
 

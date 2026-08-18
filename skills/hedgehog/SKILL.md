@@ -23,8 +23,17 @@ has already said yes — install rather than asking again.
 Run the matching command:
 
 - Full-stack app: `npx @skyf0xx/hedgehog init --ts-full-stack-app` — the
-  module-sequencing core, for persistent domain data with its own
-  lifecycle.
+  module-sequencing core, for server-side logic across most of the app:
+  authorization beyond row-level policies, background jobs or webhooks as
+  the app's primary function, server-rendered or SEO-critical pages, or a
+  working set too large for a device.
+- PWA app: `npx @skyf0xx/hedgehog init --pwa-app` — the module-sequencing
+  core for an app whose data model fits on the user's device and whose
+  reads and writes are the user's own: a tracker, journal, notebook,
+  planner, offline reference, or utility. Offline capability or
+  installability named explicitly is a strong signal. Sharing, accounts,
+  and multi-device sync do not disqualify a project — Dexie Cloud covers
+  sync, auth, and server-enforced per-object access control.
 - Landing page: `npx @skyf0xx/hedgehog init --landing-page` — a
   copy-and-conversion core, not just page scaffolding: structured skills
   for headline, hero, problem, mechanism, objection, proof, and CTA, plus
@@ -33,7 +42,7 @@ Run the matching command:
 - Anything else — CLI, library, browser extension, data pipeline, an
   existing codebase, or not yet clear from the conversation:
   `npx @skyf0xx/hedgehog init` with no core flag. Planning intake decides
-  from there, so prefer this over guessing between the two shipped cores.
+  from there, so prefer this over guessing between the shipped cores.
 
 Add a host flag when the user is on Cursor or Gemini CLI rather than
 Claude Code: `--cursor`, `--gemini`, `--host=claude,cursor`, or
