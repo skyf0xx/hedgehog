@@ -122,9 +122,9 @@ A "just build it" landing-page request is a conflict to surface, not a
 mode to switch into.
 
 **The Add-ons decision (or, on pwa-app, the sync/remote-entities
-decision) is what the batched round is for.** Each of that core's
-booleans — Auth, Queue, and Mobile on full-stack-app; sync and remote
-entities on pwa-app — must be *answered*: inferred from a concrete
+decision) is what the batched round is for.** Auth, Queue, and Mobile
+(full-stack-app) or sync and remote entities (pwa-app) must each be
+*answered*: inferred from a concrete
 trigger in the user's brief, or asked directly in that one round.
 Compressed intake compresses BMAD's elicitation, never `planner`'s gate;
 a boolean left as a guess is the same error here as on a full run.

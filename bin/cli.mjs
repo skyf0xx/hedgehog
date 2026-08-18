@@ -37,6 +37,7 @@ import {
   releaseTask,
   renewLease,
   retryTask,
+  reapExpiredLeases,
 } from '../src/db/claim.mjs';
 import { readyTasks, formatReady } from '../src/db/ready.mjs';
 import { graphStatus, formatStatus } from '../src/db/status.mjs';
@@ -2066,6 +2067,12 @@ async function statusCommand() {
   const db = openDb();
   let result;
   try {
+    // A task whose lease expired with no intervening `claim`/`verify`
+    // call is still sitting in `building`/`verifying` in the DB —
+    // without this, status keeps reporting a dead agent's task as
+    // in-flight indefinitely, and `hedgehog retry` refuses it as "not
+    // blocked" until some other command happens to reap it first.
+    reapExpiredLeases(db);
     result = graphStatus(db, { core, overrides });
   } finally {
     db.close();
@@ -2140,6 +2147,7 @@ async function quiesceCommand() {
   const db = openDb();
   let inFlight;
   try {
+    reapExpiredLeases(db);
     ({ inFlight } = graphStatus(db));
   } finally {
     db.close();

@@ -373,6 +373,13 @@ export function claimTask(db, taskId, { owner, leaseMinutes = 45 }) {
 // would — still subject to its dependencies being complete.
 export function retryTask(db, taskId) {
   return inTransaction(db, () => {
+    // Same reason verifyTask reaps before its own status check: a task
+    // whose lease expired with no intervening `claim` call is still
+    // sitting in `building`/`verifying` here, not yet swept to `blocked`
+    // — without this, retry on that task reads "not blocked" and refuses,
+    // even though the lease is in fact dead and this is exactly the
+    // situation retry exists to recover from.
+    reapExpiredLeases(db);
     const task = loadTask(db, taskId);
     if (task === undefined) return { retried: false, reason: 'no_such_task' };
     if (task.status !== 'blocked') return { retried: false, reason: 'not_blocked', task };
