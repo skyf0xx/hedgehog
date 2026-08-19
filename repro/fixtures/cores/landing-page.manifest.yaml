@@ -4,10 +4,8 @@ language: typescript
 engine: "^5.0.0"
 workspace: workspace/
 template: CLAUDE.core.md
-agents: [landing-strategist, landing-systems, landing-sequencer,
-         landing-headline-writer, landing-copywriter, landing-critic,
-         landing-builder, landing-executor, landing-visual-reviewer,
-         landing-ux-reviewer]
+agents: [landing-builder, landing-copywriter, landing-executor,
+         landing-visual-reviewer, landing-ux-reviewer]
 skills: [hedgehog-landing-loop, hedgehog-bootstrap-landing-page-core,
          landing-shapes, landing-copy-hero, landing-copy-problem,
          landing-copy-mechanism, landing-copy-proof, landing-copy-objection,

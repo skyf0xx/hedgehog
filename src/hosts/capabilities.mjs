@@ -22,21 +22,12 @@ export const AGENT_CAPABILITY = {
   'pwa-eng': 'full',
   tweaker: 'full',
 
-  // Author artifacts, but never run commands.
-  'landing-headline-writer': 'no-bash',
-  'landing-sequencer': 'no-bash',
-  'landing-strategist': 'no-bash',
-  'landing-systems': 'no-bash',
-
   // Inspect and report; the verification command (and, for the Polish
   // Loop reviewers, the build/screenshot/interaction commands) is theirs
   // to run.
   reviewer: 'readonly-bash',
   'landing-visual-reviewer': 'readonly-bash',
   'landing-ux-reviewer': 'readonly-bash',
-
-  // Inspect and report only.
-  'landing-critic': 'readonly',
 
   // Write its rationale artifact, nothing else.
   'ux-planner': 'write-only',
