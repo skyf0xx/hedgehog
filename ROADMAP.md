@@ -115,6 +115,31 @@ next hosts. Each is scoped to one new `src/hosts/<name>/` directory and the
 corresponding entries in the two `.mjs` files — see `src/hosts/gemini/` for
 the smallest existing example to model against.
 
+### Plugin-update staleness check for Cursor and Gemini CLI
+
+`hooks/session-start`'s `plugin_update_notice()` only detects a stale
+install for Claude Code: it reads `CLAUDE_PLUGIN_ROOT`, finds the sibling
+marketplace git clone Claude Code already maintains, and diffs the
+installed version against that clone's `origin/<branch>` manifest — all
+local, no network call. Cursor and Gemini CLI get the offer gate from the
+same hook but no staleness check at all. Neither host's local-diff
+equivalent is confirmed: Cursor sets `CURSOR_PLUGIN_ROOT` (already
+branched on in `emit_context`) but nothing in Cursor's public docs
+describes a local marketplace clone or plugin-version env var to check
+against. Gemini CLI writes a per-extension
+`~/.gemini/extensions/<name>/.gemini-extension-install.json` recording
+install type/source/ref, which looks purpose-built for this, but whether
+a `type: git` install retains a real `.git` dir to diff (rather than a
+plain file copy) is unconfirmed, and a `type: github-release` install has
+no offline path at all. Scope: verify each mechanism empirically against
+a real install on disk before writing the check — don't build on the
+undocumented env var or the unconfirmed `.git` persistence. Land as an
+addition to `plugin_update_notice()`'s existing host branching, following
+the same "local diff, no blocking network call" shape Claude Code's check
+uses wherever an equivalent exists; fall back to an explicit network call
+only where no local mechanism is possible (e.g. Gemini's
+`github-release` install type).
+
 ### Small doc and DX gaps
 
 Anything found while actually using Hedgehog that's a one-file fix: a
