@@ -267,6 +267,39 @@ try {
   fail(`bin/cli.mjs --help exited non-zero: ${err.message}`);
 }
 
+// ── 8. Plugin-family version fields (CLAUDE.md's Releasing section) all
+//    agree — .claude-plugin/plugin.json, .claude-plugin/marketplace.json's
+//    plugins[0].version, .cursor-plugin/plugin.json, and root
+//    gemini-extension.json ship the same skills/ + hooks/ payload under
+//    four manifests, so a version bump to one and not the others is a
+//    silent miss, not a valid state. src/hosts/gemini/gemini-extension.json
+//    is unrelated per-project template content and sits outside this
+//    family on purpose. ───────────────────────────────────────────────
+try {
+  const pluginJson = JSON.parse(await readFile(join(ROOT, '.claude-plugin/plugin.json'), 'utf8'));
+  const marketplaceJson = JSON.parse(
+    await readFile(join(ROOT, '.claude-plugin/marketplace.json'), 'utf8'),
+  );
+  const cursorJson = JSON.parse(await readFile(join(ROOT, '.cursor-plugin/plugin.json'), 'utf8'));
+  const geminiJson = JSON.parse(await readFile(join(ROOT, 'gemini-extension.json'), 'utf8'));
+  const versions = {
+    '.claude-plugin/plugin.json': pluginJson.version,
+    '.claude-plugin/marketplace.json (plugins[0].version)': marketplaceJson.plugins?.[0]?.version,
+    '.cursor-plugin/plugin.json': cursorJson.version,
+    'gemini-extension.json': geminiJson.version,
+  };
+  const distinct = new Set(Object.values(versions));
+  if (distinct.size > 1) {
+    fail(
+      `plugin-family version drift: ${Object.entries(versions)
+        .map(([file, v]) => `${file}=${v}`)
+        .join(', ')} — bump every plugin-family file to the same version (CLAUDE.md's Releasing section)`,
+    );
+  }
+} catch (err) {
+  fail(`plugin-family version check failed: ${err.message}`);
+}
+
 // ── Report ───────────────────────────────────────────────────────────
 if (failures.length > 0) {
   console.error(`\n${failures.length} check(s) failed:\n`);

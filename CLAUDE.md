@@ -151,14 +151,19 @@ triggers and never touched by the same automation:
   carry the same version for the Cursor and Gemini CLI packagings of
   that same payload (root `gemini-extension.json` only — the unrelated
   `src/hosts/gemini/gemini-extension.json` is per-project template
-  content versioned by `package.json`'s bump instead). Bump all four by
-  hand, in the same PR as the change, for any edit under `skills/`,
-  `hooks/`, `.claude-plugin/`, `.cursor-plugin/`, or root
-  `gemini-extension.json` itself — that's what a `claude plugin
-  marketplace` update check (or Gemini CLI's own extension update check)
-  reads to decide a user has a new version to pull. No CI bumps or
-  publishes this one; it ships by the marketplace or extension registry
-  re-reading the repo at whatever commit `master` is on.
+  content versioned by `package.json`'s bump instead). Bump all four
+  together with `npm run release:plugin -- <version>`
+  (`scripts/bump-plugin-version.mjs`), in the same PR as the change, for
+  any edit under `skills/`, `hooks/`, `.claude-plugin/`,
+  `.cursor-plugin/`, or root `gemini-extension.json` itself — that's what
+  a `claude plugin marketplace` update check (or Gemini CLI's own
+  extension update check) reads to decide a user has a new version to
+  pull. The script asserts the four files agree before writing, so a
+  prior silent miss surfaces there instead of compounding; `scripts/
+  check.mjs` carries the same assertion as a standing gate, so drift
+  between releases fails `npm run check` too. No CI bumps or publishes
+  this one; it ships by the marketplace or extension registry re-reading
+  the repo at whatever commit `master` is on.
 
 Each core package carries a third version, in its own repo and released
 from there — a change to a core's workspace, agents, or skills is a
