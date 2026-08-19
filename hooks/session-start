@@ -128,7 +128,7 @@ plugin_update_notice() {
     # The marketplace name is read from the install path rather than
     # hardcoded, so a plugin installed from a fork or a differently-named
     # marketplace still gets a command that works.
-    printf '# Hedgehog plugin update available\n\nThe installed Hedgehog plugin is version %s; version %s is published.\n\nMention this to the user once, briefly. If they authorize it, run both\nlines yourself via Bash:\n\n    claude plugin marketplace update %s\n    claude plugin update hedgehog@%s\n\nBoth are needed: the first fetches the new version, the second installs\nit, and it takes effect on restart. Do not run them without the user\nauthorizing it first, and do not repeat this notice later in the\nsession.\n' \
+    printf '# Hedgehog plugin update available\n\nThe installed Hedgehog plugin is version %s; version %s is published.\n\nMention this to the user once, briefly, before doing anything else this\nsession. Then STOP: wait for their reply before starting any other work,\neven work they already asked for earlier in the same message. Treat the\nunanswered notice as blocking, not as a remark to append before moving on.\n\nIf they authorize it, run both lines yourself via Bash:\n\n    claude plugin marketplace update %s\n    claude plugin update hedgehog@%s\n\nBoth are needed: the first fetches the new version, the second installs\nit, and it takes effect on restart. Do not run them without the user\nauthorizing it first. If they decline or say to proceed without updating,\ncarry on with their original request and do not repeat this notice later\nin the session.\n' \
         "$installed_version" "$latest" "$marketplace" "$marketplace"
 }
 
