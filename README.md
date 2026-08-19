@@ -156,7 +156,7 @@ Screen
 
 A CLI, a library, a browser extension, a data pipeline, etc. gets its build order.
 
-Where possible, Hedgehog uses a battle-tested blueprint in [`hedgehog-core-authored`](https://github.com/skyf0xx/hedgehog-core-authored) for the system's shape where one exists.
+Where possible, Hedgehog uses a battle-tested blueprint in [`hedgehog-core-authored`](https://github.com/skyf0xx/hedgehog-core-authored/tree/main/skills/hedgehog-core-design/blueprints) for the system's shape where one exists.
 
 ### Existing codebases
 
