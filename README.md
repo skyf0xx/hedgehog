@@ -138,16 +138,25 @@ Sequence
 Artifact
 ```
 
+### PWAs
+
+Local-first simple mobile compatible web  apps: trackers, journals, planners, etc:
+
+``` text
+Schema
+  ↓
+Repository
+  ↓
+Hook
+  ↓
+Screen
+```
+
 ### Anything else
 
-A CLI, a library, a browser extension, a data pipeline, etc. fitting neither shape gets its own build order, designed at intake rather than chosen from a menu — starting from a battle-tested blueprint (in [`hedgehog-core-authored`](https://github.com/skyf0xx/hedgehog-core-authored)'s `hedgehog-core-design` skill) for the system's shape where one exists.
+A CLI, a library, a browser extension, a data pipeline, etc. gets its build order.
 
-Run `init` with no core flag: planning intake names the system shape, picks
-the stack, derives the layers, and locks them to `.hedgehog/core.yaml`,
-then generates that workspace and builds it one verified layer at a time.
-
-The enforcement remains the same: ordered steps,
-scoped file access and a verification command per layer.
+Where possible, Hedgehog uses a battle-tested blueprint (in [`hedgehog-core-authored`](https://github.com/skyf0xx/hedgehog-core-authored)'s `hedgehog-core-design` skill) for the system's shape where one exists.
 
 ### Existing codebases
 
@@ -229,18 +238,11 @@ Adding the package to the CLI's `init` menu is one entry in `src/registry/cores.
 
 ## Credits
 
-Hedgehog uses [BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD)
-(`bmad-code-org/BMAD-METHOD`) for planning, MIT-licensed.
+- Planning runs on [BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD). 
 
-The `nx-generate`, `nx-run-tasks`, `nx-workspace`, and
-`link-workspace-packages` skills are adapted from
-[nx-ai-agents-config](https://github.com/nrwl/nx-ai-agents-config)
-(`nrwl/nx-ai-agents-config`), MIT-licensed, rewritten for Hedgehog's
-pnpm-only workspace convention.
+- Nx skills adapted from [nx-ai-agents-config](https://github.com/nrwl/nx-ai-agents-config).
 
-`front-end-eng`'s animation skills (`vendor-skills/GSAP/`) are vendored from
-[gsap-skills](https://github.com/greensock/gsap-skills)
-(`greensock/gsap-skills`), MIT-licensed.
+- Animation skills vendored from [gsap-skills](https://github.com/greensock/gsap-skills).
 
 ## Support Hedgehog
 
