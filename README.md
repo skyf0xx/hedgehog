@@ -138,7 +138,7 @@ Sequence
 Artifact
 ```
 
-### PWAs
+### Web Apps/ PWAs
 
 Local-first simple mobile compatible web  apps: trackers, journals, planners, etc:
 
