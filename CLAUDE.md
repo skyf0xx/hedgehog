@@ -147,13 +147,18 @@ triggers and never touched by the same automation:
   `version` fields (kept identical to each other) — the Claude Code
   plugin (`claude plugin install hedgehog`), whose payload is `skills/`
   (currently just `skills/hedgehog/SKILL.md`) and `hooks/`, not `src/`.
-  `.cursor-plugin/plugin.json` carries the same version for the Cursor
-  packaging of that payload. Bump these by hand, in the same PR as the
-  change, for any edit under `skills/`, `hooks/`, `.claude-plugin/`, or
-  `.cursor-plugin/` — that's what a
-  `claude plugin marketplace` update check reads to decide a user has a
-  new version to pull. No CI bumps or publishes this one; it ships by the
-  marketplace re-reading the repo at whatever commit `master` is on.
+  `.cursor-plugin/plugin.json` and root `gemini-extension.json` each
+  carry the same version for the Cursor and Gemini CLI packagings of
+  that same payload (root `gemini-extension.json` only — the unrelated
+  `src/hosts/gemini/gemini-extension.json` is per-project template
+  content versioned by `package.json`'s bump instead). Bump all four by
+  hand, in the same PR as the change, for any edit under `skills/`,
+  `hooks/`, `.claude-plugin/`, `.cursor-plugin/`, or root
+  `gemini-extension.json` itself — that's what a `claude plugin
+  marketplace` update check (or Gemini CLI's own extension update check)
+  reads to decide a user has a new version to pull. No CI bumps or
+  publishes this one; it ships by the marketplace or extension registry
+  re-reading the repo at whatever commit `master` is on.
 
 Each core package carries a third version, in its own repo and released
 from there — a change to a core's workspace, agents, or skills is a

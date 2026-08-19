@@ -1,6 +1,6 @@
 {
   "name": "hedgehog",
-  "version": "5.1.3",
+  "version": "5.1.6",
   "description": "Offers to set up the Hedgehog build discipline in any project you open",
   "contextFileName": "GEMINI.md"
 }
