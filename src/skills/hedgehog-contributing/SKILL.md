@@ -117,14 +117,3 @@ back-and-forth to extract the facts.
    (`Addresses the "<item name>" item in ROADMAP.md`, or `Fixes #<n>`).
 7. **Report the PR URL** `gh` returns and stop — don't merge, don't push
    further commits without being asked.
-
-## Self-test
-
-- The change happened in a Hedgehog repo clone, never inside the user's own
-  project directory.
-- The PR is scoped to one agent, one skill, one template, or one host —
-  not a bundle of unrelated changes.
-- The install smoke test actually ran and actually confirmed the specific
-  change, not just that `init` exits zero.
-- Commit messages and the PR title follow Conventional Commits.
-- Nothing was merged or force-pushed without the user explicitly asking.

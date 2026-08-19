@@ -211,30 +211,6 @@ discipline as `.hedgehog/BMAD/`. A later related incident is its own new
 4. **Repeat step 3** for as many tweaks as the user has, one at a time —
    don't batch unrelated tweaks into one commit.
 
-## Self-test
-
-- Job 2 ran at most once for this build — but within that run, every
-  distinct real pattern the friction log showed, and every distinct
-  feedback item the user actually gave, got its own suggested issue, not
-  just the single clearest one.
-- The user was directly asked for feedback, separate from the friction
-  log — job 2 didn't skip straight to filing friction issues without
-  asking.
-- Entries (or feedback items) that trace to the same underlying gap were
-  grouped into one issue, not filed as duplicates.
-- Shown content is literal/final and correctly labeled — never a
-  summary, never altered post-approval, and never created without an
-  explicit approval on that specific issue's exact shown content.
-- Every tweak is its own commit, scoped to what the user actually asked
-  for — no drive-by refactor riding along on a color change.
-- A request that's actually new scope was routed onward — to `planner`'s
-  Re-entry pass on a module axis, or to the Correction Protocol's
-  post-build entry otherwise — not built here, and the user was told the
-  build is extendable, not that the request was refused.
-- The `ROADMAP.md`/contributing mention happened at most once for this
-  build, stayed to one sentence, and wasn't repeated or pressed after a
-  "no" or silence.
-
 ## Constraints
 
 - Never create a GitHub issue against the user's own project repo — job
