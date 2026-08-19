@@ -25,7 +25,7 @@ the cost of a pre-built workspace.
    server init, tool-list handlers, tool-call handlers, transport setup),
    which is exactly what a layered build order plus a tool-definition
    generator eliminates.
-2. **Slack/Discord bot** — event subscription, command routing, and the
+2. **Slack/Discord bot/Telegram** — event subscription, command routing, and the
    OAuth install flow are fixed enough across projects to lock into a
    workspace rather than re-derive per project. Demand is concrete and
    current: AI-powered bots that answer from company docs, summarize
