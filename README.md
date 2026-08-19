@@ -247,7 +247,7 @@ Adding the package to the CLI's `init` menu is one entry in `src/registry/cores.
 
 ## Support Hedgehog
 
-If Hedgehog helps you build better software with AI, **give it a ⭐ on GitHub**, or [buy me a coffee on Ko-fi](https://ko-fi.com/skyf0xx).
+If Hedgehog helps you build better software with AI, **give it a ⭐ on GitHub**.
 
 [![GitHub stars](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/badges/github-stars.svg)](https://github.com/skyf0xx/hedgehog/stargazers)
 [![Total downloads](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/badges/npm-downloads.svg)](https://www.npmjs.com/package/@skyf0xx/hedgehog)
