@@ -94,7 +94,9 @@ project asks for.
   payload-staleness detection: `init` and `update` stamp the version they
   wrote into `.hedgehog/version.json`, and that stamp is compared against
   the newest published release. See
-  [ARCHITECTURE.md](ARCHITECTURE.md) for the host table.
+  [ARCHITECTURE.md](ARCHITECTURE.md) for the host table and
+  [AUTHORING-CORES.md](AUTHORING-CORES.md) for the package contract a new
+  core must satisfy.
 
 - `hooks/` — the Claude Code plugin's `SessionStart` hook, which injects
   the offer gate (when to raise Hedgehog, when to stay silent, how to
