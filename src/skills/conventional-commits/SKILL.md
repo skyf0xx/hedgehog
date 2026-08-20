@@ -44,8 +44,8 @@ Run in parallel:
 - `git log -10 --oneline` to confirm the project's existing commit style
 - Run `hedgehog status` for which steps/modules are in flight
 
-Read every changed file's diff fully. You cannot group changes you
-haven't read.
+Read every changed file's diff fully before grouping — you cannot group
+changes you haven't read.
 
 ### 2. Group hunks into logical commits
 
@@ -72,8 +72,7 @@ Do NOT group:
 
 1. **Build-sequence order.** Schema before contract, contract before
    repository, repository before service, service before controller —
-   same dependency order the Loop builds in, even reconstructing after
-   the fact.
+   the same dependency order the Loop builds in.
 2. **Upstream fix before its fast-forwarded dependents**, for a
    Correction Protocol cleanup — the fix commit needs to make sense
    before the commits that changed because of it.
@@ -102,9 +101,8 @@ Then execute each commit:
 - Verify clean state with `git status` before the next commit.
 
 If a pre-commit hook (lefthook: typecheck/lint/test) fails: fix the
-issue, re-stage, create a NEW commit. Never `--amend` after a hook
-failure — a commit that fails the gate did not happen, so amending would
-rewrite the wrong thing.
+issue, re-stage, create a NEW commit — a commit that fails the gate did
+not happen, so amending would rewrite the wrong thing (see Hard rules).
 
 ### 5. Commit format
 
