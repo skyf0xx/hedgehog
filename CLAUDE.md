@@ -144,7 +144,12 @@ triggers and never touched by the same automation:
   history around 2026-08-14 for the incident this rule comes from). If a
   tag was pushed by mistake, delete it (`git push origin --delete
   v<version>`) before the PR merges so the workflow can create it fresh,
-  pointing at the actual merge commit.
+  pointing at the actual merge commit. `npm version patch` only writes
+  `package.json`/`package-lock.json` — it does not touch
+  `src/hosts/gemini/gemini-extension.json`, so bump that file's `version`
+  to match by hand in the same commit. Nothing currently gates on the two
+  agreeing, so a missed bump here stays silent rather than failing `npm
+  run check`.
 - `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`'s
   `version` fields (kept identical to each other) — the Claude Code
   plugin (`claude plugin install hedgehog`), whose payload is `skills/`
