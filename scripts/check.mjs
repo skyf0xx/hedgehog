@@ -145,6 +145,57 @@ for (const core of cores) {
   }
 }
 
+// ── 2c. Every core's pinned version range can still resolve to that
+//    core's actual latest published version. A caret range on a 0.x
+//    version (`^0.1.0`) only ever satisfies patches within that minor —
+//    it silently cannot advance to 0.2.0 even after 0.2.0 ships, so a
+//    core release and this repo's own release can drift apart with no
+//    error anywhere (see #235). Network-dependent, so it only runs when
+//    npm is reachable — CI always has it; an offline local run degrades
+//    to skipping this one check rather than failing on connectivity. ────
+{
+  const skipReason = process.env.HEDGEHOG_SKIP_REGISTRY_VERSION_CHECK;
+  if (!skipReason) {
+    for (const core of cores) {
+      if (!core.package || !core.version) continue;
+      let latest;
+      try {
+        latest = execFileSync('npm', ['view', core.package, 'version'], {
+          encoding: 'utf8',
+          timeout: 15000,
+        }).trim();
+      } catch {
+        continue; // offline or registry unreachable — not this check's failure to report
+      }
+      if (!latest) continue;
+      // `npm view <pkg>@<range> version` prints every version the range
+      // satisfies, not just the highest — ascending order, so the last
+      // line is the one `npm pack`/`npm install` would actually resolve.
+      let resolved = '';
+      try {
+        const raw = execFileSync(
+          'npm',
+          ['view', `${core.package}@${core.version}`, 'version', '--json'],
+          { encoding: 'utf8', timeout: 15000 },
+        ).trim();
+        const parsed = JSON.parse(raw);
+        resolved = Array.isArray(parsed) ? parsed.at(-1) : parsed;
+      } catch {
+        resolved = '';
+      }
+      if (resolved !== latest) {
+        fail(
+          `src/registry/cores.json: core "${core.name}" is pinned to "${core.version}", ` +
+            `which resolves to ${resolved || 'nothing'} — but ${core.package}'s latest ` +
+            `published version is ${latest}. Widen the pin (e.g. ">=X.0.0 <Y.0.0" spanning ` +
+            `the current major) so a future release of that core doesn't require a new ` +
+            `hedgehog release just to reach it.`,
+        );
+      }
+    }
+  }
+}
+
 // ── 3. Cross-references: every agent named in AGENT_CAPABILITY exists,
 //    and every agent file exists in AGENT_CAPABILITY (capabilities.mjs
 //    fails closed to 'readonly' for unknown agents, so a silently

@@ -31,7 +31,7 @@
       "name": "deepseek-harness",
       "flag": "--deepseek-harness",
       "package": "@skyf0xx/hedgehog-core-deepseek-harness",
-      "version": "^0.1.0",
+      "version": ">=0.1.0 <1.0.0",
       "language": "typescript",
       "repository": "https://github.com/skyf0xx/hedgehog-core-deepseek-harness",
       "selects_when": "The description names building a plugin, tool, hook, or extension for DeepSeek Harness (DSH) — a Cordis-based agent framework — or otherwise extending an existing DSH installation with new capabilities via its plugin/bundle system. Concrete signals: DSH, DeepSeek Harness, Cordis, `defineTool`, `ctx.tools.register`, a `cordis.patch.yml` manifest, or a request to add a tool that a DSH agent can call. This is the core most often confused with authored: authored fits when no shipped core matches and the planner must design a system shape from scratch, but a DSH plugin already has a fixed, battle-tested shape (the six-layer scaffold → logic → wiring → smoke → bundle → join sequence, one plugin per intent) that authored's from-scratch design would only reinvent worse. Route here whenever the target of the work is a DSH plugin, not a general \"no other core fits\" fallback."

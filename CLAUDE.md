@@ -176,7 +176,17 @@ Each core package carries a third version, in its own repo and released
 from there — a change to a core's workspace, agents, or skills is a
 release of that package, not of this one. `src/registry/cores.json` names
 the version range `init` resolves for each, so widening a core's range is
-the one edit here that a core release calls for. Each core repo carries
+the one edit here that a core release calls for — and a core's version
+bump is not, on its own, sufficient for `init`/`update` to reach it: a
+caret range only resolves within the pinned major (or, below `1.0.0`,
+within the pinned minor — `^0.1.0` never resolves to `0.2.0` even after
+`0.2.0` ships), so a core crossing that boundary needs its range in
+`cores.json` widened and a new `hedgehog` release cut, or every consumer
+stays pinned to the old version with no error anywhere (`npm run check`
+catches this — it queries each core's actual latest published version
+against its pinned range and fails on a mismatch — but the range still
+has to be widened by hand, not just left for the next check run to
+complain about). Each core repo carries
 its own `.github/workflows/publish.yml`, structured the same way as this
 repo's: a version bump to that core's own `package.json`, committed and
 merged to that repo's own `main`, is the trigger — the workflow diffs the
