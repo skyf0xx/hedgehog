@@ -171,7 +171,7 @@ console.log('repro: plan re-raises the singular module-id check\n');
     const planned = cli(dir, ['plan']);
     check('B2. plan succeeds', 0, planned.status);
     checkContains('B3. plan catches the replayed singular id', planned.stdout, 'Module id looks singular');
-    checkContains('B4. singular phrasing for exactly one id', planned.stdout, 'so this compiles');
+    checkContains('B4. singular phrasing for exactly one id', planned.stdout, 'so this would compile');
   } finally {
     cleanup(dir);
   }

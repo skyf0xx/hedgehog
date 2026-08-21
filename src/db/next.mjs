@@ -394,14 +394,29 @@ export function scopePackageRoot(glob, module) {
 // `exists` is injected so this module keeps no filesystem dependency of
 // its own; the CLI passes a real one and the packet degrades to no
 // section when a caller supplies none.
+//
+// A layer can carry more than one glob into the same real package — e.g.
+// `plugins/{module}/package.json` and `plugins/{module}/lib/**` both
+// belong to one package, but the second glob's own literal prefix ends
+// at `lib`, a build-output directory that never holds a `package.json`
+// of its own. Naively treating every such root as first-arrival would
+// flag `lib/` as a second package needing its own scaffold. A root
+// nested under another of this task's own roots is never a package
+// boundary — only the shallowest root in each chain is.
 export function firstArrivalPackages(task, exists) {
   if (!exists) return [];
-  const roots = new Set();
+  const allRoots = new Set();
+  const missing = new Set();
   for (const glob of JSON.parse(task.scope_globs)) {
     const root = scopePackageRoot(glob, task.module);
-    if (root && !exists(`${root}/package.json`)) roots.add(root);
+    if (!root) continue;
+    allRoots.add(root);
+    if (!exists(`${root}/package.json`)) missing.add(root);
   }
-  return [...roots].sort();
+  const outermost = [...missing].filter(
+    (root) => ![...allRoots].some((other) => other !== root && root.startsWith(`${other}/`)),
+  );
+  return outermost.sort();
 }
 
 function firstArrivalLines(task, roots) {

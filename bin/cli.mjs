@@ -1302,9 +1302,10 @@ async function warnSingularModuleId(intent) {
 
   console.log(
     `\n${yellow(bold('Module id looks singular.'))} On this core the intent id is ${bold('{module}')} in\n` +
-      `every layer's scope, and the generators take it plural — so ${bold(intent.id)} compiles\n` +
-      `scope for ${bold(`${intent.id}/`)} while the scaffold command writes ${bold(`${intent.id}s/`)}.\n` +
-      `If ${bold(`${intent.id}s`)} is the name you meant, fix it now, before ${bold('hedgehog plan')}:\n` +
+      `every layer's scope. On some cores the generator pluralizes it, so ${bold(intent.id)} would\n` +
+      `compile scope for ${bold(`${intent.id}/`)} while the scaffold command writes ${bold(`${intent.id}s/`)} — worth\n` +
+      `checking this core's own generator before ${bold('hedgehog plan')}. If ${bold(`${intent.id}s`)} is the name you\n` +
+      `meant, it's still cheap to fix now:\n` +
       `  ${dim(`git mv ${INTENTS_DIR}/${intent.id}.json ${INTENTS_DIR}/${intent.id}s.json`)}\n` +
       `  ${dim(`# edit "id" and every ${intent.id.toUpperCase()}-* requirement id, then:`)}\n` +
       `  ${dim('hedgehog db rebuild')}\n`,
@@ -1352,11 +1353,12 @@ function warnSingularModuleIdsAtPlan(core, db) {
   console.log(
     `${yellow(bold(many ? `${singular.length} module ids look singular.` : 'Module id looks singular.'))} ` +
       `On this core an intent id is ${bold('{module}')} in\n` +
-      `every layer's scope, and the generators take it plural — so ${many ? 'each of these compiles' : 'this compiles'}\n` +
-      `scope for a directory the scaffold command will never write:\n` +
-      singular.map((id) => `  ${bold(id)} ${dim(`— scope ${id}/, scaffold writes ${id}s/`)}`).join('\n') +
+      `every layer's scope. On some cores the generator pluralizes it, so ${many ? 'each of these would compile' : 'this would compile'}\n` +
+      `scope for a directory the scaffold command might never write:\n` +
+      singular.map((id) => `  ${bold(id)} ${dim(`— scope ${id}/, generator may instead write ${id}s/`)}`).join('\n') +
       `\n\nThis is a naming convention, not a rule — ${bold('billing')} and ${bold('search')} are ` +
-      `legitimately\nsingular. If the plural is what you meant, it is still cheap to fix:\n` +
+      `legitimately\nsingular, and not every core's generator pluralizes at all — check this core's own\n` +
+      `generator before assuming it does. If the plural is what you meant, it is still cheap to fix:\n` +
       singular
         .map(
           (id) =>
