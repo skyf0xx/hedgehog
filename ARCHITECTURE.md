@@ -20,7 +20,7 @@ Tool grants are defense in depth. The enforcement is `hedgehog verify`, which ch
 
 ## Core resolution
 
-`src/agents/` and `src/skills/` above are shared by every core. Each core's own build agents, skills, and (for `full-stack-app`, `pwa-app`, and `landing-page`) pre-built workspace ship in that core's own npm package rather than in this repo.
+`src/agents/` and `src/skills/` above are shared by every core. Each core's own build agents, skills, and (for `full-stack-app`, `pwa-app`, `landing-page`, and `deepseek-harness`) pre-built workspace ship in that core's own npm package rather than in this repo.
 
 `src/registry/cores.json` is the fixed table naming every core: its npm package, the version range `init` resolves, its install flag, its GitHub repository, and the `selects_when` prose `planner` reads aloud in Phase 0 to choose one. `init` resolves the requested core against that table (`src/registry/index.mjs`), then fetches the package with `npm pack` and extracts it (`src/registry/fetch.mjs`), caching the extraction at `~/.hedgehog/cores/<name>/<version>/` so a repeat install on the same version needs no network. The extracted package carries a `hedgehog-core.yaml` manifest at its root (`src/registry/manifest.mjs`) naming which agents, skills, vendored shelves, workspace, and CLAUDE.md section it contributes; the installer writes those into the consuming project alongside the shared agents and skills above. `installed.mjs` records which core and version a project installed, so `update` refreshes that core from the same package rather than re-resolving the registry.
 
@@ -28,11 +28,12 @@ Tool grants are defense in depth. The enforcement is `hedgehog verify`, which ch
 
 ### Keeping a shipped core's workspace current
 
-A core that ships a pre-built `workspace/` (`full-stack-app`, `pwa-app`, `landing-page`) owns the staleness of its own dependencies the same way it owns everything else about that workspace — this repo has no visibility into any core's dependency tree. Each such core's repo runs its own scheduled dependency-update workflow, shaped to what that workspace actually needs to stay coherent, gated on that workspace's real build/test/lint targets (not a stub), opening a PR for human review rather than merging or publishing on its own:
+A core that ships a pre-built `workspace/` (`full-stack-app`, `pwa-app`, `landing-page`, `deepseek-harness`) owns the staleness of its own dependencies the same way it owns everything else about that workspace — this repo has no visibility into any core's dependency tree. Each such core's repo runs its own scheduled dependency-update workflow, shaped to what that workspace actually needs to stay coherent, gated on that workspace's real build/test/lint targets (not a stub), opening a PR for human review rather than merging or publishing on its own:
 
 - `full-stack-app` runs `nx migrate latest` on a schedule, because Nx requires `nx` and every `@nx/*` plugin to be the exact same version — an ordinary per-package dependency bot would land them one PR at a time and break the workspace on every partial state. That gate also regenerates one throwaway domain module through all seven layer generators and typechecks/builds the result, since a migration can silently break generator output in a way that only surfaces the next time a consuming project scaffolds a module.
 - `pwa-app` runs the same `nx migrate latest` shape for the same coupled-version reason, gated on `typecheck`/`lint`/`test`/`build` plus a throwaway module scaffolded through all three generators (`feature`, `entity`, `integration`) and rebuilt, since a migration can just as easily break generator output here.
 - `landing-page` has no coupled version matrix (Astro, Tailwind, and the rest resolve independently), so its update workflow is an ordinary grouped dependency bump gated on `astro check`, `eslint`, and `astro build`.
+- `deepseek-harness` has no coupled version matrix, so its update workflow is an ordinary grouped dependency bump gated on scaffolding a throwaway plugin through `generate:tool` and running `verify-scaffold.mjs` against it.
 - `authored` ships no pre-built workspace — its stack is chosen per-project at design time, not pinned in the package — so it has no workspace dependencies to keep current.
 
 A new core that ships a pre-built workspace should add the equivalent: a scheduled workflow that updates that workspace's dependencies as a single reviewable PR, gated on real targets run against the real workspace, never merging or publishing itself.
@@ -117,13 +118,32 @@ Method: nothing here is a default reached for out of habit.
 | Texture/grain | CSS `mask-image` + noise pattern | Materiality layer, no SVG filter needed. |
 | 3D | React Three Fiber | Only when the subject is genuinely spatial; skipped by default. |
 
+## `deepseek-harness` core
+
+Package and source: [`skyf0xx/hedgehog-core-deepseek-harness`](https://github.com/skyf0xx/hedgehog-core-deepseek-harness).
+
+For building a plugin, tool, hook, or extension for DeepSeek Harness
+(DSH), a Cordis-based agent framework — not for building an application.
+
+| Layer | Choice | Why |
+| --- | --- | --- |
+| Runtime | `@deepseek-ai/dsh` + `@deepseek-ai/cordis` | The framework a plugin actually loads into; nothing to substitute. |
+| Tooling | `@deepseek-ai/dsh-tools` | The one supported way to define and register a tool DSH agents can call. |
+| Package manager | pnpm | Matches every other core. |
+| Scaffold generator | `workspace/tools/generators/` (`generate:tool`) | One plugin's boilerplate per intent, not hand-authored per plugin. |
+
+Six layers, one plugin per intent: `scaffold → logic → wiring → smoke →
+bundle → join`. A `cordis.patch.yml` manifest and `ctx.tools.register`
+calls are the concrete signals `planner` reads to route here instead of
+`authored`; see this core's `selects_when` in `src/registry/cores.json`.
+
 ## `authored` core
 
 Package and source: [`skyf0xx/hedgehog-core-authored`](https://github.com/skyf0xx/hedgehog-core-authored).
 
-Unlike `full-stack-app` and `landing-page`, this core ships no pre-built
-workspace and no fixed stack table — `hedgehog-core-design` picks the
-stack and derives the layer sequence per project, then generates and
-verifies the workspace live. The same package also carries the design
-for adopting Hedgehog's discipline into an existing repo without
-bootstrapping a workspace at all.
+Unlike `full-stack-app`, `landing-page`, and `deepseek-harness`, this core
+ships no pre-built workspace and no fixed stack table —
+`hedgehog-core-design` picks the stack and derives the layer sequence per
+project, then generates and verifies the workspace live. The same package
+also carries the design for adopting Hedgehog's discipline into an
+existing repo without bootstrapping a workspace at all.

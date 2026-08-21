@@ -39,6 +39,11 @@ Run the matching command:
   for headline, hero, problem, mechanism, objection, proof, and CTA, plus
   signature-element design and a review loop. A page that needs better
   positioning or copy is this core's central case.
+- DeepSeek Harness plugin: `npx @skyf0xx/hedgehog init --deepseek-harness`
+  — for building a tool, hook, or extension for DSH's Cordis-based agent
+  framework, or otherwise extending an existing DSH installation via its
+  plugin/bundle system. `DSH`, `Cordis`, `defineTool`, `ctx.tools.register`,
+  or a `cordis.patch.yml` manifest are strong signals.
 - Anything else — CLI, library, browser extension, data pipeline, an
   existing codebase, or not yet clear from the conversation:
   `npx @skyf0xx/hedgehog init` with no core flag. Planning intake decides
