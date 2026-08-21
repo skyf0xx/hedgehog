@@ -115,4 +115,73 @@ try {
   cleanup(dir);
 }
 
+// deepseek-harness's own `bundle` layer shape: a literal `package.json`
+// glob sibling to a `lib/**` build-output glob. The package.json glob has
+// no wildcard at all, so it used to be dropped by scopePackageRoot before
+// it ever reached allRoots — leaving the outermost filter with no sibling
+// root to recognise `lib` as nested under, and `lib` got flagged as its
+// own first-arrival package even though the real package root already
+// had a package.json on disk. Issue #252.
+{
+  const BUNDLE_CORE = `
+id: bundle-shape-fixture
+layers:
+  - id: bundle
+    scope: ["plugins/{module}/package.json", "plugins/{module}/lib/**"]
+    verify: "true"
+    commit: "feat({module}): bundle"
+`;
+
+  const dir = makeProject(BUNDLE_CORE, { git: true });
+  try {
+    addIntent(dir, 'nope-bot');
+    check('plan exits 0', 0, cli(dir, ['plan']).status);
+
+    // The package already exists, committed by an earlier step outside
+    // this layer's own scope — the exact deepseek-harness scenario.
+    mkdirSync(join(dir, 'plugins/nope-bot'), { recursive: true });
+    writeFileSync(join(dir, 'plugins/nope-bot/package.json'), '{}\n');
+
+    const packet = cli(dir, ['show', 'NOPE-BOT-BUNDLE']);
+    check('show exits 0', 0, packet.status);
+    check(
+      'no FIRST ARRIVAL when the package.json glob\'s own root already exists',
+      false,
+      packet.stdout.includes('FIRST ARRIVAL'),
+    );
+  } finally {
+    cleanup(dir);
+  }
+}
+
+// The genuine first-arrival case for the same shape: nothing on disk yet
+// names the real package root (plugins/nope-bot), not the lib/ glob's
+// own root, and the widening it prints covers the package root.
+{
+  const BUNDLE_CORE = `
+id: bundle-shape-fixture
+layers:
+  - id: bundle
+    scope: ["plugins/{module}/package.json", "plugins/{module}/lib/**"]
+    verify: "true"
+    commit: "feat({module}): bundle"
+`;
+
+  const dir = makeProject(BUNDLE_CORE, { git: true });
+  try {
+    addIntent(dir, 'nope-bot');
+    check('plan exits 0', 0, cli(dir, ['plan']).status);
+
+    const packet = cli(dir, ['show', 'NOPE-BOT-BUNDLE']);
+    checkContains('it names the real package root', packet.stdout, 'plugins/nope-bot does not exist yet');
+    check(
+      'it does not name the lib/ build-output directory as its own package',
+      false,
+      packet.stdout.includes('plugins/nope-bot/lib does not exist'),
+    );
+  } finally {
+    cleanup(dir);
+  }
+}
+
 report('the packet states a first arrival instead of leaving it to a failed verify');

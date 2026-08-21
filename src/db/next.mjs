@@ -375,10 +375,19 @@ export function scopePackageRoot(glob, module) {
   const segments = glob.replace('{module}', module).split('/');
   const wildcard = segments.findIndex((s) => s.includes('*'));
   // No wildcard means the glob names one literal file, not a directory
-  // tree — a single prompt/config file (e.g. `.hedgehog/dsh-smoke/{module}.md`)
-  // never holds a `package.json` of its own, so its parent directory is
-  // never a package root a generator could be first into.
-  if (wildcard === -1) return null;
+  // tree. Most such files are a single prompt/config file (e.g.
+  // `.hedgehog/dsh-smoke/{module}.md`) whose parent directory never holds
+  // a `package.json` of its own, so it is never a package root a
+  // generator could be first into — except when the literal file IS
+  // `package.json`: a layer whose own scope names that file directly
+  // (deepseek-harness's `bundle`: `plugins/{module}/package.json`) is
+  // naming its package root exactly as surely as a wildcard glob under
+  // that root would, and its parent directory is that root.
+  if (wildcard === -1) {
+    if (segments.at(-1) !== 'package.json') return null;
+    const literal = segments.slice(0, -1);
+    return literal.length >= 2 ? literal.join('/') : null;
+  }
   const literal = segments.slice(0, wildcard);
   const src = literal.indexOf('src');
   const root = src === -1 ? literal : literal.slice(0, src);
@@ -389,12 +398,13 @@ export function scopePackageRoot(glob, module) {
 
 // A task is the first arrival in its package when the package the scope
 // points into has no package.json on disk yet: the generator that
-// scaffolds this layer will create the package shell (package.json,
-// tsconfig*.json, vitest.config.mts, src/index.ts) alongside the module's
-// own files, and every one of those lands outside a {module}-bearing
-// glob. Detected here rather than left to be discovered from a failed
-// verify, which is where the override stops being available and the
-// recovery becomes a five-command round trip.
+// scaffolds this layer will create the package shell (package.json plus
+// whatever else this core scaffolds alongside it — tsconfig, test
+// config, src/index.ts) alongside the module's own files, and every one
+// of those lands outside a {module}-bearing glob. Detected here rather
+// than left to be discovered from a failed verify, which is where the
+// override stops being available and the recovery becomes a
+// five-command round trip.
 //
 // `exists` is injected so this module keeps no filesystem dependency of
 // its own; the CLI passes a real one and the packet degrades to no
@@ -429,11 +439,11 @@ function firstArrivalLines(task, roots) {
   return [
     'FIRST ARRIVAL',
     `  ${roots.join(', ')} ${roots.length > 1 ? 'do' : 'does'} not exist yet, so this task's`,
-    "  generator also creates the package shell (package.json, tsconfig*.json,",
-    '  vitest.config.mts, src/index.ts) plus any package-wide source it writes',
-    '  at the src/ root. All of that lands OUTSIDE the scope above. Widen this',
-    '  one task before building it, or verify will reject those paths and',
-    '  block the task:',
+    '  generator also creates the package shell (package.json plus whatever else',
+    '  this core scaffolds alongside it — tsconfig, test config, src/index.ts)',
+    '  plus any package-wide source it writes at the src/ root. All of that',
+    '  lands OUTSIDE the scope above. Widen this one task before building it,',
+    '  or verify will reject those paths and block the task:',
     '',
     `  hedgehog override add ${task.id} \\`,
     ...scopes.map((s) => `    --scope '${s}' \\`),
