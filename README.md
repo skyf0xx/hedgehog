@@ -153,6 +153,24 @@ Hook
 Screen
 ```
 
+### DeepSeek Harness plugins
+
+Tools, hooks, and extensions for DSH's Cordis-based agent framework:
+
+``` text
+Scaffold
+  ↓
+Logic
+  ↓
+Wiring
+  ↓
+Smoke
+  ↓
+Bundle
+  ↓
+Join
+```
+
 ### Anything else
 
 A CLI, a library, a browser extension, a data pipeline, etc. gets its build order.
