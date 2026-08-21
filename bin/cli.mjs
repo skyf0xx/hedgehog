@@ -585,9 +585,33 @@ the @latest tag matters, since a bare npx may reuse a cached older CLI.
 `);
 }
 
+// The entire Hedgehog discipline is commit-per-layer/step — every loop
+// skill's own enforcement mechanism assumes `git commit` works in this
+// directory. Checked here rather than left to surface as a failed commit
+// several planning-intake steps later, after work with nowhere to land
+// as history has already happened. Run unattended, the same as
+// ensureGlobalInstall: this binary has no stdin channel to prompt on in
+// the general case, and `init` already writes every other file without
+// confirmation.
+function ensureGitRepo() {
+  try {
+    execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
+      stdio: 'ignore',
+      timeout: 5_000,
+    });
+    return;
+  } catch {
+    // Not inside a work tree — fall through to init one.
+  }
+  execFileSync('git', ['init'], { stdio: 'ignore', timeout: 5_000 });
+  console.log(dim('  (no git repository found here — ran `git init`, since every later step commits)'));
+}
+
 // `core` is the fetched core — `{ manifest, root, version }` — or null on
 // a deferred install, where planner picks one later.
 async function init({ force, core, host = DEFAULT_HOST, hostOnly = false }) {
+  ensureGitRepo();
+
   // Resolve the full list of writes up front so we can detect conflicts
   // before touching anything. A deferred install plans against `null` —
   // the shared agents/skills/build-graph payload only.
