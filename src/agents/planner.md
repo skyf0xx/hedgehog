@@ -256,11 +256,20 @@ the first-run shape; on re-entry, run `hedgehog-planning-intake`'s
   owns `.hedgehog/chain/00-brief.md` and this core's own Confirm & Lock
   stage; `.hedgehog/BMAD/` is written by the shared Phase 0 in
   `hedgehog-planning-intake`.
+- **`deepseek-harness`** → no BMAD shelf runs on this core, and none of
+  `hedgehog-planning-intake` applies. Intake is mechanical, owned
+  entirely by `hedgehog-dsh-loop`'s own Planning intake section: confirm
+  the plugin name and goal with the user, one intent per plugin named
+  directly, `hedgehog intent add`, `hedgehog plan`, commit, hand off to
+  `bootstrap`. There is no subject/audience/job to mine and no brief to
+  lock — open that skill's section rather than looking for the shape
+  above here.
 
 Either way, this is the mechanical procedure; the judgment — what's
 actually in scope, where a table becomes a module (full-stack-app,
 pwa-app) or what the page's single job actually is (landing-page) —
-stays yours throughout.
+stays yours throughout, except on deepseek-harness, where the procedure
+itself is the judgment call: which plugin, named directly with the user.
 
 ## The Add-ons decision (full-stack-app only)
 

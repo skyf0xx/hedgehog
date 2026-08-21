@@ -401,6 +401,94 @@ export function retryTask(db, taskId) {
   });
 }
 
+// The full transitive closure of tasks that depend on `taskId`, directly
+// or through another dependent — the same walk verify.mjs's
+// loadDirectDependents feeds one layer at a time, extended to every
+// layer downstream. A Correction Protocol reopen has to see this whole
+// chain: an upstream task built on wrong output can have several
+// already-complete layers stacked on it, and every one of them was
+// built against the thing that's about to change.
+function loadTransitiveDependents(db, taskId) {
+  const directDependents = db.prepare(
+    'SELECT task_id AS id FROM dependencies WHERE depends_on_task_id = ?',
+  );
+  const seen = new Set([taskId]);
+  const downstream = [];
+  let frontier = [taskId];
+  while (frontier.length > 0) {
+    const next = [];
+    for (const id of frontier) {
+      for (const row of directDependents.all(id)) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        downstream.push(row.id);
+        next.push(row.id);
+      }
+    }
+    frontier = next;
+  }
+  return downstream;
+}
+
+// Reopens `taskId` for a Correction Protocol fix: moves a `complete` task
+// (and every `complete` task downstream of it, transitively) back to
+// `planned`, so the fix and every layer built on top of it are rebuilt
+// and re-verified in dependency order, the same as any other `planned`
+// task.
+//
+// This is deliberately not folded into `retryTask` as an automatic extra
+// case: `retry` returns a task the loop itself put into `blocked` —
+// expected, low-stakes, no confirmation needed. Reopening a `complete`
+// task undoes a task the loop already verified and committed, and can
+// invalidate everything built against it since, which is why the CLI
+// requires an explicit `--confirm` before calling this — see
+// `reopenCommand`.
+//
+// A downstream task not yet `complete` (still `planned`, `ready`,
+// `building`, `blocked`) is left exactly where it is: it hasn't shipped
+// anything for the fix to invalidate, and its own lease (if any) is not
+// this command's to touch. Only `complete` tasks — upstream's own status
+// plus every `complete` descendant — move; anything else downstream is
+// reported back so the caller can decide what to do about in-flight
+// work sitting on top of a reopened dependency.
+export function reopenTask(db, taskId) {
+  return inTransaction(db, () => {
+    reapExpiredLeases(db);
+    const task = loadTask(db, taskId);
+    if (task === undefined) return { reopened: false, reason: 'no_such_task' };
+    if (task.status !== 'complete') {
+      return { reopened: false, reason: 'not_complete', task };
+    }
+
+    const downstreamIds = loadTransitiveDependents(db, taskId);
+    const downstreamTasks = downstreamIds.map((id) => loadTask(db, id));
+    const toReopen = [task, ...downstreamTasks.filter((t) => t.status === 'complete')];
+    const stillInFlight = downstreamTasks.filter((t) => t.status !== 'complete');
+
+    const reopenOne = db.prepare(
+      `
+      UPDATE tasks SET status = 'planned', blocked_reason = NULL,
+        lease_owner = NULL, lease_expires_at = NULL, leased_at = NULL,
+        claim_snapshot = NULL
+      WHERE id = ? AND status = 'complete'
+      RETURNING id
+    `,
+    );
+    const reopenedIds = [];
+    for (const t of toReopen) {
+      const result = reopenOne.get(t.id);
+      if (result !== undefined) reopenedIds.push(result.id);
+    }
+
+    return {
+      reopened: true,
+      reopenedIds,
+      stillInFlight,
+      task: loadTask(db, taskId),
+    };
+  });
+}
+
 // Releases `taskId` back to `ready` if `owner` currently holds its lease.
 // Scoped to `status = 'building'` — `verifying` is the engine's own
 // transient lease during verifyTask, not something an external release

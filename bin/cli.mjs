@@ -37,6 +37,7 @@ import {
   releaseTask,
   renewLease,
   retryTask,
+  reopenTask,
   reapExpiredLeases,
 } from '../src/db/claim.mjs';
 import { readyTasks, formatReady } from '../src/db/ready.mjs';
@@ -499,7 +500,9 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog update                    refresh the installed agents + skills
   npx @skyf0xx/hedgehog update --check            report whether a newer release is published
   npx @skyf0xx/hedgehog db init                   create .hedgehog/hedgehog.db if absent
-  npx @skyf0xx/hedgehog db rebuild                re-derive the build graph from committed intents + git history
+  npx @skyf0xx/hedgehog db rebuild                re-derive the build graph from committed intents + git history;
+                                                   also reconciles graph state after a hand-committed fix landed
+                                                   outside 'hedgehog verify' — run it to mark that work complete
   npx @skyf0xx/hedgehog plan                      compile pending intents into tasks + dependencies
                                                    (starts no graph server; --no-open says so explicitly)
   npx @skyf0xx/hedgehog plan --open               also start the graph server and open it, if anything compiled
@@ -515,6 +518,8 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog claim --owner <owner> [--count <n>]   atomically claim up to n ready tasks
   npx @skyf0xx/hedgehog claim <task-id> --owner <owner>   claim one specific task (breaks a starvation tie)
   npx @skyf0xx/hedgehog retry <task-id>           return a blocked task to planned, so it can be rebuilt
+  npx @skyf0xx/hedgehog reopen <task-id> --confirm   return a complete task (and its complete dependents) to
+                                                   planned, for a Correction Protocol fix to an already-shipped layer
   npx @skyf0xx/hedgehog release <task-id> --owner <owner>   hand a claimed task back to ready
   npx @skyf0xx/hedgehog renew <task-id> --owner <owner> [--minutes <n>]   extend a held lease
   npx @skyf0xx/hedgehog verify <task-id> --owner <owner>   run scope + verify checks, commit on pass
@@ -1927,6 +1932,84 @@ async function retryCommand(args) {
   console.log(`  ${dim('claim it with')}  hedgehog claim ${taskId} --owner <owner>`);
 }
 
+// `hedgehog reopen <task-id> --confirm` — the transition out of
+// `complete`, for a Correction Protocol fix: a downstream layer reveals
+// an upstream one (already verified, committed, and possibly built upon)
+// was wrong. `retry` only returns a `blocked` task to `planned`; nothing
+// else in the CLI moves a `complete` task backward, which left a
+// Correction Protocol fix with no path but a hand-authored commit
+// outside `hedgehog verify` entirely (see the issue this command closes).
+//
+// `--confirm` is required and is the whole difference from `retry`'s
+// UX: retrying a blocked task undoes nothing that shipped, but reopening
+// a complete task does, transitively, for everything built on top of it
+// — that's consequential enough to need the caller to say so explicitly
+// rather than default to it.
+async function reopenCommand(args) {
+  await ensureDb();
+
+  const taskId = args[0] && !args[0].startsWith('--') ? args[0] : undefined;
+  const confirmed = args.includes('--confirm');
+  if (!taskId) {
+    console.error(`${red('Usage:')} hedgehog reopen <task-id> --confirm\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (!confirmed) {
+    console.error(
+      `${red('Refused.')} Reopening ${bold(taskId)} undoes a completed, committed layer and\n` +
+        `every completed layer built on top of it. Re-run with ${bold('--confirm')} to proceed:\n\n` +
+        `  hedgehog reopen ${taskId} --confirm\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!(await exists(DB_PATH))) {
+    console.error(`${red('No build graph found.')} Run ${bold('hedgehog db init')} first.\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  printDbTarget();
+
+  const db = openDb();
+  let result;
+  try {
+    result = reopenTask(db, taskId);
+  } finally {
+    db.close();
+  }
+
+  if (!result.reopened) {
+    process.exitCode = 1;
+    if (result.reason === 'no_such_task') {
+      console.error(`${red('No such task:')} ${bold(taskId)}${dim(` (in ${dbAbsPath()})`)}\n`);
+      return;
+    }
+    console.error(
+      `${red('Not reopened.')} Task ${bold(taskId)} is ${bold(result.task.status)}, not ${bold('complete')}.\n`,
+    );
+    return;
+  }
+
+  console.log(
+    `${green(bold('Reopened.'))} ${bold(result.reopenedIds.length)} task(s) back to ${bold('planned')}: ${result.reopenedIds.join(', ')}`,
+  );
+  console.log(`  ${dim('claim the fix with')}  hedgehog claim ${taskId} --owner <owner>`);
+  if (result.stillInFlight.length > 0) {
+    console.log(
+      `\n${yellow(bold('Downstream, not reopened'))} (not complete — nothing shipped yet to invalidate):`,
+    );
+    for (const t of result.stillInFlight) {
+      console.log(`  ${bold(t.id)}   ${t.status}`);
+    }
+  }
+  console.log(
+    `\n${dim('Hand-committing the fix instead of running it through')} ${bold('hedgehog verify')}${dim('? Reconcile graph state afterward with')} ${bold('hedgehog db rebuild')}${dim('.')}`,
+  );
+}
+
 // `hedgehog show <task-id>` — the same packet `next` prints, for a task
 // named by id whatever its status. Read-only: claims nothing, changes
 // nothing.
@@ -2919,6 +3002,11 @@ async function main() {
 
   if (cmd === 'retry') {
     await retryCommand(args.slice(1));
+    return;
+  }
+
+  if (cmd === 'reopen') {
+    await reopenCommand(args.slice(1));
     return;
   }
 
