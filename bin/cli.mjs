@@ -674,6 +674,16 @@ async function init({ force, core, host = DEFAULT_HOST, hostOnly = false }) {
     )}\n`,
   );
   console.log('Next steps:');
+  // This install itself just fetched globalInstall.latest to run, so the
+  // global binary is already ahead of the version this run scaffolded
+  // with. Printed as step 0 here rather than left for `status`'s passive
+  // nudge to surface later, mixed in with routine output well into the
+  // build.
+  if (globalInstall?.updated) {
+    console.log(
+      `  0. ${bold(`npx @skyf0xx/hedgehog@latest update`)} ${dim(`(picks up ${globalInstall.latest} before intake begins)`)}`,
+    );
+  }
   // A core that landed a workspace landed its root package.json with it,
   // so there are dependencies to install before the first commit.
   if (core?.manifest.workspace) {
@@ -1450,8 +1460,15 @@ async function noteAvailableUpdate() {
 // The install/update itself always runs regardless of `quiet` — silence
 // governs only whether this prints, matching `boundary --quiet`'s "exit
 // code only, nothing on either stream" contract for shell hooks.
+// Returns `{ updated, latest }` — `updated` true only when this call
+// actually installed a newer global version this run is not yet running
+// on. `init` uses that to put the update command explicitly in its own
+// "Next steps" rather than leaving it to be discovered later via
+// `status`'s passive nudge, since by the time `init` prints its own
+// output the global binary is already ahead of the version this run used
+// to scaffold the project.
 async function ensureGlobalInstall({ quiet = false } = {}) {
-  if (process.env.HEDGEHOG_NO_UPDATE_CHECK) return;
+  if (process.env.HEDGEHOG_NO_UPDATE_CHECK) return { updated: false };
   try {
     const globalRoot = execFileSync('npm', ['root', '-g'], {
       encoding: 'utf8',
@@ -1459,8 +1476,8 @@ async function ensureGlobalInstall({ quiet = false } = {}) {
     }).trim();
     const runningFromGlobal = PKG_ROOT === join(globalRoot, '@skyf0xx/hedgehog');
     const { latest, stale } = await checkBinaryStaleness(DEST_ROOT, PKG_VERSION);
-    if (runningFromGlobal && !stale) return;
-    if (!latest) return;
+    if (runningFromGlobal && !stale) return { updated: false };
+    if (!latest) return { updated: false };
 
     execFileSync('npm', ['install', '-g', `@skyf0xx/hedgehog@${latest}`], {
       stdio: 'ignore',
@@ -1475,9 +1492,11 @@ async function ensureGlobalInstall({ quiet = false } = {}) {
         )}`,
       );
     }
+    return { updated: runningFromGlobal, latest };
   } catch {
     // Advisory only — a failed check or install is never worth failing a
     // command over.
+    return { updated: false };
   }
 }
 
@@ -2901,7 +2920,7 @@ async function main() {
     console.log(PKG_VERSION);
     return;
   }
-  await ensureGlobalInstall({ quiet: args.includes('--quiet') });
+  const globalInstall = await ensureGlobalInstall({ quiet: args.includes('--quiet') });
   const cmd = args[0];
   const force = args.includes('--force') || args.includes('-f');
 
@@ -2972,7 +2991,7 @@ async function main() {
     // the first host; the rest add only what differs per host.
     const targets = hosts.length ? hosts : [DEFAULT_HOST];
     for (const [i, host] of targets.entries()) {
-      await init({ force, core, host, hostOnly: i > 0 });
+      await init({ force, core, host, hostOnly: i > 0, globalInstall });
     }
     return;
   }
