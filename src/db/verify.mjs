@@ -61,6 +61,24 @@ import { DB_PATH } from './init.mjs';
 import { withCommitLock, LOCK_PATH } from './commitLock.mjs';
 import { reapExpiredLeases, pathFingerprint } from './claim.mjs';
 import { ensureTaskColumns } from './schema.mjs';
+import { FRICTION_DIR } from './friction.mjs';
+import { OVERRIDES_DIR } from './overrides.mjs';
+import { INTENTS_DIR } from './intent.mjs';
+
+// Build-graph state directories: written by their own command
+// (`friction add`, `override add`, `intent add`/`db rebuild`), committed
+// by that command's own next step, never by a layer's verify_command. A
+// layer's own work never lands here, so a path under one of these is
+// never this task's doing regardless of when it changed relative to
+// claim time — unlike attributedToTask's fingerprint check, which only
+// excludes a path unchanged since claim and so still attributes a
+// friction note logged mid-layer (exactly what the loop skill instructs)
+// to whichever task happened to be building when it was logged.
+const BUILD_GRAPH_STATE_DIRS = [FRICTION_DIR, OVERRIDES_DIR, INTENTS_DIR];
+
+function isBuildGraphStatePath(path) {
+  return BUILD_GRAPH_STATE_DIRS.some((dir) => path === dir || path.startsWith(`${dir}/`));
+}
 
 // The build graph file and the commit lock are engine state, written
 // only by this CLI, never by an agent — both are excluded from every
@@ -69,7 +87,12 @@ import { ensureTaskColumns } from './schema.mjs';
 // check they're performing. Covers SQLite's journal/WAL/SHM sidecar
 // files too.
 function isEngineStatePath(path) {
-  return path === DB_PATH || path.startsWith(`${DB_PATH}-`) || path === LOCK_PATH;
+  return (
+    path === DB_PATH ||
+    path.startsWith(`${DB_PATH}-`) ||
+    path === LOCK_PATH ||
+    isBuildGraphStatePath(path)
+  );
 }
 
 // Runs git with an argv array and no shell, so every element of `args`
