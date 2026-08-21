@@ -374,7 +374,12 @@ const HONESTY = [
 export function scopePackageRoot(glob, module) {
   const segments = glob.replace('{module}', module).split('/');
   const wildcard = segments.findIndex((s) => s.includes('*'));
-  const literal = wildcard === -1 ? segments.slice(0, -1) : segments.slice(0, wildcard);
+  // No wildcard means the glob names one literal file, not a directory
+  // tree — a single prompt/config file (e.g. `.hedgehog/dsh-smoke/{module}.md`)
+  // never holds a `package.json` of its own, so its parent directory is
+  // never a package root a generator could be first into.
+  if (wildcard === -1) return null;
+  const literal = segments.slice(0, wildcard);
   const src = literal.indexOf('src');
   const root = src === -1 ? literal : literal.slice(0, src);
   // A package root is at least `<area>/<name>`; anything shallower is the

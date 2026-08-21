@@ -27,7 +27,11 @@ import {
 // Both shapes the full-stack-app core uses: a package root ABOVE the
 // {module} segment (packages/contracts/src/{module}), and one BELOW it
 // (libs/{module}/repository), which is why the root cannot simply be
-// "everything left of the first wildcard".
+// "everything left of the first wildcard". A third layer's scope is a
+// single literal file with no wildcard at all, deepseek-harness's own
+// shape (`.hedgehog/dsh-smoke/{module}.md`) — its parent directory is
+// never a package (no generator will ever write a package.json there),
+// so it must never be flagged as a first arrival.
 const CORE = `
 id: first-arrival-fixture
 layers:
@@ -40,6 +44,11 @@ layers:
     scope: ["libs/{module}/repository/**"]
     verify: "true"
     commit: "feat({module}): repository"
+  - id: prompt
+    depends_on: repository
+    scope: [".fixture/prompts/{module}.md"]
+    verify: "true"
+    commit: "feat({module}): prompt"
 `;
 
 const dir = makeProject(CORE, { git: true });
@@ -79,6 +88,15 @@ try {
     'a root below {module} is named with the module substituted in',
     repo.stdout,
     'libs/tasks/repository does not exist yet',
+  );
+
+  // A literal-file scope (no wildcard) never has a package root, so its
+  // packet carries no FIRST ARRIVAL section at all — not even a false one.
+  const prompt = cli(dir, ['show', 'TASKS-PROMPT']);
+  check(
+    'a single-file scope with no wildcard is never a first arrival',
+    false,
+    prompt.stdout.includes('FIRST ARRIVAL'),
   );
 
   // The package landing is what clears it — module two through the same
