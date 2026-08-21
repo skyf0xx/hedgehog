@@ -1296,11 +1296,15 @@ async function intentCommand(args) {
 }
 
 // On a module-axis core the intent id becomes {module} in every layer's
-// scope glob and verify command, and the generators the packet points at
-// take the module name plural. A singular id compiles a whole graph
-// scoped to a directory the generator will never write, and nothing
-// downstream catches it: plan compiles it, claim hands out a packet whose
-// own scaffold command contradicts its ALLOWED SCOPE.
+// scope glob and verify command, and on a core whose generator pluralizes
+// it (core.yaml's `pluralizes`, default true), a singular id compiles a
+// whole graph scoped to a directory the generator will never write, and
+// nothing downstream catches it: plan compiles it, claim hands out a
+// packet whose own scaffold command contradicts its ALLOWED SCOPE. A core
+// that declares `pluralizes: false` never has this failure mode, so
+// warnSingularModuleId and warnSingularModuleIdsAtPlan both skip it —
+// see core.pluralizes in src/db/core.mjs for why that lives on the core
+// rather than as a hardcoded exception here.
 //
 // A warning rather than a refusal: plenty of real modules are singular
 // (`billing`, `search`), so the convention cannot be enforced without
@@ -1332,6 +1336,7 @@ async function warnSingularModuleId(intent) {
     return;
   }
   if (!isModuleAxis(core)) return;
+  if (core.pluralizes === false) return;
   if (!looksSingular(intent.id)) return;
 
   console.log(
@@ -1360,6 +1365,7 @@ async function warnSingularModuleId(intent) {
 // recovery is still per-id, so those lines are listed one per name.
 function warnSingularModuleIdsAtPlan(core, db) {
   if (!isModuleAxis(core)) return;
+  if (core.pluralizes === false) return;
 
   // Every intent whose tasks have all yet to start, not just the ones
   // this run compiled. `db rebuild` replays the committed intent files

@@ -182,6 +182,7 @@ function indentOf(line) {
 
 // Parses the narrow subset of YAML a core definition needs:
 //   id: <scalar>
+//   pluralizes: <bool>            # optional, default true
 //   layers:
 //     - id: <scalar>
 //       depends_on: <scalar>          # optional
@@ -201,7 +202,7 @@ export function parseCoreYaml(text) {
     lines.push({ indent: indentOf(noComment), text: noComment.trim() });
   }
 
-  const core = { id: undefined, layers: [] };
+  const core = { id: undefined, pluralizes: true, layers: [] };
   let i = 0;
 
   while (i < lines.length && lines[i].indent === 0) {
@@ -214,6 +215,15 @@ export function parseCoreYaml(text) {
     if (!match) throw new Error(`unparseable line: ${line.text}`);
     const [, key, value] = match;
     if (key === 'id') core.id = parseScalar(value);
+    // Whether this core's own generator takes a module id plural — a
+    // fixed, known fact about that generator, not a per-project unknown.
+    // Absent means true, so every core written before this field existed
+    // keeps warning exactly as it always has; a core whose generator
+    // never pluralizes (deepseek-harness's tool generator uses the id
+    // verbatim) declares `pluralizes: false` once and the singular-id
+    // advisory stops firing on it for good, rather than every user of
+    // that core re-discovering the same false positive.
+    if (key === 'pluralizes') core.pluralizes = parseScalar(value) === 'true';
     i++;
   }
 

@@ -230,4 +230,69 @@ console.log('repro: plan re-raises the singular module-id check\n');
   }
 }
 
+// --- E. a core that declares pluralizes: false is never flagged --------
+
+{
+  // deepseek-harness's tool generator uses the module id verbatim, so the
+  // advisory is a permanent false positive there — the fix is a core-level
+  // fact (`pluralizes: false`), not a per-core hardcoded exception in this
+  // file. Issue #249.
+  const NON_PLURALIZING_CORE = `
+id: non-pluralizing-fixture
+pluralizes: false
+layers:
+  - id: scaffold
+    scope: ["plugins/{module}/**"]
+    verify: "true"
+    commit: "feat({module}): scaffold"
+`;
+
+  const dir = makeProject(NON_PLURALIZING_CORE);
+  try {
+    const r = cli(dir, ['intent', 'add', '--id', 'nope-bot', '--goal', 'g', '--outcome', 'o']);
+    check('E1. intent add succeeds', 0, r.status);
+    check(
+      'E2. intent add does not warn when the core declares pluralizes: false',
+      false,
+      /singular/i.test(r.stdout),
+    );
+
+    const planned = cli(dir, ['plan']);
+    check('E3. plan succeeds', 0, planned.status);
+    check(
+      'E4. plan does not warn either, on the same core',
+      false,
+      /singular/i.test(planned.stdout),
+    );
+  } finally {
+    cleanup(dir);
+  }
+}
+
+// --- F. a core with no pluralizes field defaults to true, unchanged ----
+
+{
+  // Every core written before this field existed has no `pluralizes` key
+  // at all — it must keep warning exactly as it always has.
+  const dir = makeProject(shippedCore('full-stack-app'));
+  try {
+    const file = join(dir, 'task-input.json');
+    writeFileSync(
+      file,
+      `${JSON.stringify({ id: 'task', goal: 'g', outcome: 'o', acceptance: ['a'] })}\n`,
+    );
+    const r = cli(dir, ['intent', 'add', '--file', file]);
+    if (r.status !== 0) throw new Error(`intent add --file task failed: ${r.stderr}`);
+
+    const planned = cli(dir, ['plan']);
+    checkContains(
+      'F1. a core with no pluralizes field still warns (defaults to true)',
+      planned.stdout,
+      'Module id looks singular',
+    );
+  } finally {
+    cleanup(dir);
+  }
+}
+
 report('plan re-raises the singular module-id advisory on every route');
