@@ -7,9 +7,11 @@
 // src/hosts/gemini/gemini-extension.json, unrelated per-project template
 // content that sits outside this family on purpose.
 //
-// Run with `npm run release:plugin -- <version>`. Asserts the four files
-// agree on their current version before writing, so a prior silent drift
-// (a file missed on an earlier bump) surfaces here instead of compounding.
+// Run with `npm run release:plugin` (defaults to a patch bump), or
+// `npm run release:plugin -- <major|minor|patch|x.y.z>`. Asserts the four
+// files agree on their current version before writing, so a prior silent
+// drift (a file missed on an earlier bump) surfaces here instead of
+// compounding.
 
 import { readFile, writeFile } from 'node:fs/promises';
 import { join, dirname, resolve } from 'node:path';
@@ -18,9 +20,15 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
-const target = process.argv[2];
-if (!target || !/^\d+\.\d+\.\d+$/.test(target)) {
-  console.error('Usage: npm run release:plugin -- <version>  (e.g. 5.2.0)');
+const arg = process.argv[2] || 'patch';
+
+function nextVersion(current, spec) {
+  if (/^\d+\.\d+\.\d+$/.test(spec)) return spec;
+  const [major, minor, patch] = current.split('.').map(Number);
+  if (spec === 'major') return `${major + 1}.0.0`;
+  if (spec === 'minor') return `${major}.${minor + 1}.0`;
+  if (spec === 'patch') return `${major}.${minor}.${patch + 1}`;
+  console.error(`Usage: npm run release:plugin -- <major|minor|patch|x.y.z>  (e.g. 5.2.0)`);
   process.exit(1);
 }
 
@@ -52,6 +60,8 @@ if (current.size > 1) {
   );
   process.exit(1);
 }
+
+const target = nextVersion([...current][0], arg);
 
 for (const f of loaded) {
   f.set(f.json, target);

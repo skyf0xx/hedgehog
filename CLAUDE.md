@@ -128,9 +128,11 @@ triggers and never touched by the same automation:
 
 - `package.json`'s `version` — the npm package (`bin/`, `src/`,
   `vendor-skills/`) that `npx @skyf0xx/hedgehog init`/`update` install.
-  Bump with `npm run release` (`npm version patch`) for any change under
-  those directories. **Commit the bump on the feature branch and let the
-  PR merge it into `master` — do not tag or push the tag yourself.**
+  Bump with `npm run release` (defaults to a patch bump; pass `--
+  minor`, `-- major`, or `-- x.y.z` for anything else) for any change
+  under those directories — never hand-edit the version field. **Commit
+  the bump on the feature branch and let the PR merge it into `master` —
+  do not tag or push the tag yourself.**
   `.github/workflows/publish.yml` watches every push to `master` that
   changes `package.json`, diffs the version from before the push (however
   many commits it carries) against after, and when it changed: tags
@@ -144,12 +146,12 @@ triggers and never touched by the same automation:
   history around 2026-08-14 for the incident this rule comes from). If a
   tag was pushed by mistake, delete it (`git push origin --delete
   v<version>`) before the PR merges so the workflow can create it fresh,
-  pointing at the actual merge commit. `npm version patch` only writes
-  `package.json`/`package-lock.json` — it does not touch
-  `src/hosts/gemini/gemini-extension.json`, so bump that file's `version`
-  to match by hand in the same commit. Nothing currently gates on the two
-  agreeing, so a missed bump here stays silent rather than failing `npm
-  run check`.
+  pointing at the actual merge commit. `npm run release`
+  (`scripts/bump-package-version.mjs`) is the only way to change this
+  version: it bumps `package.json`/`package-lock.json` and
+  `src/hosts/gemini/gemini-extension.json` together in one step.
+  `scripts/check.mjs` gates on the two agreeing, so a bump to only one
+  of them fails `npm run check`.
 - `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`'s
   `version` fields (kept identical to each other) — the Claude Code
   plugin (`claude plugin install hedgehog`), whose payload is `skills/`
@@ -158,11 +160,13 @@ triggers and never touched by the same automation:
   carry the same version for the Cursor and Gemini CLI packagings of
   that same payload (root `gemini-extension.json` only — the unrelated
   `src/hosts/gemini/gemini-extension.json` is per-project template
-  content versioned by `package.json`'s bump instead). Bump all four
-  together with `npm run release:plugin -- <version>`
-  (`scripts/bump-plugin-version.mjs`), in the same PR as the change, for
-  any edit under `skills/`, `hooks/`, `.claude-plugin/`,
-  `.cursor-plugin/`, or root `gemini-extension.json` itself — that's what
+  content versioned by `package.json`'s bump instead). `npm run
+  release:plugin` (`scripts/bump-plugin-version.mjs`) is the only way to
+  change this version: it bumps all four together — defaults to a patch
+  bump; pass `-- minor`, `-- major`, or `-- x.y.z` for anything else.
+  Run it in the same PR as the change, for any edit under `skills/`,
+  `hooks/`, `.claude-plugin/`, `.cursor-plugin/`, or root
+  `gemini-extension.json` itself — that's what
   a `claude plugin marketplace` update check (or Gemini CLI's own
   extension update check) reads to decide a user has a new version to
   pull. The script asserts the four files agree before writing, so a

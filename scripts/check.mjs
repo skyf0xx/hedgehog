@@ -351,6 +351,27 @@ try {
   fail(`plugin-family version check failed: ${err.message}`);
 }
 
+// ── 9. package.json's version and src/hosts/gemini/gemini-extension.json's
+//    version agree. The latter is per-project template content a project's
+//    Gemini CLI install carries, versioned by the npm package's own bump
+//    (CLAUDE.md's Releasing section), so a bump to one and not the other
+//    is a silent miss, not a valid state. ───────────────────────────────
+try {
+  const pkgJson = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8'));
+  const geminiTemplateJson = JSON.parse(
+    await readFile(join(ROOT, 'src/hosts/gemini/gemini-extension.json'), 'utf8'),
+  );
+  if (pkgJson.version !== geminiTemplateJson.version) {
+    fail(
+      `package version drift: package.json=${pkgJson.version}, ` +
+        `src/hosts/gemini/gemini-extension.json=${geminiTemplateJson.version} — ` +
+        `bump both to the same version (CLAUDE.md's Releasing section)`,
+    );
+  }
+} catch (err) {
+  fail(`package version check failed: ${err.message}`);
+}
+
 // ── Report ───────────────────────────────────────────────────────────
 if (failures.length > 0) {
   console.error(`\n${failures.length} check(s) failed:\n`);

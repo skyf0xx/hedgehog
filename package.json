@@ -16,7 +16,7 @@
   "scripts": {
     "check": "node scripts/check.mjs",
     "repro": "node --experimental-sqlite repro/run-all.mjs",
-    "release": "npm version patch -m \"chore: bump version to %s\"",
+    "release": "node scripts/bump-package-version.mjs",
     "release:plugin": "node scripts/bump-plugin-version.mjs"
   },
   "files": [
