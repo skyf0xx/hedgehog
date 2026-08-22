@@ -41,31 +41,24 @@ it.
 ## Writing the issue or PR
 
 Most of Hedgehog's inbound queue is read first by `inbound-triage`, an
-agent, before a human ever sees it. Write for both readers at once, not
-for one at the expense of the other:
+agent, before a human ever sees it — the same register `inbound-triage`
+uses when it comments back (see that skill's "Comment style" section).
+Write plainly for both readers at once:
 
-- Plain technical English. Short sentences, one claim each. No hedging
-  ("might possibly", "it seems like"), no filler ("just wanted to
-  mention"), no marketing language ("massively improves").
-- Lead with the concrete fact, not the framing. "`hedgehog init` writes
-  `.claude/agents/` twice on Windows" beats "I noticed there might be an
-  issue with how the installer handles paths."
-- State symptom, expected behavior, and exact repro steps as separate,
-  labeled facts — the bug report template's fields exist so a reader
-  (human or agent) can find each without parsing prose. Fill every field
-  the template asks for; don't collapse them into one paragraph.
-- Cite `file:line` for anything about existing behavior. A claim without
-  a citation is a hypothesis, and both readers have to go re-derive it.
-- One issue, one problem. One PR, one change. A bundle forces the reader
-  to split it back apart before they can judge any piece of it.
-- Say what you verified, not what you assume. "Ran `node bin/cli.mjs
+- Plain technical English, one claim per sentence, no hedging or
+  marketing language.
+- Lead with the concrete fact: "`hedgehog init` writes `.claude/agents/`
+  twice on Windows" beats "I noticed there might be an issue with how
+  the installer handles paths."
+- Fill every field the bug-report template asks for as its own labeled
+  fact (symptom, expected behavior, exact repro steps) rather than one
+  collapsed paragraph.
+- Cite `file:line` for anything about existing behavior — an
+  uncited claim is a hypothesis both readers have to re-derive.
+- One issue, one problem; one PR, one change.
+- Say what you verified, not what you assume: "Ran `node bin/cli.mjs
   init` in a scratch dir, `.claude/skills/` is missing the new
   directory" beats "this probably breaks the install."
-
-This is the same register `inbound-triage` uses when it comments back —
-see that skill's "Comment style" section. Writing this way isn't just
-politeness; it's what makes an item triageable in one pass instead of a
-back-and-forth to extract the facts.
 
 ## Workflow
 
