@@ -177,28 +177,11 @@ agents and skills that gives a project a planned module sequence, a build
 graph, and phase gates, in place of ad-hoc scaffolding.
 
 What the discipline consists of differs by core, and a core is not just
-scaffolding. The `landing-page` core is a copy-and-conversion discipline: it
-ships structured skills for headline, hero, problem, mechanism, objection,
-proof, and CTA, plus signature-element design and a review loop. A page whose
-problem is "the copy is weak" or "it doesn't convert" is that core's central
-case, not an edge case — positioning and copy are exactly what it is made of.
-`full-stack-app` and `pwa-app` are the two module-sequencing cores, split by
-where the data lives. `pwa-app` fits an app whose data model fits on the
-user's device and whose reads and writes are the user's own — a tracker,
-journal, notebook, planner, offline reference, or utility; offline capability
-or installability named explicitly is a strong signal. Sharing, accounts, and
-multi-device sync do not push a project to `full-stack-app` by themselves —
-`pwa-app` covers those through Dexie Cloud, and even a server-authoritative
-entity or two (a points balance, a reward ledger) can live in an otherwise
-local-first `pwa-app` build. `full-stack-app` is for server-side logic across
-most of the app: authorization beyond row-level security, background jobs or
-webhooks as the app's primary function, server-rendered or SEO-critical pages,
-or a working set too large for a device. `deepseek-harness` fits a request to
-build a plugin, tool, hook, or extension for DeepSeek Harness (DSH) — a
-Cordis-based agent framework — or to extend an existing DSH installation via
-its plugin/bundle system; `DSH`, `Cordis`, `defineTool`, `ctx.tools.register`,
-or a `cordis.patch.yml` manifest are strong signals. Judge a request against
-the core that fits it, not against a single core's shape.
+scaffolding — `landing-page` sequences copy and conversion, `full-stack-app`
+and `pwa-app` sequence modules split by where the data lives, and
+`deepseek-harness` fits a DSH plugin/tool/hook build. The `hedgehog` skill
+carries the full per-core selection criteria; judge a request against the
+core that actually fits it, not against a single core's shape.
 
 This project does not have it installed (no `.hedgehog/` directory).
 
