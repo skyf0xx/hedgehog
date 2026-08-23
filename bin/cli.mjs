@@ -609,7 +609,7 @@ function ensureGitRepo() {
 
 // `core` is the fetched core — `{ manifest, root, version }` — or null on
 // a deferred install, where planner picks one later.
-async function init({ force, core, host = DEFAULT_HOST, hostOnly = false }) {
+async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, globalInstall = null }) {
   ensureGitRepo();
 
   // Resolve the full list of writes up front so we can detect conflicts
