@@ -53,6 +53,12 @@ import {
 import { whyPath, formatWhy } from '../src/db/why.mjs';
 import { addFriction, listFriction } from '../src/db/friction.mjs';
 import { addDebt, listDebt } from '../src/db/debt.mjs';
+import {
+  shouldPromptForStar,
+  recordStarAnswer,
+  formatStarPrompt,
+  REPO_URL,
+} from '../src/db/community.mjs';
 import { rebuildDb } from '../src/db/rebuild.mjs';
 import { loadOverrides, addOverride, orphanedOverrides, OVERRIDES_DIR } from '../src/db/overrides.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
@@ -542,6 +548,7 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog friction list             list logged friction, oldest first
   npx @skyf0xx/hedgehog debt add <task-id> "<note>"   declare debt that lands in dependent tasks' packets
   npx @skyf0xx/hedgehog debt list [<task-id>]     list declared debt, oldest first
+  npx @skyf0xx/hedgehog community star --answer <a>   record the star prompt's answer
   npx @skyf0xx/hedgehog --help
 
 Available cores: ${cores.join(', ')} (${bold('cores list')} for what each one is for)
@@ -1794,6 +1801,13 @@ async function verifyCommand(args) {
     console.log(dim('  not a later discovery. Nothing else in the build checks this.'));
     console.log('');
   }
+
+  // Fires once per project — see community.mjs. Deliberately last: after
+  // the gate's own output, not before it.
+  if (await shouldPromptForStar(DEST_ROOT, { intentComplete: result.intentComplete })) {
+    console.log(formatStarPrompt());
+    console.log('');
+  }
 }
 
 // Prints the full task packet for each task in `tasks`, read back from
@@ -2899,6 +2913,42 @@ async function debtCommand(args) {
   process.exitCode = 1;
 }
 
+// `hedgehog community star --answer starred|later|dismissed` — records
+// the star prompt's answer. No build graph or core needed: this is
+// project state about a question asked, not about the build.
+async function communityCommand(args) {
+  const sub = args[0];
+
+  if (sub !== 'star') {
+    console.error(
+      `${red('Unknown community subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog community star --answer starred|later|dismissed\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const answerIdx = args.indexOf('--answer');
+  const answer = answerIdx !== -1 ? args[answerIdx + 1] : undefined;
+  const ANSWERS = ['starred', 'later', 'dismissed'];
+  if (!ANSWERS.includes(answer)) {
+    console.error(
+      `${red('Usage:')} hedgehog community star --answer ${ANSWERS.join('|')}\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  await recordStarAnswer(DEST_ROOT, answer);
+
+  if (answer === 'starred') {
+    console.log(`  ${green('thank you')}  ${dim(REPO_URL)}`);
+  } else if (answer === 'later') {
+    console.log(`  ${dim('deferred')}  ${dim('asked again after about a week of building')}`);
+  } else {
+    console.log(`  ${dim('dismissed')}  ${dim('not asked again in this project')}`);
+  }
+}
+
 // `hedgehog cores list` — every core this release can install, the
 // package that ships it, and which of its versions are already extracted
 // locally. The prose each entry carries is what planner reads in Phase 0
@@ -3132,6 +3182,11 @@ async function main() {
 
   if (cmd === 'debt') {
     await debtCommand(args.slice(1));
+    return;
+  }
+
+  if (cmd === 'community') {
+    await communityCommand(args.slice(1));
     return;
   }
 
