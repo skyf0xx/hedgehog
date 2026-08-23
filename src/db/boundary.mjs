@@ -17,8 +17,9 @@
 //   2. working tree clean  — `git status --porcelain` empty, minus the
 //                            engine's own derived files (the gitignored
 //                            build graph, its sqlite sidecars, the commit
-//                            lock, the graph-server pidfile), which are
-//                            never a reason to keep a conversation.
+//                            lock, the graph-server pidfile, the star-
+//                            prompt state file), which are never a reason
+//                            to keep a conversation.
 //   3. intent closed       — the last closed task completed its intent.
 //                            verify.mjs's completeIntentIfDone already
 //                            detects this and the CLI prints "intent
@@ -40,6 +41,7 @@ import { DB_PATH } from './init.mjs';
 import { LOCK_PATH } from './commitLock.mjs';
 import { graphStatus } from './status.mjs';
 import { nextTask, stalledTasks } from './next.mjs';
+import { COMMUNITY_PATH } from './community.mjs';
 
 const GRAPH_PIDFILE_PATH = '.hedgehog/graph-server.json';
 
@@ -53,7 +55,8 @@ function isEngineStatePath(path) {
     path === DB_PATH ||
     path.startsWith(`${DB_PATH}-`) ||
     path === LOCK_PATH ||
-    path === GRAPH_PIDFILE_PATH
+    path === GRAPH_PIDFILE_PATH ||
+    path === COMMUNITY_PATH
   );
 }
 

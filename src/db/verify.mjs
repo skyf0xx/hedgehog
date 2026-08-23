@@ -64,6 +64,7 @@ import { ensureTaskColumns } from './schema.mjs';
 import { FRICTION_DIR } from './friction.mjs';
 import { OVERRIDES_DIR } from './overrides.mjs';
 import { INTENTS_DIR } from './intent.mjs';
+import { COMMUNITY_PATH } from './community.mjs';
 
 // Build-graph state directories: written by their own command
 // (`friction add`, `override add`, `intent add`/`db rebuild`), committed
@@ -80,17 +81,17 @@ function isBuildGraphStatePath(path) {
   return BUILD_GRAPH_STATE_DIRS.some((dir) => path === dir || path.startsWith(`${dir}/`));
 }
 
-// The build graph file and the commit lock are engine state, written
-// only by this CLI, never by an agent — both are excluded from every
-// task's scope check (and from artifacts/commits), or verify's own
-// writes ahead of and during the verify_command run would trip the very
-// check they're performing. Covers SQLite's journal/WAL/SHM sidecar
-// files too.
+// The build graph file, the commit lock, and the star-prompt state file
+// are engine state, written only by this CLI, never by an agent — all
+// are excluded from every task's scope check (and from artifacts/
+// commits), or verify's own writes would trip the very check they're
+// performing. Covers SQLite's journal/WAL/SHM sidecars too.
 function isEngineStatePath(path) {
   return (
     path === DB_PATH ||
     path.startsWith(`${DB_PATH}-`) ||
     path === LOCK_PATH ||
+    path === COMMUNITY_PATH ||
     isBuildGraphStatePath(path)
   );
 }
