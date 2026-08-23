@@ -45,7 +45,11 @@ import { graphStatus, formatStatus } from '../src/db/status.mjs';
 import { boundaryState, formatBoundary, formatPosition, formatHandoff } from '../src/db/boundary.mjs';
 import { commitGateStatus, formatCommitGate } from '../src/db/gate.mjs';
 import { detectDrift, recompileTasks, formatRecompile } from '../src/db/drift.mjs';
-import { coreMissingRequirements, missingBinaries } from '../src/db/requires.mjs';
+import {
+  coreMissingRequirements,
+  missingBinaries,
+  formatMissingRequirements,
+} from '../src/db/requires.mjs';
 import { whyPath, formatWhy } from '../src/db/why.mjs';
 import { addFriction, listFriction } from '../src/db/friction.mjs';
 import { addDebt, listDebt } from '../src/db/debt.mjs';
@@ -673,6 +677,26 @@ async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, global
       `${written} created${overwritten ? `, ${overwritten} overwritten` : ''}`,
     )}\n`,
   );
+
+  // Same declared-binary check `status` runs, moved up to install time for
+  // a core that ships a workspace (root core.yaml lands with it — see
+  // resolveCorePath). Catching "this core needs terraform" here means the
+  // agent following "Next steps" sees it before ever running a verify
+  // command, rather than discovering it as an exit 127 mid-build.
+  const installedCorePath = await resolveCorePath();
+  if (installedCorePath) {
+    try {
+      const installedCoreDef = await loadCore(installedCorePath);
+      const missing = coreMissingRequirements(installedCoreDef);
+      const lines = formatMissingRequirements(missing);
+      if (lines.length) console.log(lines.join('\n') + '\n');
+    } catch {
+      // Unparseable this early is surfaced by the next `hedgehog status`
+      // instead — init has already written every file successfully, so
+      // failing the run over a report-only check would be the wrong call.
+    }
+  }
+
   console.log('Next steps:');
   // This install itself just fetched globalInstall.latest to run, so the
   // global binary is already ahead of the version this run scaffolded
