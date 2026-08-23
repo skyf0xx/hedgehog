@@ -76,8 +76,9 @@ skills, and CLAUDE.md section. `src/registry/cores.json` names them;
   (compiles intents into the task graph), `next`/`ready`/`status`/`claim`
   (what to work on and lease it), `verify`/`gate` (close a layer, check a
   phase transition), `friction`, `debt`, `drift`, `boundary`, `why`,
-  `overrides`, `conflict`, `commitLock`, `core`, `rebuild`, and
-  `graph-server` (serves `src/templates/graph.html`'s visualization).
+  `overrides`, `conflict`, `commitLock`, `core`, `rebuild`,
+  `graph-server` (serves `src/templates/graph.html`'s visualization), and
+  `community` (the star prompt raised at the first completed intent).
   This is the live source of truth every loop skill and its agents query
   and mutate for what's next and what's done.
 - `bin/cli.mjs` — the `hedgehog` CLI installed by `npx @skyf0xx/hedgehog`:
@@ -215,6 +216,24 @@ code comments in `src/registry/` and `src/db/`. `hooks/session-start` is
 easy to miss because it isn't under `skills/`, but it ships as part of the
 plugin payload and needs the same plugin-version bump as everything else
 in this list.
+
+## The star prompt
+
+`src/db/community.mjs` owns the one thing Hedgehog ever asks of the person
+using it: a prompt to star and watch the repo, raised by `hedgehog verify`
+at the first intent to close every one of its layers — the first point the
+user has watched planned work go through the graph and come out verified.
+
+- **Blocking, not advisory.** The prompt is an instruction to the agent,
+  not a line of output — the agent running the Loop holds until the user
+  answers. Every other notice this CLI prints is advisory; this one isn't.
+- **Fires once.** `starred` and `dismissed` are terminal; `later` and an
+  unanswered display both re-arm after a cooldown rather than repeating.
+  `hedgehog community star --answer <a>` records the answer.
+- **WIIFM-framed.** Watching releases is how a user learns their installed
+  payload is behind; starring helps the project. Both stated plainly.
+
+State lives in `.hedgehog/community.json`, per project rather than global.
 
 ## Working in this repo
 
