@@ -23,15 +23,33 @@ import { join } from 'node:path';
 
 const failures = [];
 
+// Returns a promise when `fn` is async, so an async body must be awaited
+// at the call site: `await check(...)`. A try/catch alone cannot see into
+// a promise — a rejected assertion inside an async `fn` would leave the
+// check printing PASS, surface as an unhandled rejection, and let
+// `finish` exit 0 having recorded no failure. A reproduction that cannot
+// fail is worse than no reproduction, so rejections are routed to the
+// same failure path as a thrown assertion rather than left to chance.
 export function check(label, fn) {
-  try {
-    fn();
+  const pass = () => {
     console.log(`  PASS  ${label}`);
-  } catch (err) {
+  };
+  const failed = (err) => {
     failures.push(`${label}: ${err.message}`);
     console.log(`  FAIL  ${label}`);
     console.log(`        ${err.message.split('\n').join('\n        ')}`);
+  };
+
+  try {
+    const result = fn();
+    if (result && typeof result.then === 'function') {
+      return result.then(pass, failed);
+    }
+    pass();
+  } catch (err) {
+    failed(err);
   }
+  return undefined;
 }
 
 export function assert(cond, message) {
