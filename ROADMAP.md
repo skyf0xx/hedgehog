@@ -187,6 +187,10 @@ agent/skill file and `README.md`, an error message that doesn't say what to
 do next. File an issue with the concrete repro, or send the fix directly if
 it's a single file.
 
+### Skill trims
+
+Anything in a skill that can be trimmed (removing excess verbosity while maintaining essentials)
+
 ## Contributing to this list
 
 Adding an item here is itself a contribution. Keep new entries scoped the
