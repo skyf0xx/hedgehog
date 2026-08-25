@@ -4,7 +4,7 @@
       "name": "full-stack-app",
       "flag": "--ts-full-stack-app",
       "package": "@skyf0xx/hedgehog-core-full-stack-app",
-      "version": "^1.0.0",
+      "version": "^1.0.6",
       "language": "typescript",
       "repository": "https://github.com/skyf0xx/hedgehog-core-full-stack-app",
       "selects_when": "The description names server-side logic across most of the app: authorization more expressive than per-object row-level security, background jobs, scheduled work or webhook receivers as the app's primary function, server-rendered or SEO-critical pages beyond an app shell, or a data model whose working set doesn't sensibly fit on a device. Persistent domain data alone is not the signal — a tracker, journal, notebook, or planner whose data fits on the user's device is pwa-app, even with sharing, accounts, or multi-device sync in scope, and even with one or two entities that must be server-authoritative. If the project has both a marketing page and a real app behind it, this is still full-stack-app: the page becomes routes inside apps/web, not a separate project."
@@ -13,7 +13,7 @@
       "name": "pwa-app",
       "flag": "--pwa-app",
       "package": "@skyf0xx/hedgehog-core-pwa-app",
-      "version": "^1.0.0",
+      "version": "^1.0.4",
       "language": "typescript",
       "repository": "https://github.com/skyf0xx/hedgehog-core-pwa-app",
       "selects_when": "The description names an app whose data model fits on the user's device and whose reads and writes are the user's own — a tracker, journal, notebook, planner, offline reference, or utility. Offline capability or installability named explicitly is a strong signal. Sharing, collaboration, accounts, and multi-device sync do NOT disqualify a project: Dexie Cloud provides sync, authentication, and server-enforced per-object access control, so a shared list, a family calendar, or a small team's board is still this core. A small number of entities that must be server-authoritative — a points balance, a reward ledger, anything a client must not write to directly — do NOT disqualify a project either: those entities are declared --remote and backed by Supabase (Postgres + RLS + Edge Functions) behind the same repository interface, while the rest of the app stays local-first. What routes a project to full-stack-app is server-side logic across most of the app, not the presence of one or two such entities: authorization beyond row-level policies, background jobs or webhooks as the app's primary function, server-rendered pages, or a working set too large for a device."
@@ -22,7 +22,7 @@
       "name": "landing-page",
       "flag": "--landing-page",
       "package": "@skyf0xx/hedgehog-core-landing-page",
-      "version": "^1.0.0",
+      "version": "^1.0.2",
       "language": "typescript",
       "repository": "https://github.com/skyf0xx/hedgehog-core-landing-page",
       "selects_when": "The description is a marketing/announcement/waitlist/portfolio page (or a small handful of such pages) with no persistent domain data of its own. A page that only collects an email into a third-party form service, or has no state at all, qualifies. The bar is \"no domain module\" — a landing page with a dozen sections is still landing-page, not promoted to full-stack-app for being long."
@@ -31,7 +31,7 @@
       "name": "deepseek-harness",
       "flag": "--deepseek-harness",
       "package": "@skyf0xx/hedgehog-core-deepseek-harness",
-      "version": ">=0.1.0 <1.0.0",
+      "version": ">=0.2.3 <1.0.0",
       "language": "typescript",
       "repository": "https://github.com/skyf0xx/hedgehog-core-deepseek-harness",
       "selects_when": "The description names building a plugin, tool, hook, or extension for DeepSeek Harness (DSH) — a Cordis-based agent framework — or otherwise extending an existing DSH installation with new capabilities via its plugin/bundle system. Concrete signals: DSH, DeepSeek Harness, Cordis, `defineTool`, `ctx.tools.register`, a `cordis.patch.yml` manifest, or a request to add a tool that a DSH agent can call. This is the core most often confused with authored: authored fits when no shipped core matches and the planner must design a system shape from scratch, but a DSH plugin already has a fixed, battle-tested shape (the six-layer scaffold → logic → wiring → smoke → bundle → join sequence, one plugin per intent) that authored's from-scratch design would only reinvent worse. Route here whenever the target of the work is a DSH plugin, not a general \"no other core fits\" fallback."
@@ -39,7 +39,7 @@
     {
       "name": "authored",
       "package": "@skyf0xx/hedgehog-core-authored",
-      "version": "^1.0.0",
+      "version": "^1.0.2",
       "language": "typescript",
       "repository": "https://github.com/skyf0xx/hedgehog-core-authored",
       "selects_when": "Neither shipped core fits, but the description names a real artifact a Builder step would produce — just not in either shipped core's shape. This core is designed by the planner rather than chosen from a fixed set: hedgehog-planning-intake's Phase 0 elicits the drivers first, then hedgehog-core-design names the system shape, picks the stack, derives the layers, and writes .hedgehog/core.yaml. It carries the same enforcement as a shipped core — ordered layers, scoped file access, verification before completion — but the sequence is designed for this project rather than battle-tested across many."
