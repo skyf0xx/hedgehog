@@ -121,7 +121,12 @@ CREATE TABLE IF NOT EXISTS friction (
 // IF NOT EXISTS` above is a no-op against a DB created by an earlier
 // version, so a new column has to be ALTERed in explicitly or every
 // statement naming it fails on that DB. Each entry is `[name, ddl]`.
-const TASK_COLUMN_MIGRATIONS = [['claim_snapshot', 'claim_snapshot TEXT']];
+const TASK_COLUMN_MIGRATIONS = [
+  ['claim_snapshot', 'claim_snapshot TEXT'],
+  ['context_symbols', 'context_symbols TEXT'],
+  ['context_files', 'context_files TEXT'],
+  ['context_indexed_at', 'context_indexed_at TEXT'],
+];
 
 // Brings an already-created `tasks` table up to the current column set.
 // Idempotent and cheap (one PRAGMA), so callers that must not fail on a
