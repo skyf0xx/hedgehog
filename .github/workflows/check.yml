@@ -27,6 +27,10 @@ jobs:
         with:
           node-version: 22
 
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
       - run: npm install --ignore-scripts --no-audit --no-fund
 
       - run: npm run check
