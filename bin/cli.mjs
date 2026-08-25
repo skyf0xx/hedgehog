@@ -18,6 +18,7 @@ import { constants, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
+import { createInterface } from 'node:readline/promises';
 import { dbInit, DB_PATH, dbAbsPath, openDb } from '../src/db/init.mjs';
 import { loadCore, lintCore, isModuleAxis } from '../src/db/core.mjs';
 import {
@@ -58,6 +59,10 @@ import {
   missingBinaries,
   formatMissingRequirements,
 } from '../src/db/requires.mjs';
+import {
+  checkCodeIntelligence,
+  formatCodeIntelligenceGap,
+} from '../src/db/code-intelligence-requires.mjs';
 import { whyPath, formatWhy } from '../src/db/why.mjs';
 import { addFriction, listFriction } from '../src/db/friction.mjs';
 import { addDebt, listDebt } from '../src/db/debt.mjs';
@@ -635,9 +640,67 @@ function ensureGitRepo() {
   console.log(dim('  (no git repository found here — ran `git init`, since every later step commits)'));
 }
 
+// Code intelligence is a precondition of the install, not a feature of it,
+// so this runs before anything is resolved or written. Thin orchestration
+// over src/db/code-intelligence-requires.mjs: that module only looks and
+// reports, and this owns the printing and the exit code, the same division
+// ensureGitRepo() draws for its own external-tool precondition.
+//
+// Returns true to continue, false to abort. On a false return the caller
+// returns immediately, having written nothing — a half-installed
+// .hedgehog/ is worse than no install at all.
+//
+// The offer is a question, not a notice, so it needs an answerable stdin.
+// Without one (CI, piped input, an agent-driven run) asking would hang,
+// which is strictly worse than saying the useful thing outright: the
+// non-interactive path takes the accepted-path message directly, since an
+// agent reading it is exactly what can act on it. HEDGEHOG_FORCE_INTERACTIVE
+// forces the prompt on without a pty, for the repro suite's use; not a
+// documented user-facing flag.
+async function ensureCodeIntelligence() {
+  const result = await checkCodeIntelligence({ cwd: DEST_ROOT });
+  if (result.ok) return true;
+
+  const gap = formatCodeIntelligenceGap(result);
+  console.error(`\n${red(bold(gap[0]))}`);
+  console.error(gap.slice(1).join('\n'));
+
+  const interactive = Boolean(process.env.HEDGEHOG_FORCE_INTERACTIVE) || process.stdin.isTTY;
+  const accepted = interactive ? await confirm('Set it up now?') : true;
+
+  if (accepted) {
+    console.error(
+      `\nRun the ${bold('hedgehog-code-intelligence-setup')} skill, then re-run ` +
+        `${bold('hedgehog init')} — the install continues from there.\n`,
+    );
+  } else {
+    console.error(
+      `\nNothing was installed. Re-run ${bold('hedgehog init')} once code ` +
+        `intelligence is set up and the install continues from there.\n`,
+    );
+  }
+
+  process.exitCode = 1;
+  return false;
+}
+
+// A yes/no question on stdin, defaulting to yes — bare Enter accepts.
+// Only ever called with an answerable stdin; see ensureCodeIntelligence.
+async function confirm(question) {
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    const answer = (await rl.question(`\n${question} ${dim('[Y/n]')} `)).trim().toLowerCase();
+    return answer !== 'n' && answer !== 'no';
+  } finally {
+    rl.close();
+  }
+}
+
 // `core` is the fetched core — `{ manifest, root, version }` — or null on
 // a deferred install, where planner picks one later.
 async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, globalInstall = null }) {
+  if (!(await ensureCodeIntelligence())) return;
+
   ensureGitRepo();
 
   // Resolve the full list of writes up front so we can detect conflicts
