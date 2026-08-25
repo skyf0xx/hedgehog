@@ -736,6 +736,44 @@ async function ensureCgcignore(root = DEST_ROOT) {
   return { path, added: missing };
 }
 
+// The build graph and its sidecars are derived state, rebuildable from
+// committed intents and git history via `hedgehog db rebuild`, and the
+// CLAUDE.md this installer writes says so. `init`'s own closing step tells
+// the user to `git add -A`, so anything not ignored by then gets committed.
+//
+// A core's own `gitignore.template` carries these lines, but a deferred
+// install copies no core, and the CGC virtualenv is the engine's to ignore
+// on every install — so the engine owns this block rather than leaving it
+// to whichever core arrives later.
+//
+// Appends only, and only what is missing, for the same reason `.cgcignore`
+// does: the project's `.gitignore` is the project's.
+const GITIGNORE_ENTRIES = [
+  '.hedgehog/graph-server.json',
+  '.hedgehog/hedgehog.db',
+  '.hedgehog/hedgehog.db-*',
+  '.hedgehog/commit.lock',
+  '.hedgehog/code-intelligence/',
+];
+
+async function ensureGitignore(root = DEST_ROOT) {
+  const path = join(root, '.gitignore');
+  let existing = '';
+  try {
+    existing = await readFile(path, 'utf8');
+  } catch {
+    // No file yet — the whole set gets written below.
+  }
+
+  const lines = existing.split('\n').map((l) => l.trim());
+  const missing = GITIGNORE_ENTRIES.filter((e) => !lines.includes(e));
+  if (missing.length === 0) return { path, added: [] };
+
+  const prefix = existing === '' || existing.endsWith('\n') ? '' : '\n';
+  await writeFile(path, `${existing}${prefix}${missing.join('\n')}\n`);
+  return { path, added: missing };
+}
+
 // `core` is the fetched core — `{ manifest, root, version }` — or null on
 // a deferred install, where planner picks one later.
 async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, globalInstall = null }) {
@@ -802,6 +840,11 @@ async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, global
   const cgcignore = await ensureCgcignore();
   if (cgcignore.added.length) {
     console.log(`  ${green('update')}  ${relative(DEST_ROOT, cgcignore.path)} ${dim(`(${cgcignore.added.join(', ')})`)}`);
+  }
+
+  const gitignore = await ensureGitignore();
+  if (gitignore.added.length) {
+    console.log(`  ${green('update')}  ${relative(DEST_ROOT, gitignore.path)} ${dim(`(${gitignore.added.length} entries)`)}`);
   }
 
   console.log(
@@ -984,6 +1027,12 @@ async function update({ hosts }) {
   if (cgcignore.added.length) {
     written++;
     console.log(`  ${green('update')}  ${relative(DEST_ROOT, cgcignore.path)} ${dim(`(${cgcignore.added.join(', ')})`)}`);
+  }
+
+  const gitignore = await ensureGitignore();
+  if (gitignore.added.length) {
+    written++;
+    console.log(`  ${green('update')}  ${relative(DEST_ROOT, gitignore.path)} ${dim(`(${gitignore.added.length} entries)`)}`);
   }
 
   // Stamped after the writes land, so the recorded version always
