@@ -20,7 +20,15 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { dbInit, DB_PATH, dbAbsPath, openDb } from '../src/db/init.mjs';
 import { loadCore, lintCore, isModuleAxis } from '../src/db/core.mjs';
-import { planTasks, CORE_INTENT_ID } from '../src/db/plan.mjs';
+import {
+  planTasks,
+  CORE_INTENT_ID,
+  taskId,
+  onceTaskId,
+  layerTaskFields,
+  onceLayerTaskFields,
+} from '../src/db/plan.mjs';
+import { resolveTaskContext } from '../src/db/code-intelligence.mjs';
 import { addIntent, INTENTS_DIR } from '../src/db/intent.mjs';
 import {
   nextTask,
@@ -74,6 +82,15 @@ import { fetchCore, cachedCore, cachedVersions } from '../src/registry/fetch.mjs
 import { recordCore, installedCore } from '../src/registry/installed.mjs';
 
 const AUTHORED_CORE_PATH = '.hedgehog/core.yaml';
+const CODE_INTELLIGENCE_CONFIG_PATH = '.hedgehog/code-intelligence.json';
+
+// Same pending-intent filter plan.mjs's loadPendingIntents applies —
+// duplicated here (not imported: it's module-private to plan.mjs)
+// because the provider has to be pre-resolved for the tasks a plan run
+// is about to compile, before planTasks itself runs. Kept as a literal
+// rather than a shared export because it names two fixed status strings,
+// not behavior that could drift on its own.
+const PENDING_INTENT_STATUSES = ['proposed', 'planned'];
 
 const BLOCKED_REASON_LABELS = {
   verification_failed: 'verification failed',
@@ -1103,6 +1120,168 @@ async function planRecompileCommand(args, { core, corePath }) {
   if (strict && result.skipped.length > 0) process.exitCode = 1;
 }
 
+// Reads .hedgehog/code-intelligence.json. Absent, unreadable, or
+// unparseable all mean the same thing: no config, no provider — every
+// existing project (no such file) takes this branch and plan behaves
+// exactly as it did before this feature existed.
+async function loadCodeIntelligenceConfig() {
+  try {
+    const raw = await readFile(CODE_INTELLIGENCE_CONFIG_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (typeof parsed.command !== 'string' || parsed.command === '') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+// A minimal MCP stdio client: spawns the server the config names, speaks
+// just enough JSON-RPC to initialize and call a tool by name. This is
+// the only piece that knows the wire protocol — resolveTaskContext
+// (code-intelligence.mjs) only ever calls the two methods below.
+//
+// No SDK dependency: the package carries none, and the two calls this
+// needs are a handful of JSON-RPC messages over stdio, not a reason to
+// add one.
+function startMcpClient(config) {
+  const child = spawn(config.command, config.args ?? [], {
+    stdio: ['pipe', 'pipe', 'ignore'],
+    env: { ...process.env, ...(config.env ?? {}) },
+  });
+  child.unref?.();
+
+  let buffer = '';
+  let nextId = 1;
+  const pending = new Map();
+  // 'error'/'exit' each fire at most once in a child's lifecycle — a
+  // spawn failure (bad command, ENOENT) fires 'error' for whatever is
+  // pending at that moment and then never again, so a call placed after
+  // that point would otherwise sit unrejected until code-intelligence.mjs's
+  // own per-task timeout finally gives up on it. Recording the failure
+  // here lets every later call reject immediately instead.
+  let dead = null;
+
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => {
+    buffer += chunk;
+    let newlineAt;
+    while ((newlineAt = buffer.indexOf('\n')) !== -1) {
+      const line = buffer.slice(0, newlineAt);
+      buffer = buffer.slice(newlineAt + 1);
+      if (!line.trim()) continue;
+      let message;
+      try {
+        message = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const waiter = pending.get(message.id);
+      if (!waiter) continue;
+      pending.delete(message.id);
+      if (message.error) waiter.reject(new Error(message.error.message ?? 'MCP error'));
+      else waiter.resolve(message.result);
+    }
+  });
+  child.on('error', (err) => {
+    dead = err;
+    for (const { reject } of pending.values()) reject(err);
+    pending.clear();
+  });
+  child.on('exit', () => {
+    dead ??= new Error('code-intelligence server exited');
+    for (const { reject } of pending.values()) reject(dead);
+    pending.clear();
+  });
+
+  function call(method, params) {
+    if (dead) return Promise.reject(dead);
+    return new Promise((resolve, reject) => {
+      const id = nextId++;
+      pending.set(id, { resolve, reject });
+      try {
+        child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
+      } catch (err) {
+        pending.delete(id);
+        reject(err);
+      }
+    });
+  }
+
+  function callTool(name, args) {
+    return call('tools/call', { name, arguments: args }).then((result) => result?.structuredContent ?? result);
+  }
+
+  return {
+    close: () => child.kill(),
+    execute_cypher_query: (args) => callTool('execute_cypher_query', args),
+    analyze_code_relationships: (args) => callTool('analyze_code_relationships', args),
+  };
+}
+
+// Every task about to be compiled by the plan run that's about to
+// happen, shaped down to what resolveTaskContext actually reads
+// (task.id, task.scope_globs). Mirrors compileIntentTasks/
+// compileOnceTasks (plan.mjs) using their own exported field
+// functions — taskId/onceTaskId/layerTaskFields/onceLayerTaskFields —
+// rather than reimplementing them, so this can't compute a scope
+// differently than plan.mjs itself will. Not filtered by taskExists:
+// a task that turns out already-compiled just resolves an entry
+// nobody looks up, which costs nothing.
+function candidateTasks(db, core, overrides) {
+  const candidates = [];
+
+  for (const layer of core.layers.filter((l) => l.once)) {
+    const fields = onceLayerTaskFields(layer, overrides);
+    candidates.push({ id: onceTaskId(layer.id), scope_globs: fields.scope_globs });
+  }
+
+  const placeholders = PENDING_INTENT_STATUSES.map(() => '?').join(',');
+  const pendingIntents = db
+    .prepare(`SELECT id FROM intents WHERE status IN (${placeholders})`)
+    .all(...PENDING_INTENT_STATUSES);
+  const perIntentLayers = core.layers.filter((l) => !l.once);
+  for (const { id: intentId } of pendingIntents) {
+    for (const layer of perIntentLayers) {
+      const fields = layerTaskFields(layer, intentId, overrides);
+      candidates.push({ id: taskId(intentId, layer.id), scope_globs: fields.scope_globs });
+    }
+  }
+
+  return candidates;
+}
+
+// Builds the provider planTasks receives: a synchronous
+// resolveTaskContext(task) that looks up a Map populated by awaiting
+// code-intelligence.mjs's own async resolveTaskContext for every
+// candidate task, ahead of time. planTasks (plan.mjs) calls this
+// synchronously inside a BEGIN IMMEDIATE transaction and must stay
+// synchronous itself — so all the awaiting happens here, before that
+// transaction opens, never inside it.
+//
+// Returns { provider } — null when there's no config, the server can't
+// be reached, or anything about the walk fails; a plan run degrades to
+// the no-provider path rather than failing.
+async function buildCodeIntelligenceProvider(db, core, overrides) {
+  const config = await loadCodeIntelligenceConfig();
+  if (!config) return { provider: null };
+
+  const client = startMcpClient(config);
+  const results = new Map();
+  try {
+    for (const task of candidateTasks(db, core, overrides)) {
+      const context = await resolveTaskContext(task, client);
+      results.set(task.id, context);
+    }
+  } catch {
+    return { provider: null };
+  } finally {
+    client.close();
+  }
+
+  return { provider: { resolveTaskContext: (task) => results.get(task.id) ?? null } };
+}
+
 // `hedgehog plan [--open|--no-open]` — compiles pending intents.
 //
 // Starting the live graph server is opt-in (`--open`), not automatic.
@@ -1155,10 +1334,21 @@ async function planCommand(args = []) {
   }
 
   const overrides = await loadOverrides();
+
+  // Pre-resolved read-only, before the write handle below opens
+  // planTasks's BEGIN IMMEDIATE — see buildCodeIntelligenceProvider.
+  const readDb = openDb({ readOnly: true });
+  let codeIntelligence;
+  try {
+    codeIntelligence = await buildCodeIntelligenceProvider(readDb, core, overrides);
+  } finally {
+    readDb.close();
+  }
+
   const db = openDb();
   let result;
   try {
-    result = planTasks(db, core, overrides);
+    result = planTasks(db, core, overrides, { provider: codeIntelligence.provider });
   } finally {
     db.close();
   }
@@ -1172,6 +1362,30 @@ async function planCommand(args = []) {
     console.log(
       `  ${bold('reopened')}  ${id} ${dim('(once — new scope landed under it; it must run again)')}`,
     );
+  }
+  // One line per task actually inserted this run, naming whether the
+  // pre-resolve found context for it. Silent when there's no provider —
+  // an absent config file must print nothing extra at all.
+  //
+  // result.once already holds task ids; result.compiled holds intent
+  // ids, so each expands to that intent's per-layer task ids the same
+  // way taskId(intentId, layer.id) names them everywhere else.
+  if (codeIntelligence.provider) {
+    const perIntentLayers = core.layers.filter((l) => !l.once);
+    const compiledTaskIds = [
+      ...result.once,
+      ...result.compiled.flatMap((intentId) =>
+        perIntentLayers.map((layer) => taskId(intentId, layer.id)),
+      ),
+    ];
+    for (const id of compiledTaskIds) {
+      const resolved = Boolean(codeIntelligence.provider.resolveTaskContext({ id }));
+      console.log(
+        resolved
+          ? `  ${dim('context')}     ${id} ${dim('resolved against the code-intelligence index')}`
+          : `  ${dim('context')}     ${id} ${dim('no context resolved')}`,
+      );
+    }
   }
   console.log(
     `\n${green(bold('Plan complete.'))} ${dim(`${result.compiled.length} intent(s) compiled, ${result.skipped.length} skipped`)}\n`,
