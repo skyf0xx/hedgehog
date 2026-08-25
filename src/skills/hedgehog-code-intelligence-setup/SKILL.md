@@ -295,18 +295,61 @@ Indexing walks the repository and builds the graph. It is not part of
 every task — it runs here, and again when the code has moved far enough
 from the indexed commit to matter.
 
-Check whether an index already exists before starting one — a re-run after
-a partial failure should not redo a completed index:
+### Exclude what isn't project code
+
+Write the exclusions **before** the first index. CGC generates a default
+`.cgcignore` on its first run covering the usual dependency directories
+(`venv/`, `.venv/`, `env/`, `.env/`, `node_modules/`), and none of those
+match the two trees Hedgehog itself puts in the repository:
+
+- `.hedgehog/` — generated state, and the home of the CGC virtualenv this
+  setup just created. Left in, the index walks several thousand `.py`
+  files belonging to CGC's own dependency tree.
+- `vendor-skills/` — the vendored BMAD planning shelf `init` installs.
+  Left in, its scripts, markdown, and HTML assets outnumber the project's
+  own symbols and rank above them in `cgc find name` results.
+
+Both are Hedgehog-installed content that the user will never edit, and
+both degrade exactly what the index is for: pre-read context and
+`verify_radius` blast-radius checks computed against a graph that is
+mostly not this project.
+
+Ensure `.cgcignore` at the repository root carries both entries, creating
+the file if it does not exist and appending to it if it does — do not
+overwrite entries the project already put there:
+
+```bash
+touch .cgcignore
+grep -qxF '.hedgehog/' .cgcignore || printf '.hedgehog/\n' >> .cgcignore
+grep -qxF 'vendor-skills/' .cgcignore || printf 'vendor-skills/\n' >> .cgcignore
+```
+
+If the project has vendored trees, build output, or dependency
+directories of its own that CGC's defaults miss, add those here too.
+
+### Run the index
+
+Read the subcommand list and use the indexing subcommand it names, pointed
+at the repository root:
 
 ```bash
 .hedgehog/code-intelligence/bin/cgc --help 2>&1
 ```
 
-Read the subcommand list and use the indexing subcommand it names, pointed
-at the repository root. Then run it:
+Then run it. `--force` is what makes the run happen: without it CGC
+prints `already indexed ... Skipping` and exits 0 whenever a previous run
+left an index behind, which covers both a re-run after a partial failure
+and every later refresh.
+
+Indexing costs minutes on a large repository, so on a re-run check
+whether the exclusions above were already in place before the last index.
+If they were, and the last run completed, the existing index is good and
+Step 3 is done. If the exclusions are new — the usual case on a first
+setup, and on any project installed before they existed — the index has
+to be rebuilt for them to take effect, and that is what `--force` does.
 
 ```bash
-.hedgehog/code-intelligence/bin/cgc index . 2>&1 | tail -40
+.hedgehog/code-intelligence/bin/cgc index . --force 2>&1 | tail -40
 ```
 
 On a large repository this takes minutes. Let it finish. If it exits
@@ -314,7 +357,7 @@ non-zero, read the error rather than retrying blind:
 
 - Out of memory or a very long run on a large tree → ask the user whether
   to scope the index to the source directories rather than the repo root,
-  and exclude vendored trees, build output, and dependency directories.
+  and add further exclusions to `.cgcignore` beyond the ones above.
 - A parse failure on individual files → usually not fatal; the index
   covers the rest. Continue if the command still succeeded overall.
 - A missing native dependency for the graph backend → report it verbatim.
@@ -408,12 +451,19 @@ rewrite `indexedSha` from the current `git rev-parse HEAD`. Re-indexing
 without updating the config leaves a fresh graph that still claims an old
 commit, which reports as stale forever.
 
+The refresh command is `cgc index . --force`, the same command Step 3
+runs and the one `hedgehog status` and `hedgehog plan` print in their
+staleness notices. `--force` carries the whole run: with an index already
+present, the bare command prints `already indexed ... Skipping`, exits 0,
+and leaves the stale graph in place, so the notice repeats with nothing
+to show for it.
+
 Two things CGC offers here that look like shortcuts and are not:
 
 - `cgc update` reads as a cheap incremental refresh and is not one. It is
   an alias for a full delete-and-rebuild of the repository index, so it
-  costs exactly what `cgc index .` costs. It also writes nothing to this
-  config, so the `indexedSha` rewrite is still yours to do.
+  costs exactly what `cgc index . --force` costs. It also writes nothing
+  to this config, so the `indexedSha` rewrite is still yours to do.
 - `cgc hook install` installs git hooks that run that same full rebuild
   after every commit and checkout. On any repository where indexing takes
   minutes, that is minutes added to every commit. Do not install it.
