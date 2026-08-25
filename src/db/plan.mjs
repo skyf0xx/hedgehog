@@ -392,9 +392,33 @@ const insertTask = (db) =>
   db.prepare(`
     INSERT INTO tasks
       (id, intent_id, module, layer, objective, scope_globs, verify_command,
-       commit_message, priority, exclusive, verify_radius, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'planned')
+       commit_message, priority, exclusive, verify_radius, status,
+       context_symbols, context_files, context_indexed_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'planned', ?, ?, ?)
   `);
+
+// The three context columns for one task row: symbols and files as JSON,
+// an ISO timestamp of the walk, or `null, null, null` when there's no
+// provider, the walk finds nothing, or anything at all goes wrong.
+//
+// `provider` exposes a synchronous `resolveTaskContext(task)` returning
+// `{ symbols, files }` or null — code-intelligence.mjs's own
+// resolveTaskContext is async (it queries a live index), so the CLI
+// layer that constructs `provider` is what awaits it and hands plan.mjs
+// a synchronous face. That keeps planTasks itself synchronous, which
+// every existing caller (several inside a `try { ... } finally {
+// db.close() }`, some returning its result straight out of a callback)
+// depends on.
+function contextColumns(task, provider) {
+  try {
+    if (!provider || typeof provider.resolveTaskContext !== 'function') return [null, null, null];
+    const context = provider.resolveTaskContext(task);
+    if (!context || typeof context !== 'object') return [null, null, null];
+    return [JSON.stringify(context.symbols), JSON.stringify(context.files), new Date().toISOString()];
+  } catch {
+    return [null, null, null];
+  }
+}
 
 const insertDependency = (db) =>
   db.prepare(`
@@ -446,7 +470,13 @@ const insertTaskRequirement = (db) =>
 // override written after the fact needs `hedgehog plan --recompile`
 // (drift.mjs composes the same overrides Map) the same as any other
 // core.yaml-derived field would.
-export function planTasks(db, core, overrides = new Map()) {
+//
+// `provider`, when given, exposes a synchronous `resolveTaskContext(task)`
+// (see contextColumns above) — every task row compiled in this run is
+// resolved against it and written to context_symbols/context_files/
+// context_indexed_at. Absent (the default), every row gets NULL in all
+// three, which every read path treats as "no index available".
+export function planTasks(db, core, overrides = new Map(), { provider = null } = {}) {
   const intents = loadPendingIntents(db);
   const intentDependencies = loadIntentDependencies(db);
   const ordered = orderIntents(intents, intentDependencies);
@@ -486,6 +516,10 @@ export function planTasks(db, core, overrides = new Map()) {
       const { tasks, dependencies } = compileOnceTasks(core, overrides);
       for (const t of tasks) {
         if (taskExists(db, t.id)) continue;
+        const [contextSymbols, contextFiles, contextIndexedAt] = contextColumns(
+          t,
+          provider,
+        );
         runInsert.run(
           t.id,
           t.intent_id,
@@ -498,6 +532,9 @@ export function planTasks(db, core, overrides = new Map()) {
           t.priority,
           t.exclusive,
           t.verify_radius,
+          contextSymbols,
+          contextFiles,
+          contextIndexedAt,
         );
         compiledOnceTaskIds.push(t.id);
       }
@@ -523,6 +560,10 @@ export function planTasks(db, core, overrides = new Map()) {
             `task "${t.id}" for intent "${intent.id}" collides with the id of once: true layer "${t.id.toLowerCase()}" — rename the layer or the intent`,
           );
         }
+        const [contextSymbols, contextFiles, contextIndexedAt] = contextColumns(
+          t,
+          provider,
+        );
         runInsert.run(
           t.id,
           t.intent_id,
@@ -535,6 +576,9 @@ export function planTasks(db, core, overrides = new Map()) {
           t.priority,
           t.exclusive,
           t.verify_radius,
+          contextSymbols,
+          contextFiles,
+          contextIndexedAt,
         );
         for (const requirementId of requirementIds) {
           runInsertTaskReq.run(t.id, requirementId);
