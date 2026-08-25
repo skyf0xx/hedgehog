@@ -189,7 +189,11 @@ export function formatCodeIntelligenceGap(result) {
   }
 
   lines.push('');
-  lines.push('  Run the hedgehog-code-intelligence-setup skill to set it up.');
+  lines.push('  Run the hedgehog-code-intelligence-setup skill to set it up. The');
+  lines.push('  Hedgehog plugin ships it, so it loads before init has installed');
+  lines.push('  anything. Without the plugin, the same procedure is readable at');
+  lines.push('  src/skills/hedgehog-code-intelligence-setup/SKILL.md inside the');
+  lines.push('  @skyf0xx/hedgehog package.');
   return lines;
 }
 
@@ -258,7 +262,7 @@ export async function checkIndexFreshness({ cwd = process.cwd() } = {}) {
 // set code intelligence up is not a project with a stale index, and gets
 // the setup gap message instead. The other two unknowns do print: an index
 // with no recorded commit is exactly the drift this check exists to end.
-export function formatIndexStaleness(result, { indexCommand = 'cgc index .' } = {}) {
+export function formatIndexStaleness(result, { indexCommand = 'cgc index . --force' } = {}) {
   if (!result || result.state === 'fresh') return [];
   if (result.state === 'unknown' && result.reason === 'no-config') return [];
 
