@@ -2837,8 +2837,10 @@ async function statusCommand() {
     // exactly the point it is asked.
     if (!(await noteCodeIntelligenceGap())) {
       console.error(`${green('Code intelligence is set up.')}`);
+      console.error(`${red('No build graph found.')} Run ${bold('hedgehog init')} first.\n`);
+    } else {
+      console.error(`${red('No build graph found.')} Run ${bold('hedgehog db init')} first.\n`);
     }
-    console.error(`${red('No build graph found.')} Run ${bold('hedgehog db init')} first.\n`);
     process.exitCode = 1;
     return;
   }

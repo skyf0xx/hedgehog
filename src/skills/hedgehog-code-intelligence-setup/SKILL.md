@@ -374,6 +374,17 @@ non-zero, read the error rather than retrying blind:
 - A missing native dependency for the graph backend → report it verbatim.
   Do not resolve it by installing an alternative backend package.
 
+A `Skipped N unresolved call relationship(s): ambiguous_function_target=N`
+table means CGC found call sites to a name defined more than once in the
+repo (e.g. two classes each with a same-named method) and dropped those
+edges rather than attaching them to any candidate. Those callers are then
+invisible to `find_all_callers` and to blast-radius resolution — not
+absent, just unresolved. This is a known CGC limitation
+(`codegraphcontext` 0.6.5), not a setup defect; nothing here recovers the
+edges. Note it and continue — a task whose scope brushes a name that
+appeared in that table has a `verify_radius` gap the index cannot see,
+worth flagging to the user rather than trusting silently.
+
 ## Step 4 — Write the config
 
 Write `.hedgehog/code-intelligence.json` with an **absolute** path in
