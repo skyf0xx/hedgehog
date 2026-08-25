@@ -192,3 +192,96 @@ export function formatCodeIntelligenceGap(result) {
   lines.push('  Run the hedgehog-code-intelligence-setup skill to set it up.');
   return lines;
 }
+
+// ---------------------------------------------------------------------------
+// Index freshness
+// ---------------------------------------------------------------------------
+//
+// The install check above answers "can CGC run here". This answers the
+// separate question "does the index still describe this code" — a working
+// CGC whose graph was built ten commits ago passes every check above and
+// still feeds `plan` a picture of code that no longer exists.
+//
+// The index carries the commit it was built from, so the claim is
+// checkable. That is the whole mechanism: an index that knows which commit
+// it describes is a cache, and one that doesn't is a second source of
+// truth quietly drifting from the first.
+
+// Reads HEAD without requiring a git binary lookup through findBinary:
+// `git` is already a hard requirement everywhere else in this CLI. Returns
+// the full SHA, or null outside a repository or on any git failure —
+// callers treat null as "can't tell", never as "stale".
+export function headSha(cwd = process.cwd()) {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+// Whether the index the config describes still matches HEAD.
+//
+// Returns one of:
+//   { state: 'fresh',   indexedSha, head }
+//   { state: 'stale',   indexedSha, head }
+//   { state: 'unknown', reason }
+//
+// `unknown` is the honest answer in three distinct cases, and none of them
+// are failures: a config written before this field existed ('no-provenance'),
+// a non-repository or unreadable git ('no-head'), and an absent config
+// ('no-config'). A caller that can't tell says so rather than guessing;
+// nothing here ever blocks.
+export async function checkIndexFreshness({ cwd = process.cwd() } = {}) {
+  const config = await loadConfig(cwd);
+  if (!config) return { state: 'unknown', reason: 'no-config' };
+
+  const indexedSha = typeof config.indexedSha === 'string' && config.indexedSha !== ''
+    ? config.indexedSha
+    : null;
+  if (!indexedSha) return { state: 'unknown', reason: 'no-provenance' };
+
+  const head = headSha(cwd);
+  if (!head) return { state: 'unknown', reason: 'no-head' };
+
+  return { state: indexedSha === head ? 'fresh' : 'stale', indexedSha, head };
+}
+
+// Renders a non-fresh freshness result as printable lines, in the same
+// owning-source spirit as formatCodeIntelligenceGap: `plan`, `status`, and
+// `next` all render from here rather than restating the copy.
+//
+// Returns [] for a fresh index and for 'no-config' — a project that never
+// set code intelligence up is not a project with a stale index, and gets
+// the setup gap message instead. The other two unknowns do print: an index
+// with no recorded commit is exactly the drift this check exists to end.
+export function formatIndexStaleness(result, { indexCommand = 'cgc index .' } = {}) {
+  if (!result || result.state === 'fresh') return [];
+  if (result.state === 'unknown' && result.reason === 'no-config') return [];
+
+  if (result.state === 'unknown') {
+    return [
+      'CODE INTELLIGENCE INDEX AGE UNKNOWN',
+      '',
+      result.reason === 'no-provenance'
+        ? '  The index does not record which commit it was built from, so'
+        : '  HEAD could not be read, so',
+      '  whether it still matches this code cannot be checked.',
+      '',
+      `  Re-index to establish it: ${indexCommand}`,
+    ];
+  }
+
+  return [
+    'CODE INTELLIGENCE INDEX IS STALE',
+    '',
+    `  Indexed at ${result.indexedSha.slice(0, 8)}, HEAD is ${result.head.slice(0, 8)}.`,
+    '  Pre-read context and verify_radius suggestions are drawn from code',
+    '  as it was, so they may name symbols that moved and miss ones added.',
+    '',
+    `  Refresh it: ${indexCommand}`,
+  ];
+}

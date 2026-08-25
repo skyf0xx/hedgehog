@@ -265,6 +265,11 @@ export function formatStatus({
   radiusSuggestions = [],
   total,
   missingRequirements,
+  // Rendered lines from formatIndexStaleness, or [] when the index is
+  // fresh or absent. Passed in rather than computed: this module reads
+  // the graph, and index provenance lives on disk and in git, which is
+  // the CLI's side of the line.
+  indexStaleness = [],
 }) {
   const lines = [];
   lines.push(`TASKS  ${total}`);
@@ -354,8 +359,19 @@ export function formatStatus({
     }
     lines.push('');
     lines.push(
-      '  Sourced from a code-intelligence index and may be stale. Widen with: hedgehog plan --recompile',
+      indexStaleness.length > 0
+        ? '  Sourced from a code-intelligence index that is out of date (below). Widen with: hedgehog plan --recompile'
+        : '  Sourced from a code-intelligence index. Widen with: hedgehog plan --recompile',
     );
+  }
+
+  // Below the suggestions it qualifies, and printed whether or not any
+  // were raised: an index that has drifted from HEAD also under-reports,
+  // so an empty RADIUS SUGGESTIONS section is exactly when a reader most
+  // needs to know the index is stale rather than the code clean.
+  if (indexStaleness.length > 0) {
+    lines.push('');
+    lines.push(...indexStaleness);
   }
 
   // Bottom, below every condition above, and two sections rather than

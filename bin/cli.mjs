@@ -16,7 +16,7 @@
 import { cp, mkdir, access, readdir, stat, rm, readFile, writeFile } from 'node:fs/promises';
 import { constants, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { dbInit, DB_PATH, dbAbsPath, openDb } from '../src/db/init.mjs';
@@ -61,7 +61,9 @@ import {
 } from '../src/db/requires.mjs';
 import {
   checkCodeIntelligence,
+  checkIndexFreshness,
   formatCodeIntelligenceGap,
+  formatIndexStaleness,
 } from '../src/db/code-intelligence-requires.mjs';
 import { whyPath, formatWhy } from '../src/db/why.mjs';
 import { addFriction, listFriction } from '../src/db/friction.mjs';
@@ -1207,6 +1209,29 @@ async function loadCodeIntelligenceConfig() {
   }
 }
 
+// The re-index command to print in a staleness notice, using the binary
+// this project actually configured rather than a bare `cgc` the user may
+// not have on PATH — setup installs into a project-owned environment
+// precisely so PATH stays untouched, so a generic hint would be wrong for
+// exactly the installs Hedgehog creates.
+//
+// `cgc index .` rebuilds from scratch; it is the refresh path CGC exposes
+// to a one-shot caller. (`cgc update` reads as a cheap delta but is an
+// alias for a full delete-and-rebuild, so it buys nothing here.)
+// Relativized only when the binary actually sits inside the project (the
+// isolated install this setup creates), since that is the form a user
+// would type. A path outside it stays absolute: `../../../usr/local/bin/cgc`
+// is technically correct and useless to read.
+async function indexCommandHint() {
+  const config = await loadCodeIntelligenceConfig();
+  const command = config?.command;
+  if (typeof command !== 'string' || command === '') return 'cgc index .';
+
+  const rel = relative(process.cwd(), command);
+  const inProject = rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+  return `${inProject ? rel : command} index .`;
+}
+
 // A minimal MCP stdio client: spawns the server the config names, speaks
 // just enough JSON-RPC to initialize and call a tool by name. This is
 // the only piece that knows the wire protocol — resolveTaskContext
@@ -1405,6 +1430,22 @@ async function planCommand(args = []) {
   }
 
   const overrides = await loadOverrides();
+
+  // Plan is the one command whose output is actually drawn from the index
+  // — pre-read context and radius suggestions both — so it is where a
+  // stale index stops being trivia and starts being wrong answers. Said
+  // before the walk rather than after, so the caveat arrives ahead of the
+  // results it qualifies. Advisory: a stale index still plans, because a
+  // refusal here would strand a project mid-build behind a re-index.
+  const freshness = await checkIndexFreshness({ cwd: process.cwd() });
+  const staleness = formatIndexStaleness(freshness, {
+    indexCommand: await indexCommandHint(),
+  });
+  if (staleness.length > 0) {
+    console.log(`\n${yellow(bold(staleness[0]))}`);
+    console.log(staleness.slice(1).join('\n'));
+    console.log('');
+  }
 
   // Pre-resolved read-only, before the write handle below opens
   // planTasks's BEGIN IMMEDIATE — see buildCodeIntelligenceProvider.
@@ -2686,6 +2727,15 @@ async function statusCommand() {
   // yet, or one that failed to parse (reported above already), has
   // nothing to check and reports nothing here either.
   if (core) result.missingRequirements = coreMissingRequirements(core);
+
+  // Same reasoning as missingRequirements above: status is what a fresh
+  // session runs first, and an index built ten commits ago is a setup
+  // fact best learned there rather than inferred later from context that
+  // quietly names the wrong symbols.
+  result.indexStaleness = formatIndexStaleness(
+    await checkIndexFreshness({ cwd: process.cwd() }),
+    { indexCommand: await indexCommandHint() },
+  );
 
   console.log(formatStatus(result));
 

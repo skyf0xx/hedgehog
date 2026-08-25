@@ -1,6 +1,6 @@
 ---
 name: hedgehog-code-intelligence-setup
-description: Use when `hedgehog init`, `hedgehog update`, or `hedgehog status` reports CODE INTELLIGENCE NOT SET UP, or when the user asks to set up, install, repair, or re-index code intelligence / CodeGraphContext / CGC. Installs Python 3.10+ where absent, installs CodeGraphContext into its own isolated environment, indexes the repository once, writes `.hedgehog/code-intelligence.json`, and re-runs the CLI's own check.
+description: Use when `hedgehog init`, `hedgehog update`, or `hedgehog status` reports CODE INTELLIGENCE NOT SET UP, or when the user asks to set up, install, repair, or re-index code intelligence / CodeGraphContext / CGC. Installs Python 3.10+ where absent, installs CodeGraphContext into its own isolated environment, indexes the repository, writes `.hedgehog/code-intelligence.json` with the commit the index was built from, and re-runs the CLI's own check. Also covers refreshing an index that has drifted from HEAD.
 ---
 
 # Code Intelligence Setup
@@ -241,8 +241,9 @@ lands on KuzuDB; do the second rather than depending on the first.
 
 ## Step 3 — Index this repository
 
-Indexing walks the repository and builds the graph. It runs once; it is
-not part of every task.
+Indexing walks the repository and builds the graph. It is not part of
+every task — it runs here, and again when the code has moved far enough
+from the indexed commit to matter.
 
 Check whether an index already exists before starting one — a re-run after
 a partial failure should not redo a completed index:
@@ -282,12 +283,21 @@ Resolve the absolute path rather than composing it by hand:
 cd "$(git rev-parse --show-toplevel)" && printf '%s\n' "$PWD/.hedgehog/code-intelligence/bin/cgc"
 ```
 
+Read the commit the index was just built from — this is the commit the
+graph describes, so read it now rather than reconstructing it later:
+
+```bash
+git rev-parse HEAD
+```
+
 Then write the file:
 
 ```json
 {
   "command": "/absolute/path/to/repo/.hedgehog/code-intelligence/bin/cgc",
-  "args": ["mcp", "start"]
+  "args": ["mcp", "start"],
+  "indexedSha": "<the full SHA from git rev-parse HEAD>",
+  "indexedAt": "<the current UTC time, ISO 8601>"
 }
 ```
 
@@ -296,9 +306,58 @@ otherwise, which is the `missing-config` state. `args` is the documented
 way to start CGC's MCP server over stdio. Add `env` only if Step 2 or 3
 surfaced a variable CGC actually needs; an absent `env` is normal.
 
+`indexedSha` is what makes the index honest. It records which commit the
+graph was built from, so `plan` and `status` can say whether the index
+still describes this code instead of trusting that it does. Without it
+they report the age as unknown, which is the correct answer for an index
+that never recorded one — not a failure, but not a claim either. Write
+the full forty-character SHA, not a short one. `indexedAt` is for a human
+reading the file; nothing branches on it.
+
 Overwrite this file if it already exists. It is derived state, and a stale
 path in it from a previous machine or a moved repository is exactly the
 failure this step exists to correct.
+
+## Refreshing a stale index
+
+The index describes the commit it was built from. As the build moves on,
+it drifts: symbols that moved are named where they used to be, and code
+added since indexing is invisible to the pre-read context and to the
+`verify_radius` gap check. That check under-reporting is the quiet
+failure — an empty gap list reads as "nothing missing" whether the radius
+is genuinely complete or the index simply cannot see the new files.
+
+`hedgehog plan` and `hedgehog status` compare `indexedSha` against HEAD
+and say so when they differ. Neither refuses to run: a stale index still
+plans, because stranding a build behind a re-index is worse than planning
+with a caveat the operator can read.
+
+Re-index when they report drift and the work ahead depends on code that
+landed since — a new module, a large refactor, anything whose blast
+radius matters. A few commits of drift inside a module the index already
+covers is not worth minutes of rebuild.
+
+Refreshing is Step 3 and Step 4 again, in order: run the index, then
+rewrite `indexedSha` from the current `git rev-parse HEAD`. Re-indexing
+without updating the config leaves a fresh graph that still claims an old
+commit, which reports as stale forever.
+
+Two things CGC offers here that look like shortcuts and are not:
+
+- `cgc update` reads as a cheap incremental refresh and is not one. It is
+  an alias for a full delete-and-rebuild of the repository index, so it
+  costs exactly what `cgc index .` costs. It also writes nothing to this
+  config, so the `indexedSha` rewrite is still yours to do.
+- `cgc hook install` installs git hooks that run that same full rebuild
+  after every commit and checkout. On any repository where indexing takes
+  minutes, that is minutes added to every commit. Do not install it.
+
+CGC does have a genuinely incremental path — `cgc watch`, a daemon that
+updates single files as they change. It holds the index continuously
+fresh, at the cost of a background process with its own lifecycle.
+Hedgehog does not start, supervise, or assume one. If the user asks for
+it, that is their call to make and to run; the `indexedSha` in this
+config still reflects the last full index either way.
 
 ## Step 5 — Verify
 
