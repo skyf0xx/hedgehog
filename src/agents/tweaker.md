@@ -157,8 +157,16 @@ discipline as `.hedgehog/BMAD/`. A later related incident is its own new
      from the user is not a pattern; it stays in the log and move on.
      Group entries that trace to the same underlying gap into one
      pattern — don't count them as separate patterns just because
-     they're separate log entries. Each resulting issue is labeled `bug`
-     and `help wanted`.
+     they're separate log entries. The friction hotspots under
+     `hedgehog status`'s FRICTION LOGGED block are the mechanical input
+     to that same grouping call: each names a file that the tasks behind
+     several notes all reach, so two notes landing on one hotspot are
+     evidence they trace to one underlying gap even where their wording
+     shares nothing. Read it as evidence for grouping, not as the
+     grouping itself — the note's content still decides what the gap
+     actually is, and the block states how many notes it couldn't
+     correlate so you know how much of the log the ranking covers. Each
+     resulting issue is labeled `bug` and `help wanted`.
    - **User-feedback source.** Ask the user plainly whether they have any
      feedback on the build — what went well, what didn't, anything
      they'd want the discipline to do differently. If they say no or give

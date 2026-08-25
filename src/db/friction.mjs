@@ -38,3 +38,78 @@ export function listFriction(db) {
     .prepare(`SELECT id, task_id AS taskId, note, logged_at AS loggedAt FROM friction ORDER BY id ASC`)
     .all();
 }
+
+// Correlates friction onto the files the friction-carrying tasks
+// actually reach, via each task's `context_files` (the blast-radius file
+// set plan.mjs resolves at compile). Two notes on tasks whose radii
+// overlap on one file are evidence of a single underlying gap, which is
+// the grouping call tweaker makes by hand from the notes' wording alone.
+//
+// Returns { hotspots, uncorrelated }: hotspots as
+// [{ path, frictionCount, taskIds }] sorted by frictionCount descending,
+// uncorrelated the count of notes that reached no file. Both halves ship
+// together because a hotspot list is only readable against how much of
+// the log it covers — three correlated notes out of twenty, reported as
+// three, is worse than reporting nothing.
+//
+// Rows with a NULL task_id (a reviewed-marker row, see tweaker.md) trace
+// to no task and carry no radius, so they are neither correlated nor
+// counted as uncorrelated. Rows whose task has NULL `context_files` —
+// every task on a project with no index — are the uncorrelated total.
+//
+// Wrapped the way status.mjs#countFriction is: a build graph predating
+// the `friction` table throws on the read, and `status` is the command
+// every session starts with.
+export function frictionByModule(db) {
+  try {
+    const rows = db
+      .prepare(`
+        SELECT f.id AS id, f.task_id AS taskId, t.context_files AS contextFiles
+        FROM friction f
+        JOIN tasks t ON t.id = f.task_id
+        WHERE f.task_id IS NOT NULL
+        ORDER BY f.id ASC
+      `)
+      .all();
+
+    let uncorrelated = 0;
+    // Per path, the distinct tasks whose radius reaches it — a task with
+    // two notes counts twice, so frictionCount is over notes, not tasks.
+    const byPath = new Map();
+
+    for (const { taskId, contextFiles } of rows) {
+      // Falsy covers both NULL and the `undefined` a read-only handle
+      // returns on a graph that never migrated the column in.
+      const paths = contextFiles ? parseContextFiles(contextFiles) : null;
+      if (!paths || paths.length === 0) {
+        uncorrelated += 1;
+        continue;
+      }
+      for (const path of new Set(paths)) {
+        const entry = byPath.get(path) ?? { path, frictionCount: 0, taskIds: [] };
+        entry.frictionCount += 1;
+        if (!entry.taskIds.includes(taskId)) entry.taskIds.push(taskId);
+        byPath.set(path, entry);
+      }
+    }
+
+    const hotspots = [...byPath.values()].sort(
+      (a, b) => b.frictionCount - a.frictionCount || a.path.localeCompare(b.path),
+    );
+    return { hotspots, uncorrelated };
+  } catch {
+    return { hotspots: [], uncorrelated: 0 };
+  }
+}
+
+// `context_files` is a JSON array of repo-relative paths. A row written
+// by a provider that returned something else is worth no more than an
+// absent one, so anything unparseable or non-array reads as no files.
+function parseContextFiles(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((p) => typeof p === 'string') : null;
+  } catch {
+    return null;
+  }
+}
