@@ -401,6 +401,14 @@ const insertTask = (db) =>
 // an ISO timestamp of the walk, or `null, null, null` when there's no
 // provider, the walk finds nothing, or anything at all goes wrong.
 //
+// A missing provider here is not the ordinary shape of a `plan` run —
+// CGC is mandatory at `init`, so a project reaching this function
+// normally has one. `null` is what a broken or removed install falls
+// back to instead of failing the plan outright: the CGC environment
+// deleted by hand, disk full mid-reindex, the MCP subprocess dead, or
+// `.hedgehog/` copied onto a machine that never ran `init` there. The
+// three columns land NULL and the graph keeps compiling.
+//
 // `provider` exposes a synchronous `resolveTaskContext(task)` returning
 // `{ symbols, files }` or null — code-intelligence.mjs's own
 // resolveTaskContext is async (it queries a live index), so the CLI

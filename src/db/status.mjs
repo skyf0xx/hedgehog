@@ -107,8 +107,10 @@ function loadDebtByTask(db) {
 // against a code-intelligence index (context_files non-NULL), the files
 // its computed blast radius reaches that no verify_radius/scope_globs
 // glob covers (code-intelligence.mjs#radiusGaps). Skips every task with
-// no resolved context outright — an unindexed project computes nothing
-// here, same as an absent-provider `plan` run leaves the column NULL.
+// no resolved context outright, which is what a task planned without a
+// working index leaves behind — the same NULL a broken or removed CGC
+// install produces, not a state `status` distinguishes from an
+// intentionally unindexed run.
 //
 // Wrapped the way countFriction is: `status` reads through a read-only
 // handle, which never migrates, so on a graph predating the context

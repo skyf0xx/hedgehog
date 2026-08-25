@@ -318,10 +318,15 @@ function layerShapeLines(task, coreId) {
 // scope says what the agent may write, this says what it should read
 // first, so it sits directly after ALLOWED SCOPE. `context_files` is a
 // JSON array of repo-relative paths written by plan.mjs at compile time
-// (code-intelligence.mjs); NULL/undefined (no provider, or a read-only
-// handle that predates the column) and a parse failure both mean no
-// section, the same way layerShapeLines returns null and prints
+// (code-intelligence.mjs); NULL/undefined and a parse failure both mean
+// no section, the same way layerShapeLines returns null and prints
 // nothing.
+//
+// NULL here means the row was planned without a working index —
+// CGC's own environment gone missing, a reindex that never finished, a
+// dead MCP subprocess, or a graph moved onto a machine that hasn't run
+// `init` — or a read-only handle that predates the column. `next`
+// degrades to no PRE-READ section rather than to an error.
 //
 // Kept short like HONESTY: capped at ten files, because a section long
 // enough to skim is a section that isn't read.

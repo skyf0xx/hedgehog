@@ -20,6 +20,14 @@
 // the whole plan back and a hang holds a write lock — so a missing,
 // slow, or broken index costs a task its PRE-READ section and nothing
 // more.
+//
+// CGC is mandatory at `init`, so a working index is the ordinary case,
+// not this one. Null-everywhere is what an install that worked and
+// later broke falls back to: the environment deleted by hand, disk full
+// mid-reindex, the MCP subprocess crashed, or `.hedgehog/` copied to a
+// machine that never ran `init`. Mandatory-at-`init` guarantees the
+// moment `init` succeeds; it is not an invariant enforced for the rest
+// of the project's life, and this module is what absorbs the gap.
 
 import { matchesGlob } from './core.mjs';
 

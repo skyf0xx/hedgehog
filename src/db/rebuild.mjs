@@ -328,6 +328,13 @@ export async function rebuildDb(
 
   const core = await loadCore(corePath);
   const overrides = await loadOverrides(overridesDir);
+
+  // No provider: every task this call plans lands with NULL context
+  // columns, the same as an unindexed project (see plan.mjs's
+  // contextColumns). Passing one here isn't a missing argument —
+  // building it needs an async pre-resolve pass equivalent to what
+  // buildCodeIntelligenceProvider does in the CLI layer, and rebuildDb
+  // has no such pass. That's real, separate work this call doesn't do.
   planTasks(db, core, overrides);
 
   const commitSubjects = loadCommitSubjects();
