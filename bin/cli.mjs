@@ -28,7 +28,7 @@ import {
   layerTaskFields,
   onceLayerTaskFields,
 } from '../src/db/plan.mjs';
-import { resolveTaskContext } from '../src/db/code-intelligence.mjs';
+import { radiusGaps, resolveTaskContext } from '../src/db/code-intelligence.mjs';
 import { addIntent, INTENTS_DIR } from '../src/db/intent.mjs';
 import {
   nextTask,
@@ -1397,9 +1397,29 @@ async function planCommand(args = []) {
   // letting the run report "0 compiled" and look like a no-op.
   const driftDb = openDb({ readOnly: true });
   let drifted;
+  let radiusSuggestions = [];
   try {
     warnSingularModuleIdsAtPlan(core, driftDb);
     drifted = detectDrift(driftDb, core, { overrides });
+    // Advisory only, same handle as the drift check above — a suggestion
+    // sourced from a code-intelligence index that may be stale, never a
+    // reason to fail this command. Skipped entirely for a task with no
+    // resolved context_files, same as every other radiusGaps caller.
+    // The read is guarded on its own: this handle is read-only and so
+    // never migrates, and a graph predating the context columns throws
+    // here on a column that isn't there. A plan run that compiled fine
+    // must not fail on an advisory read.
+    try {
+      radiusSuggestions = driftDb
+        .prepare('SELECT * FROM tasks WHERE context_files IS NOT NULL')
+        .all()
+        .flatMap((task) => {
+          const files = radiusGaps(task);
+          return files.length > 0 ? [{ taskId: task.id, files }] : [];
+        });
+    } catch {
+      radiusSuggestions = [];
+    }
   } finally {
     driftDb.close();
   }
@@ -1408,6 +1428,12 @@ async function planCommand(args = []) {
       `${yellow(bold('Core drift.'))} ${drifted.length} already-compiled task(s) no longer match ${bold(corePath)}.\n` +
         `Compiling does not revisit them. Run ${bold('hedgehog status')} to see the divergence,\n` +
         `or ${bold('hedgehog plan --recompile')} to rewrite the not-started ones.\n`,
+    );
+  }
+  if (radiusSuggestions.length > 0) {
+    console.log(
+      `${dim('Radius suggestions.')} ${radiusSuggestions.length} task(s) reach files outside their verify_radius, per the code-intelligence index.\n` +
+        `Advisory only — verify still gates on verify_radius/scope_globs alone. Run ${bold('hedgehog status')} to see them.\n`,
     );
   }
 

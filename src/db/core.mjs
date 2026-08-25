@@ -319,8 +319,9 @@ function segmentMatches(pattern, segment) {
 }
 
 // Does a concrete path (as segments) match a glob? Standard `**`-aware
-// walk. Used only on paths this file generated, to prove non-containment.
-function matchesGlob(pathSegments, glob) {
+// walk. Used on paths this file generated, to prove non-containment, and
+// by code-intelligence.mjs's radiusGaps against paths the index reports.
+export function matchesGlob(pathSegments, glob) {
   const g = segmentsOf(glob);
   const walk = (gi, pi) => {
     if (gi === g.length) return pi === pathSegments.length;

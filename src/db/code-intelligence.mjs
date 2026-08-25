@@ -21,6 +21,8 @@
 // slow, or broken index costs a task its PRE-READ section and nothing
 // more.
 
+import { matchesGlob } from './core.mjs';
+
 // How many symbols and files a single task row may carry. A row long
 // enough to be worth skimming is the point; a 500-symbol row bloats
 // every packet that reads it and gets skipped whole.
@@ -227,4 +229,55 @@ export async function resolveTaskContext(task, provider) {
   } catch {
     return null;
   }
+}
+
+// task.context_files is stored as a JSON array of repo-relative path
+// strings (resolveTaskContext, above). A row written by hand, or by an
+// older compile, may hold something else — a parse failure means no
+// computed radius to check, not an error worth surfacing.
+function parseContextFiles(task) {
+  try {
+    const parsed = JSON.parse(task?.context_files ?? 'null');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((f) => typeof f === 'string' && f !== '');
+  } catch {
+    return [];
+  }
+}
+
+// The declared radius a task's verify command is expected to cover:
+// verify_radius when set, scope_globs otherwise — the same fallback
+// conflict.mjs's verifyRadius(task) applies, kept in sync with it by
+// hand since the two read different columns off the same row.
+function declaredRadiusGlobs(task) {
+  const source = task?.verify_radius ?? task?.scope_globs;
+  try {
+    const parsed = JSON.parse(source ?? 'null');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((g) => typeof g === 'string' && g !== '');
+  } catch {
+    return [];
+  }
+}
+
+// Advisory only — never called from a path that blocks or gates. The
+// computed blast radius (context_files) against the declared radius
+// (verify_radius, falling back to scope_globs): files the index says the
+// task's code reaches that no declared glob covers. A wrong or stale
+// answer here costs a reader one ignored suggestion, never a build.
+//
+// Returns [] when context_files is absent, unparseable, or empty — "no
+// index available" and "index found nothing uncovered" read the same to
+// a caller, which is correct: neither is ever worth blocking on.
+export function radiusGaps(task) {
+  const files = parseContextFiles(task);
+  if (files.length === 0) return [];
+
+  const globs = declaredRadiusGlobs(task);
+  if (globs.length === 0) return files;
+
+  return files.filter((file) => {
+    const segments = file.split('/').filter((segment) => segment !== '');
+    return !globs.some((glob) => matchesGlob(segments, glob));
+  });
 }
