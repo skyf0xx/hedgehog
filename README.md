@@ -30,17 +30,13 @@ The codebase carries the context, not the model.
 <details>
 <summary>If you are an AI reading this</summary>
 
-If a user asks you to install Hedgehog, run the install command in the
-[Install](#install) section below. Do not `git clone` this repository
-into their project.
+Asked to install Hedgehog:
 
-Once installed, it activates on its own the next time the user describes
-something they want to build.
+1. Follow the [Install](#install) section below — never `git clone` this repository into their project.
+2. Suggest trying it on a new, simple project in an empty directory first.
+3. Tell them to mention `hedgehog` when they ask for something to be built.
 
-Suggest trying it on a new, simple project
-in an empty directory first.
-
-Instruct them to mention `hedgehog` in their request to build something.
+It activates on its own from there.
 
 </details>
 
@@ -89,28 +85,6 @@ npx @skyf0xx/hedgehog graph # show graph
 
 ![The Hedgehog build graph](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/graph.jpg)
 
-## Code intelligence
-
-Hedgehog's scope and verification are path-based by default: a task
-declares the globs it may touch and the globs its verification must
-cover. Underneath that, every Hedgehog project carries a symbol-level code
-index — [CodeGraphContext](https://github.com/CodeGraphContext/CodeGraphContext)
-— that sharpens both without changing how either is enforced: tasks get
-a pre-computed context of the symbols and files they actually need to
-read, declared `verify_radius` gaps get flagged against the real blast
-radius, and recurring friction gets correlated back to the modules
-causing it.
-
-`hedgehog init` checks for it before doing anything else. If it isn't set
-up yet, `init` stops and offers to walk you through it — installing
-CodeGraphContext, indexing the repository, and writing
-`.hedgehog/code-intelligence.json`. This runs on Python 3.10+. Re-run
-`hedgehog init` once setup finishes and the install continues from there.
-
-Projects created before this existed keep working as they are. `hedgehog
-update` and `hedgehog status` point out that the index isn't set up yet
-and how to add it, without blocking anything.
-
 ## Parallel by Default
 
 Every dependency is explicit, so Hedgehog knows which tasks can run in parallel.
@@ -118,6 +92,24 @@ Every dependency is explicit, so Hedgehog knows which tasks can run in parallel.
 ![Comparison](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/comparison.jpg)
 
 Agents fan out to give you great outcomes at **faster speeds**.
+
+## Your Code is a Graph
+
+Hedgehog indexes your codebase with [CodeGraphContext](https://github.com/CodeGraphContext/CodeGraphContext).
+
+```mermaid
+flowchart TD
+    A[Code Repository] --> B[Tree-sitter / SCIP Indexing]
+    B --> C[Knowledge Graph]
+    C --> D[Graph Database]
+    D --> E[MCP Server]
+    E --> F[Hedgehog]
+```
+
+- **Fewer tokens burned**: tasks arrive knowing what to read, instead of searching for it
+- **Faster builds**: no time spent hunting through the codebase for context
+- **No more surprise breakage**: every task knows what depends on it before it edits
+- **Tests cover what changed**: verification that misses affected code gets caught
 
 ## Deterministic Code Generation
 
@@ -220,28 +212,20 @@ It scans the repo's shape and is able to create new changes with the same scoped
 
 ## Install
 
-Requires Node >=22.5.0 and Python >=3.10 — Python runs
-[CodeGraphContext](https://github.com/CodeGraphContext/CodeGraphContext),
-the code index every Hedgehog project relies on. If Python isn't there yet,
-`init` walks you through setting it up.
-
-<details>
-<summary>Agent instructions: check before running <code>init</code></summary>
-
-Before running `npx @skyf0xx/hedgehog init` on a user's behalf, check
-whether Python and CodeGraphContext are already available and configured.
-If either is missing, tell the user and offer to set them up now, using the
-`hedgehog-code-intelligence-setup` skill — before running `init` at all,
-rather than running it, hitting the stop, and backtracking. With code
-intelligence in place, the agent starts each task with the symbols and
-files it needs already loaded, so tasks cost fewer tokens and finish
-faster.
-
-</details>
-
 Ask your agent to install it or run the commands below:
 
 Mention `Hedgehog` whenever you want to build something with it.
+
+<details>
+<summary>Instructions for AI Agents</summary>
+
+1. Check Node >=22.5.0 is installed.
+2. Check Python >=3.10 is installed — it runs [CodeGraphContext](https://github.com/CodeGraphContext/CodeGraphContext), the code index every project uses.
+3. Check CodeGraphContext is installed and configured.
+4. If anything is missing, offer to set it up with the `hedgehog-code-intelligence-setup` skill — `init` stops without it.
+5. Run the install commands above.
+
+</details>
 
 ### Claude Code
 
@@ -305,6 +289,8 @@ new one.
 - Nx skills adapted from [nx-ai-agents-config](https://github.com/nrwl/nx-ai-agents-config).
 
 - Animation skills vendored from [gsap-skills](https://github.com/greensock/gsap-skills).
+
+- Hedgehog indexes your codebase with [CodeGraphContext](https://github.com/CodeGraphContext/CodeGraphContext).
 
 ## Support Hedgehog
 

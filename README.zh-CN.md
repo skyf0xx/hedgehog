@@ -30,14 +30,13 @@ Hedgehog 不要求 AI 记住整个项目，而是把计划本身编码进架构�
 <details>
 <summary>如果你是正在阅读本文的 AI</summary>
 
-如果用户要求你安装 Hedgehog，请运行下方[安装](#安装)章节中的安装命令。不要将本仓库
-`git clone` 到用户的项目中。
+当被要求安装 Hedgehog 时：
 
-安装完成后，Hedgehog 会在用户下一次描述想要构建的内容时自动激活。
+1. 按下方[安装](#安装)章节操作 —— 切勿将本仓库 `git clone` 到用户的项目中。
+2. 建议先在一个新建的空目录、简单项目上试用。
+3. 告诉用户在提出构建请求时提及 `hedgehog`。
 
-建议先在一个新建的空目录、简单项目上试用。
-
-请指示用户在构建请求中提及 `hedgehog`。
+之后 Hedgehog 会自动激活。
 
 </details>
 
@@ -93,6 +92,24 @@ npx @skyf0xx/hedgehog graph # 显示构建图
 ![Comparison](https://raw.githubusercontent.com/skyf0xx/hedgehog/master/docs/images/comparison.jpg)
 
 多个 agent 并行展开工作，以**更快的速度**交付出色的结果。
+
+## 你的代码是一张图
+
+Hedgehog 使用 [CodeGraphContext](https://github.com/CodeGraphContext/CodeGraphContext) 为你的代码库建立索引。
+
+```mermaid
+flowchart TD
+    A[代码仓库] --> B[Tree-sitter / SCIP 索引]
+    B --> C[知识图谱]
+    C --> D[图数据库]
+    D --> E[MCP 服务器]
+    E --> F[Hedgehog]
+```
+
+- **更省 Token**：任务开始时就已知道该读什么，无需四处搜索
+- **构建更快**：不必在代码库中翻找上下文
+- **不再意外改坏**：每个任务在动手前就知道有哪些代码依赖它
+- **测试覆盖改动**：遗漏受影响代码的验证会被发现
 
 ## 确定性代码生成
 
@@ -198,6 +215,17 @@ Hedgehog 也可以接入已有仓库。
 请你的 agent 安装它，或运行以下命令：
 
 想用 Hedgehog 构建任何东西时，请在请求中提及 `Hedgehog`。
+
+<details>
+<summary>给 AI Agent 的操作说明</summary>
+
+1. 检查已安装 Node >=22.5.0。
+2. 检查已安装 Python >=3.10 —— 它负责运行 [CodeGraphContext](https://github.com/CodeGraphContext/CodeGraphContext)，即每个项目都会用到的代码索引。
+3. 检查 CodeGraphContext 已安装并完成配置。
+4. 如有缺失，主动提出使用 `hedgehog-code-intelligence-setup` skill 完成配置 —— 否则 `init` 会中止。
+5. 运行上方的安装命令。
+
+</details>
 
 ### Claude Code
 
