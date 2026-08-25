@@ -196,12 +196,20 @@ or Step 1:
 ```bash
 python3 -m venv .hedgehog/code-intelligence
 .hedgehog/code-intelligence/bin/python -m pip install --upgrade pip
-.hedgehog/code-intelligence/bin/python -m pip install codegraphcontext
+.hedgehog/code-intelligence/bin/python -m pip install 'codegraphcontext>=0.6.5,<0.7'
 ```
 
 Install `codegraphcontext` and nothing else. Do not add extras, do not add
 `falkordblite`, and if pip's resolver output mentions an optional backend,
 leave it uninstalled.
+
+That version specifier is the pin, and this line is the one place it is
+written down — `scripts/check.mjs` reads it from here to tell whether a
+newer CGC has published past the ceiling. The floor is the version this
+setup is known to work against; the ceiling is the next minor, which for a
+pre-1.0 package is where the breaking changes land. Changing either is a
+deliberate act: install the new version, run Step 3 and Step 5 against it,
+then move the pin.
 
 `.hedgehog/` is generated state, so the environment does not belong in
 version control. Check whether `.gitignore` already covers it, and if it
@@ -210,8 +218,9 @@ under `.hedgehog/`, add `.hedgehog/code-intelligence/` alongside them.
 
 If `uv` is already on the machine, `uv venv .hedgehog/code-intelligence`
 and `uv pip install --python .hedgehog/code-intelligence/bin/python
-codegraphcontext` do the same job faster. Use it when present; do not
-install it.
+'codegraphcontext>=0.6.5,<0.7'` do the same job faster. Use it when
+present; do not install it. Carry the same pin — a machine with `uv` must
+end up on the same CGC as a machine without it.
 
 ### Select the backend
 
@@ -290,6 +299,13 @@ graph describes, so read it now rather than reconstructing it later:
 git rev-parse HEAD
 ```
 
+Read the CGC that built it, from the environment Step 2 installed — the
+version string is the last word of the output (`CodeGraphContext 0.6.5`):
+
+```bash
+.hedgehog/code-intelligence/bin/cgc --version
+```
+
 Then write the file:
 
 ```json
@@ -297,7 +313,8 @@ Then write the file:
   "command": "/absolute/path/to/repo/.hedgehog/code-intelligence/bin/cgc",
   "args": ["mcp", "start"],
   "indexedSha": "<the full SHA from git rev-parse HEAD>",
-  "indexedAt": "<the current UTC time, ISO 8601>"
+  "indexedAt": "<the current UTC time, ISO 8601>",
+  "cgcVersion": "<the version from cgc --version, e.g. 0.6.5>"
 }
 ```
 
@@ -313,6 +330,14 @@ they report the age as unknown, which is the correct answer for an index
 that never recorded one — not a failure, but not a claim either. Write
 the full forty-character SHA, not a short one. `indexedAt` is for a human
 reading the file; nothing branches on it.
+
+`cgcVersion` answers the other half of the same question. `indexedSha`
+says which commit the graph describes; this says which tool built it,
+which is the first thing worth knowing when an index returns output that
+looks wrong. Nothing branches on it either, and its absence is not an
+error — a config written before this field, or one whose `cgc --version`
+could not be read, is complete without it. Record it when you have it and
+move on when you don't.
 
 Overwrite this file if it already exists. It is derived state, and a stale
 path in it from a previous machine or a moved repository is exactly the

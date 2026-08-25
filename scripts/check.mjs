@@ -196,6 +196,84 @@ for (const core of cores) {
   }
 }
 
+// ── 2d. The CodeGraphContext pin in hedgehog-code-intelligence-setup can
+//    still reach CGC's latest published release. CGC is pre-1.0, so the
+//    ceiling sits at the next minor — that's where a 0.x package puts its
+//    breaking changes — and a release past it is invisible to every
+//    `init` until someone widens the pin deliberately. Surfacing it here
+//    means the signal arrives during work already underway rather than as
+//    a notification on every upstream release. Network-dependent, and
+//    skipped the same way 2c is: an offline local run degrades to
+//    skipping rather than failing on connectivity. ──────────────────────
+{
+  const skipReason = process.env.HEDGEHOG_SKIP_REGISTRY_VERSION_CHECK;
+  if (!skipReason) {
+    const skillPath = 'src/skills/hedgehog-code-intelligence-setup/SKILL.md';
+    const skillText = await readFile(join(ROOT, skillPath), 'utf8').catch(() => null);
+    if (skillText === null) {
+      fail(`${skillPath}: missing — it owns the CodeGraphContext pin`);
+    } else {
+      // The pin is written as a pip requirement specifier in the install
+      // commands. Both the pip and the uv form carry it, and they must
+      // agree: a machine with uv has to land on the same CGC as one
+      // without, so a pin fixed in one place and missed in the other is
+      // the failure this parse is looking for.
+      const PIN = /codegraphcontext>=(\d+\.\d+\.\d+),<(\d+\.\d+)/g;
+      const found = [...skillText.matchAll(PIN)];
+      if (found.length < 2) {
+        fail(
+          `${skillPath}: expected the CodeGraphContext pin ` +
+            `("codegraphcontext>=X.Y.Z,<A.B") on both the pip and the uv install ` +
+            `command, found ${found.length} — pin both or this check cannot read them`,
+        );
+      }
+      const distinctPins = new Set(found.map((m) => `${m[1]},${m[2]}`));
+      if (distinctPins.size > 1) {
+        fail(
+          `${skillPath}: CodeGraphContext pins disagree (${[...distinctPins].join(' vs ')}) — ` +
+            `the pip and uv install commands must carry the identical specifier`,
+        );
+      }
+      const [, floor, ceiling] = found[0] ?? [];
+      if (floor) {
+        let latest = '';
+        try {
+          const raw = execFileSync(
+            'curl',
+            ['-sSf', '--max-time', '15', 'https://pypi.org/pypi/codegraphcontext/json'],
+            { encoding: 'utf8', timeout: 20000, maxBuffer: 32 * 1024 * 1024 },
+          );
+          latest = JSON.parse(raw)?.info?.version ?? '';
+        } catch {
+          latest = ''; // offline or PyPI unreachable — not this check's failure to report
+        }
+        if (latest) {
+          const num = (v) => v.split('.').map(Number);
+          const cmp = (a, b) => {
+            const [x, y] = [num(a), num(b)];
+            for (let i = 0; i < Math.max(x.length, y.length); i++) {
+              if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
+            }
+            return 0;
+          };
+          if (cmp(latest, floor) < 0) {
+            fail(
+              `${skillPath}: CodeGraphContext is pinned at ">=${floor}", but the latest ` +
+                `published version is ${latest} — the floor cannot resolve.`,
+            );
+          } else if (cmp(latest, `${ceiling}.0`) >= 0) {
+            fail(
+              `${skillPath}: CodeGraphContext is pinned to ">=${floor},<${ceiling}", which ` +
+                `cannot reach ${latest} — the latest published version. Install ${latest}, ` +
+                `re-run the skill's index and verify steps against it, then move the pin.`,
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
 // ── 3. Cross-references: every agent named in AGENT_CAPABILITY exists,
 //    and every agent file exists in AGENT_CAPABILITY (capabilities.mjs
 //    fails closed to 'readonly' for unknown agents, so a silently
