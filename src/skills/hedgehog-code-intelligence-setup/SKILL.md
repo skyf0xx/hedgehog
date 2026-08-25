@@ -213,23 +213,31 @@ and `uv pip install --python .hedgehog/code-intelligence/bin/python
 codegraphcontext` do the same job faster. Use it when present; do not
 install it.
 
-### Confirm the backend
+### Select the backend
 
-On the first run against a machine, confirm the backend selection works
-the way this skill depends on:
+Set KuzuDB explicitly rather than relying on which backend CGC would pick
+on its own:
 
 ```bash
-.hedgehog/code-intelligence/bin/cgc config db --help 2>&1
+.hedgehog/code-intelligence/bin/cgc config db kuzudb
 ```
 
-Read the output. What you are confirming is that with `falkordblite`
-absent, KuzuDB is what CGC uses, and that no flag in that help text is
-required to get there. If the help text reveals an explicit
-non-interactive backend flag, use it — an explicit selection is better
-than relying on absence. If it instead shows the backend can only be
-chosen interactively, absence is the mechanism, and the constraint above
-stands unchanged. Either way, report to the user what the help text
-actually said.
+`cgc config db <backend>` is a shortcut for `cgc config set
+DEFAULT_DATABASE <backend>`, and it writes to CGC's own config
+(`~/.codegraphcontext/.env`), so it persists across runs and is
+idempotent. Confirm it took with:
+
+```bash
+.hedgehog/code-intelligence/bin/cgc config show
+```
+
+`DEFAULT_DATABASE` should read `kuzudb`.
+
+Installing `codegraphcontext` alone pulls in both the `FalkorDB` client
+and `kuzu` as dependencies, but not `falkordblite` — the package whose
+presence activates the FalkorDB Lite backend. Keeping it absent and
+setting the backend explicitly are two independent reasons the selection
+lands on KuzuDB; do the second rather than depending on the first.
 
 ## Step 3 — Index this repository
 
