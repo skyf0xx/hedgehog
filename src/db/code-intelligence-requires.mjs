@@ -1,0 +1,172 @@
+// Whether this project can actually run code intelligence (CodeGraphContext,
+// "CGC"), checked once, at `init`, before there is anything else to fall
+// back to.
+//
+// This is a different contract than requires.mjs: that module is advisory
+// and per-core-declared (a layer names binaries its own verify command
+// needs); this one is engine-declared and blocking (every Hedgehog project
+// needs Python and CGC, full stop). Kept in a separate file rather than
+// merged in so the two contracts stay visibly distinct.
+//
+// No side effects anywhere here: no printing, no installing, no process
+// exit, no writes. `checkCodeIntelligence` only looks and reports; a caller
+// decides what to do with the answer.
+
+import { execFileSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { findBinary } from './requires.mjs';
+
+// CGC's documented floor. One source of truth: both the version check
+// below and anything describing the requirement read this rather than a
+// hardcoded "3.10" living in two places.
+export const MIN_PYTHON = { major: 3, minor: 10 };
+
+// Resolves the Python 3 interpreter the verify/setup shell would find:
+// `python3` first, and `python` only once confirmed to actually be
+// Python 3 — some systems alias `python` to Python 2, and some have
+// no `python` at all. Returns the resolved path or null.
+export function findPython3(env = process.env) {
+  const python3 = findBinary('python3', env);
+  if (python3) return python3;
+
+  const python = findBinary('python', env);
+  if (!python) return null;
+
+  const version = pythonVersion(python);
+  return version && version.major === 3 ? python : null;
+}
+
+// Reads `sys.version_info` from the interpreter directly, rather than
+// parsing `--version` output (whose format has varied across Python
+// releases and isn't meant as a stable interface). Returns
+// `{ major, minor }` or null if the binary can't be run or doesn't
+// print what's expected.
+export function pythonVersion(pythonPath) {
+  try {
+    const output = execFileSync(
+      pythonPath,
+      ['-c', 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'],
+      { encoding: 'utf8' }
+    ).trim();
+    const [major, minor] = output.split('.').map(Number);
+    if (!Number.isInteger(major) || !Number.isInteger(minor)) return null;
+    return { major, minor };
+  } catch {
+    return null;
+  }
+}
+
+// Resolves a CodeGraphContext binary on PATH, trying the full name first
+// and its documented shorthand second.
+export function findCodeGraphContext(env = process.env) {
+  return findBinary('codegraphcontext', env) ?? findBinary('cgc', env);
+}
+
+// Reads and validates `.hedgehog/code-intelligence.json` under `cwd`,
+// matching the shape `loadCodeIntelligenceConfig()` in bin/cli.mjs
+// expects: an object with a non-empty string `command`. Returns the
+// parsed config or null — absent, unreadable, and malformed all collapse
+// to the same null, matching that function's own handling.
+async function loadConfig(cwd) {
+  try {
+    const raw = await readFile(join(cwd, '.hedgehog', 'code-intelligence.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (typeof parsed.command !== 'string' || parsed.command === '') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+// The single entry point. Checks python presence, python version, CGC
+// presence, and config presence, in that order, so the result names the
+// *first* real blocker — reporting a missing config to someone who has no
+// Python yet sends them down the wrong path. No side effects: this only
+// looks and reports.
+//
+// Returns `{ ok: true, pythonPath, pythonVersion, cgcPath, config }` when
+// every check passes, or `{ ok: false, reason, detail }` where `reason` is
+// one of `'missing-python' | 'python-too-old' | 'missing-cgc' |
+// 'missing-config'` and `detail` carries whatever's useful for the
+// reason (the version found, for instance).
+export async function checkCodeIntelligence({ env = process.env, cwd = process.cwd() } = {}) {
+  const pythonPath = findPython3(env);
+  if (!pythonPath) {
+    return { ok: false, reason: 'missing-python', detail: null };
+  }
+
+  const version = pythonVersion(pythonPath);
+  if (
+    !version ||
+    version.major !== MIN_PYTHON.major ||
+    version.minor < MIN_PYTHON.minor
+  ) {
+    return { ok: false, reason: 'python-too-old', detail: { pythonPath, version } };
+  }
+
+  const cgcPath = findCodeGraphContext(env);
+  if (!cgcPath) {
+    return { ok: false, reason: 'missing-cgc', detail: { pythonPath, version } };
+  }
+
+  const config = await loadConfig(cwd);
+  if (!config) {
+    return { ok: false, reason: 'missing-config', detail: { pythonPath, version, cgcPath } };
+  }
+
+  return { ok: true, pythonPath, pythonVersion: version, cgcPath, config };
+}
+
+// Renders checkCodeIntelligence()'s failing result as printable lines,
+// mirroring formatMissingRequirements's shape and style. This is the
+// single owning source for this copy — the CLI, the setup skill, the
+// update/status notice, and the README all render from this rather than
+// restating it.
+//
+// Leads with the payoff, not the requirement: what a user gets is an
+// agent that starts each task with the symbols and files it actually
+// needs already loaded instead of searching for them, so tasks cost
+// fewer tokens and finish faster, plus declared verify_radius gaps get
+// flagged against the real blast radius before they bite.
+export function formatCodeIntelligenceGap(result) {
+  if (!result || result.ok) return [];
+
+  const lines = [
+    'CODE INTELLIGENCE NOT SET UP',
+    '',
+    '  With it, tasks start with the symbols and files they actually need',
+    '  already loaded instead of searching for them — fewer tokens burned',
+    '  per task, faster runs — and verify_radius gaps get flagged against',
+    '  the real blast radius.',
+    '',
+  ];
+
+  switch (result.reason) {
+    case 'missing-python':
+      lines.push(`  Python ${MIN_PYTHON.major}.${MIN_PYTHON.minor}+ was not found on PATH.`);
+      break;
+    case 'python-too-old': {
+      const found = result.detail?.version
+        ? `${result.detail.version.major}.${result.detail.version.minor}`
+        : 'an older version';
+      lines.push(
+        `  Found Python ${found}, but ${MIN_PYTHON.major}.${MIN_PYTHON.minor}+ is required.`
+      );
+      break;
+    }
+    case 'missing-cgc':
+      lines.push('  CodeGraphContext (codegraphcontext / cgc) was not found on PATH.');
+      break;
+    case 'missing-config':
+      lines.push('  .hedgehog/code-intelligence.json is missing or unreadable.');
+      break;
+    default:
+      lines.push('  Code intelligence is not usable yet.');
+  }
+
+  lines.push('');
+  lines.push('  Run the hedgehog-code-intelligence-setup skill to set it up.');
+  return lines;
+}
