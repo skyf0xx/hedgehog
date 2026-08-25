@@ -61,9 +61,10 @@ function packSpec(entry) {
  * Resolve, extract, and read one core package.
  *
  * @param {object} entry - a cores.json entry (`name`, `package`, `version`)
- * @returns {Promise<{manifest: object, root: string, version: string}>}
- *   the parsed hedgehog-core.yaml, the directory the package extracted to,
- *   and the exact version resolved.
+ * @returns {Promise<{manifest: object, root: string, version: string,
+ *   engineAdvisory: string|null}>} the parsed hedgehog-core.yaml, the
+ *   directory the package extracted to, the exact version resolved, and a
+ *   line to print when the CLI is ahead of the core's engine line.
  */
 export async function fetchCore(entry) {
   const staged = await packAndExtract(entry);
@@ -74,9 +75,9 @@ export async function fetchCore(entry) {
   // `cores list` reports as reusable and what an offline `update` reads
   // back, so only a core this engine can actually install belongs in it —
   // a manifest that fails here throws before anything is cached.
-  let manifest;
+  let read;
   try {
-    manifest = await readManifest(staged.root, entry);
+    read = await readManifest(staged.root, entry);
   } catch (err) {
     await rm(staged.tmp, { recursive: true, force: true });
     throw err;
@@ -86,13 +87,13 @@ export async function fetchCore(entry) {
   // and now; its copy is as good as this one, so keep it and drop ours.
   if (await exists(cached)) {
     await rm(staged.tmp, { recursive: true, force: true });
-    return { manifest, root: cached, version };
+    return { ...read, root: cached, version };
   }
 
   await mkdir(join(CORE_CACHE_ROOT, entry.name), { recursive: true });
   await rename(staged.root, cached);
   await rm(staged.tmp, { recursive: true, force: true });
-  return { manifest, root: cached, version };
+  return { ...read, root: cached, version };
 }
 
 /**
@@ -104,7 +105,7 @@ export async function fetchCore(entry) {
 export async function cachedCore(entry, version) {
   const root = join(CORE_CACHE_ROOT, entry.name, version);
   if (!(await exists(join(root, MANIFEST_NAME)))) return null;
-  return { manifest: await readManifest(root, entry), root, version };
+  return { ...(await readManifest(root, entry)), root, version };
 }
 
 async function packAndExtract(entry) {
@@ -159,8 +160,12 @@ async function readManifest(root, entry) {
         `The package and the registry entry have to agree on the core's name.`,
     );
   }
-  assertEngineSatisfies(manifest, ENGINE_VERSION, `${entry.package}/${MANIFEST_NAME}`);
-  return manifest;
+  const engineAdvisory = assertEngineSatisfies(
+    manifest,
+    ENGINE_VERSION,
+    `${entry.package}/${MANIFEST_NAME}`,
+  );
+  return { manifest, engineAdvisory };
 }
 
 // npm's own failure text is a wall of registry detail; what a user can act
@@ -176,6 +181,34 @@ function unresolvableMessage(entry, spec, err) {
     `local checkout or a packed tarball instead, point ${SOURCE_ENV} at the\n` +
     `directory holding it.`
   );
+}
+
+/**
+ * The engine line the newest cached extraction of a core declares, or
+ * null when that core has never been fetched. `cores list` reports it so
+ * the engine line each core is written against is visible at the point a
+ * core is chosen, rather than only once an install has run.
+ */
+export async function cachedEngine(name, versions) {
+  const newest = [...versions].sort(compareVersions).pop();
+  if (!newest) return null;
+  try {
+    const text = await readFile(join(CORE_CACHE_ROOT, name, newest, MANIFEST_NAME), 'utf8');
+    return parseCoreManifest(text, `${name}/${MANIFEST_NAME}`).engine ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Orders `1.0.5` after `1.0.0` rather than before it, which a plain
+// string sort would not.
+function compareVersions(a, b) {
+  const parts = (v) => String(v).split('.').map(Number);
+  const [x, y] = [parts(a), parts(b)];
+  for (let i = 0; i < 3; i += 1) {
+    if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
+  }
+  return 0;
 }
 
 /**

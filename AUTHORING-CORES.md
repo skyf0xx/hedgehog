@@ -50,9 +50,13 @@ At the package root:
   - `agents`, `skills`, `vendor_skills` — lists naming `agents/<name>.md`,
     `skills/<name>/`, and `vendor-skills/<name>/` inside the package.
   - `engine` — a caret range over a three-part version (e.g. `"^5.0.0"`)
-    stating the engine line this core's agents and skills target. An
-    older CLI refuses the core outright (`assertEngineSatisfies` in the
-    same file) rather than landing a payload it can't drive.
+    stating the engine line this core's agents and skills target. A CLI
+    *older* than that line refuses the core outright
+    (`assertEngineSatisfies` in the same file) rather than landing a
+    payload it can't drive. A CLI *newer* than it installs the core and
+    prints the skew as an advisory: the engine carries every feature the
+    core asks for, so a core one major behind still works while its own
+    package catches up.
   - `selects_when` is **not** a manifest field — see below.
 
 - **`core.yaml`** — the layer sequence and per-layer verify commands, in

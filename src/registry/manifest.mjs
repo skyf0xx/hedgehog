@@ -137,17 +137,22 @@ export function parseCoreManifest(text, source = 'hedgehog-core.yaml') {
 /**
  * Check a core's declared `engine` range against the CLI installing it.
  *
- * A core states which engine line it installs against; an engine older
+ * A core states which engine line it installs against. An engine *older*
  * than that line writes a payload the core's own skills expect features
- * from, so the install stops here rather than part-way through.
+ * from, so the install stops here rather than part-way through. An engine
+ * *newer* than that line is a different situation: the CLI carries every
+ * feature the core asks for, plus more, so the install proceeds and the
+ * skew is reported back to the caller as an advisory instead.
  *
  * @param {object} manifest - a parsed manifest, carrying `engine`
  * @param {string} engineVersion - the CLI's own package.json `version`
  * @param {string} source - what to name in the error
+ * @returns {string|null} an advisory line when the CLI is ahead of the
+ *   core's line, `null` when the two agree
  */
 export function assertEngineSatisfies(manifest, engineVersion, source = 'hedgehog-core.yaml') {
   const required = manifest.engine;
-  if (required == null) return;
+  if (required == null) return null;
 
   const range = ENGINE_RANGE.exec(String(required).trim());
   if (!range) {
@@ -166,12 +171,12 @@ export function assertEngineSatisfies(manifest, engineVersion, source = 'hedgeho
   const [, wantMajor, wantMinor, wantPatch] = range.map(Number);
   const [, haveMajor, haveMinor, havePatch] = installed.map(Number);
 
-  // Caret semantics: the same major line, at or above the stated version.
-  const satisfied =
-    haveMajor === wantMajor &&
-    (haveMinor > wantMinor || (haveMinor === wantMinor && havePatch >= wantPatch));
+  const behind =
+    haveMajor < wantMajor ||
+    (haveMajor === wantMajor &&
+      (haveMinor < wantMinor || (haveMinor === wantMinor && havePatch < wantPatch)));
 
-  if (!satisfied) {
+  if (behind) {
     throw new Error(
       `This core needs Hedgehog ${required}, and the CLI running is ${engineVersion}.\n\n` +
         `The core's agents and skills are written against that engine line, so installing\n` +
@@ -180,4 +185,14 @@ export function assertEngineSatisfies(manifest, engineVersion, source = 'hedgeho
         `  npx @skyf0xx/hedgehog@latest init\n`,
     );
   }
+
+  if (haveMajor > wantMajor) {
+    return (
+      `This core is written against Hedgehog ${required}, and the CLI running is ${engineVersion}.\n` +
+      `Installing it anyway: a newer engine carries everything the core asks for. If the\n` +
+      `core's own skills behave oddly, that skew is the first thing to suspect.`
+    );
+  }
+
+  return null;
 }
