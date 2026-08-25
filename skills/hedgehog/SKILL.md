@@ -48,3 +48,7 @@ Run the matching command:
 Add a host flag when the user is on Cursor or Gemini CLI rather than
 Claude Code: `--cursor`, `--gemini`, `--host=claude,cursor`, or
 `--all-hosts`.
+
+A non-zero exit naming code intelligence means the prerequisite isn't set
+up yet, not that Hedgehog is broken. Run the `hedgehog-code-intelligence-setup`
+skill, then re-run `init` — it continues from there.
