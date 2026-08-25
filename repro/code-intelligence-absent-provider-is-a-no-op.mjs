@@ -1,10 +1,16 @@
 #!/usr/bin/env node
 // Piece 1 of hedgehog-code-intelligence-recommendation.md: absent
 // .hedgehog/code-intelligence.json must mean the code-intelligence
-// columns and the PRE-READ section do not exist at all — the same
-// output `hedgehog plan`/`hedgehog next` produced before this feature.
-// This is the one reproduction that has to stay green through all three
-// pieces of the recommendation.
+// columns and the PRE-READ section do not exist at all. Since `init`
+// blocks on the code-intelligence check (see
+// init-with-code-intelligence-proceeds.mjs and its sibling stop-clean
+// repros), a real project never actually reaches this state — this is
+// the defense-in-depth path for a broken or absent install: a config
+// file deleted after the fact, a provider that fails to construct, or
+// any other way the no-provider branch gets exercised post-install. This
+// reproduction reaches that state directly via makeProject(), which
+// never calls real `init()`, and confirms the no-provider branch still
+// behaves exactly as it always has.
 
 import { assert, assertExcludes, hedgehog, makeProject, readTask, runRepro } from './lib.mjs';
 
