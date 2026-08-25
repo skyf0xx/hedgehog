@@ -101,16 +101,19 @@ export async function latestVersion(root, { force = false } = {}) {
   if (!latest) return null;
 
   // Cache alongside the install stamp rather than in a separate file, so
-  // one read answers both halves of the question.
+  // one read answers both halves of the question. Written only into a
+  // `.hedgehog/` that already exists — a version lookup is a read, and
+  // creating the directory here would leave one behind in a project that
+  // never completed `init`, which `init`'s own preconditions rely on
+  // being absent when they abort.
   const path = join(root, VERSION_PATH);
   try {
-    await mkdir(dirname(path), { recursive: true });
     await writeFile(
       path,
       `${JSON.stringify({ ...cached, latest, checkedAt: new Date().toISOString() }, null, 2)}\n`,
     );
   } catch {
-    // A read-only or missing .hedgehog just means no caching; the
+    // A read-only or absent .hedgehog just means no caching; the
     // answer we fetched is still good for this call.
   }
   return latest;
