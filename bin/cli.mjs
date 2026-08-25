@@ -87,7 +87,7 @@ import {
   installedVersion,
 } from '../src/hosts/version.mjs';
 import { loadRegistry, resolveCore } from '../src/registry/index.mjs';
-import { fetchCore, cachedCore, cachedVersions } from '../src/registry/fetch.mjs';
+import { fetchCore, cachedCore, cachedVersions, cachedEngine } from '../src/registry/fetch.mjs';
 import { recordCore, installedCore } from '../src/registry/installed.mjs';
 
 const AUTHORED_CORE_PATH = '.hedgehog/core.yaml';
@@ -892,6 +892,7 @@ async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, global
   if (core) {
     console.log(dim(`Core: ${bold(core.manifest.name)} ${dim(`(${core.version})`)}.`));
     console.log(dim('bootstrap runs whichever add-on steps this core defines, if any.'));
+    if (core.engineAdvisory) console.log(`\n${yellow(core.engineAdvisory)}`);
   } else {
     console.log(
       dim(
@@ -3448,14 +3449,27 @@ async function coresCommand(args) {
   const active = await installedCore(DEST_ROOT);
   for (const core of await loadRegistry()) {
     const cached = await cachedVersions(core.name);
+    const engine = await cachedEngine(core.name, cached);
     const marker = active?.name === core.name ? green(' (installed)') : '';
     console.log(`${bold(core.name)}${marker}`);
     console.log(`  ${dim('package')}  ${core.package}@${core.version}`);
     console.log(`  ${dim('flag')}     ${core.flag ?? dim('none — chosen at planning intake')}`);
     console.log(`  ${dim('cached')}   ${cached.length ? cached.join(', ') : dim('not fetched')}`);
+    console.log(`  ${dim('engine')}   ${engineNote(engine)}`);
     console.log(`  ${dim('when')}     ${wrapProse(core.selects_when, 68, '           ')}`);
     console.log('');
   }
+}
+
+// The engine line a core declares, next to the CLI reading it. A core
+// written against an older line still installs — the engine carries what
+// it asks for — so this reads as context, not as a refusal.
+function engineNote(engine) {
+  if (!engine) return dim(`unknown until fetched — CLI is ${PKG_VERSION}`);
+  const wantMajor = Number(String(engine).replace(/^\^/, '').split('.')[0]);
+  const haveMajor = Number(String(PKG_VERSION).split('.')[0]);
+  if (haveMajor > wantMajor) return `${engine} ${yellow(`— CLI is ${PKG_VERSION}, ahead of this core`)}`;
+  return `${engine} ${dim(`— CLI is ${PKG_VERSION}`)}`;
 }
 
 // Wraps prose to `width`, indenting every line after the first so it sits
