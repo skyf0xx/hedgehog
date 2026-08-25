@@ -52,7 +52,7 @@ Run these together and read all of it before deciding anything:
 ```bash
 python3 --version 2>&1; echo "---"
 python --version 2>&1; echo "---"
-command -v python3 python cgc codegraphcontext 2>&1; echo "---"
+command -v python3 python python3.13 python3.12 cgc codegraphcontext 2>&1; echo "---"
 cat .hedgehog/code-intelligence.json 2>&1; echo "---"
 ls -d .hedgehog/code-intelligence 2>&1
 ```
@@ -67,6 +67,25 @@ diagnosis and its message name the same problem:
 | `missing-cgc` | Python fine, no `codegraphcontext`/`cgc` resolvable |
 | `missing-config` | CGC present, `.hedgehog/code-intelligence.json` absent or malformed |
 
+The CLI's floor is 3.10, but the floor is not the whole question: on macOS
+and Windows, CGC pulls in the KuzuDB backend only below 3.14, so a 3.14
+interpreter satisfies `python3 --version` and still builds an environment
+with nothing to index into. Decide the interpreter here, before anything
+is created, rather than discovering it at Step 2's backend probe with a
+populated environment to throw away.
+
+Pick, in order:
+
+1. A `python3` that is 3.10-3.13 — use it.
+2. Otherwise, a `python3.13` or `python3.12` on PATH from the probe above
+   — use that binary by name in place of `python3` for the rest of this
+   skill, including Step 2's `-m venv`.
+3. Otherwise (3.14 is all the machine has, and the platform is macOS or
+   Windows) — Step 1, to install 3.13 alongside it.
+
+On Linux a 3.14 `python3` is fine as it stands: CGC requires `kuzu` there
+regardless of version. Treat the check above as macOS and Windows only.
+
 `python --version` printing `Python 2.7.x` means `python` is Python 2:
 ignore that binary entirely from here on and work with `python3`. If
 `python3` is absent too, the machine needs Python (Step 1). Never
@@ -75,14 +94,14 @@ depend on it resolving where it does.
 
 Then jump to the first step whose work is not already done:
 
-- Python missing or too old → Step 1
+- Python missing, too old, or 3.14-only on macOS/Windows → Step 1
 - Python fine, no CGC environment → Step 2
 - CGC environment exists → Step 3 (verify it, then index)
 - Everything present → Step 5 (rewrite the config and verify)
 
 ## Step 1 — Python 3.10 or newer
 
-Skip this entirely if Step 0 found a `python3` at 3.10+.
+Skip this entirely if Step 0 settled on a usable interpreter.
 
 CGC supports Python 3.10 through 3.14. If the machine has, say, 3.9,
 installing a newer interpreter alongside it is correct — do not upgrade or
@@ -91,8 +110,9 @@ replace the interpreter the system itself uses.
 Prefer 3.12 or 3.13 when you are choosing the version. On 3.14, CGC pulls
 in the KuzuDB backend only on Linux, so a 3.14 environment on macOS or
 Windows installs with no embedded backend — the commands below name 3.12
-for that reason. An existing 3.14 that a machine already has is worth
-checking against Step 2's backend probe before you build on it.
+for that reason. This is also the step Step 0 sends a macOS or Windows
+machine to when 3.14 is the only interpreter it has; installing 3.13
+alongside it is the fix, and the system interpreter stays where it is.
 
 ### macOS
 
