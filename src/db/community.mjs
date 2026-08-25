@@ -15,7 +15,9 @@
 //      project. Both stated plainly.
 //
 // State lives in `.hedgehog/community.json`, per project rather than in
-// `~/.hedgehog/`.
+// `~/.hedgehog/`. That file is also where the other per-project
+// "already said once" record lives — the code-intelligence advisory at
+// the bottom of this file — so one read answers both.
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -127,4 +129,27 @@ export function formatStarPrompt() {
     '  is a legitimate answer and the correct response to it is to record it',
     '  and carry on with the build.',
   ].join('\n');
+}
+
+// Whether the code-intelligence advisory should be shown by `status`
+// now. `status` runs at the start of every session, so a notice that
+// repeated there would be nagging rather than informing — this shows it
+// once and then goes quiet, leaving `update` (run deliberately, and far
+// less often) as the place the gap keeps being reported.
+//
+// Shares `.hedgehog/community.json` with the star prompt rather than
+// adding a second state file: both are per-project records of "this was
+// already said once," both are engine state excluded from every scope
+// check, and one file means one read.
+export async function shouldNoteCodeIntelligence(root) {
+  const { codeIntelligenceNotice } = await readState(root);
+  return codeIntelligenceNotice !== 'shown';
+}
+
+/** Record that the code-intelligence advisory has been shown. */
+export async function recordCodeIntelligenceNotice(root) {
+  await writeState(root, {
+    codeIntelligenceNotice: 'shown',
+    codeIntelligenceNoticeAt: new Date().toISOString(),
+  });
 }

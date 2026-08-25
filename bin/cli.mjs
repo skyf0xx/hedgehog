@@ -70,6 +70,8 @@ import {
   shouldPromptForStar,
   recordStarAnswer,
   formatStarPrompt,
+  shouldNoteCodeIntelligence,
+  recordCodeIntelligenceNotice,
   REPO_URL,
 } from '../src/db/community.mjs';
 import { rebuildDb } from '../src/db/rebuild.mjs';
@@ -973,6 +975,12 @@ async function update({ hosts }) {
         'name-based dispatch reports it as not found.',
     ),
   );
+
+  // Last, after the refresh has fully landed and reported itself. The
+  // notice never gates the update: a project that predates the check
+  // updates exactly as it always did and hears about the gap while it
+  // does.
+  await noteCodeIntelligenceGap();
 }
 
 // Returned by resolveInstalledCore when the project has a core but its
@@ -1768,6 +1776,47 @@ async function noteAvailableUpdate() {
         )}`,
       );
     }
+  } catch {
+    // Advisory only — a failed check is never worth failing a command over.
+  }
+}
+
+// The upgrade path for a project that predates the `init`-time check —
+// which is every project installed before code intelligence became a
+// precondition, and the larger population by far. `init` guarantees a
+// project set up from this version onward has it; nothing retroactively
+// requires it of a project already building.
+//
+// So this is advisory, and that is the whole point: it prints after the
+// calling command's own work has finished and returns without ever
+// touching `process.exitCode`. A project whose check fails keeps
+// updating and keeps reporting status exactly as it did before, and
+// hears what it is missing while it does. Blocking here would strand
+// working projects on old payloads, which costs more than the gap it
+// would be enforcing.
+//
+// Renders the gap from formatCodeIntelligenceGap so the CLI, the setup
+// skill, and the README all say the same thing, and prints to stderr
+// after the command's real output, matching noteAvailableUpdate's own
+// contract. Never throws: the whole body is wrapped, since a check that
+// errors is never worth failing a command over.
+//
+// `once` gates on `.hedgehog/community.json` — used by `status`, which
+// runs at the start of every session and would otherwise nag. `update`
+// passes it off: `update` is run deliberately and rarely, and is the
+// command whose whole job is bringing a project current, so the gap
+// belongs in its output every time.
+async function noteCodeIntelligenceGap({ once = false } = {}) {
+  try {
+    const result = await checkCodeIntelligence({ cwd: DEST_ROOT });
+    if (result.ok) return;
+    if (once && !(await shouldNoteCodeIntelligence(DEST_ROOT))) return;
+
+    const gap = formatCodeIntelligenceGap(result);
+    console.error(`\n${yellow(bold(gap[0]))}`);
+    console.error(gap.slice(1).join('\n'));
+
+    if (once) await recordCodeIntelligenceNotice(DEST_ROOT);
   } catch {
     // Advisory only — a failed check is never worth failing a command over.
   }
@@ -2655,6 +2704,7 @@ async function statusCommand() {
   const warningLines = await coreWarningLines();
   if (warningLines.length > 0) console.log(warningLines.join('\n'));
 
+  await noteCodeIntelligenceGap({ once: true });
   await noteAvailableUpdate();
 }
 
