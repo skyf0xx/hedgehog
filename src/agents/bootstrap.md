@@ -51,11 +51,16 @@ rather than re-deriving it.
 ## Closing Bootstrap
 
 Once the core's skill says Bootstrap is closed — every step it defines
-has its commit landed — run `hedgehog graph` to start (or reuse) the
-live graph server and open it, so the build graph is on screen before
-the first build step starts. Then state plainly that Bootstrap is closed
-and name the loop skill that owns everything from here. Don't hand off
-to another instance of yourself.
+has its commit landed — run **`hedgehog plan`**. On a first run, `planner`
+wrote intents at planning intake but deliberately left them uncompiled:
+`hedgehog plan` requires `core.yaml`, which only exists now that this
+workspace is scaffolded (see `planner.md`'s Workflow step 7 and step 9).
+This compiles those intents into tasks so the core's loop skill has
+something to pick up from `hedgehog next`. Then run `hedgehog graph` to
+start (or reuse) the live graph server and open it, so the build graph is
+on screen before the first build step starts. Then state plainly that
+Bootstrap is closed and name the loop skill that owns everything from
+here. Don't hand off to another instance of yourself.
 
 
 ## Constraints

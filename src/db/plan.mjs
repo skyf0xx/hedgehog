@@ -267,7 +267,11 @@ function loadPendingIntents(db) {
     .all(...PENDING_INTENT_STATUSES);
 }
 
-function loadIntentDependencies(db) {
+// Exported for drift.mjs: expected cross-intent task edges (see
+// planTasks's "Cross-intent edge" comment below) depend on which
+// intents depend on which, and that's `intent_dependencies` regardless
+// of the intents' own compiled/pending status.
+export function loadIntentDependencies(db) {
   return db.prepare('SELECT * FROM intent_dependencies').all();
 }
 

@@ -313,13 +313,16 @@ match the trees Hedgehog itself puts in the repository:
   file in it is markdown Hedgehog wrote and the user never edits, and
   none of it contributes a function, class, or call edge to the graph —
   it is pure indexing cost.
+- `AGENTS.md` and `CLAUDE.md` — the root routing index and discipline doc
+  `init` writes at the repository root. Same as `.claude/`: Hedgehog-owned
+  prose the user never edits, contributing no code symbols.
 
-All three are Hedgehog-installed content that the user will never edit,
-and all three degrade exactly what the index is for: pre-read context and
+All five are Hedgehog-installed content that the user will never edit,
+and all five degrade exactly what the index is for: pre-read context and
 `verify_radius` blast-radius checks computed against a graph that is
 mostly not this project.
 
-Ensure `.cgcignore` at the repository root carries all three entries,
+Ensure `.cgcignore` at the repository root carries all five entries,
 creating the file if it does not exist and appending to it if it does —
 do not overwrite entries the project already put there:
 
@@ -328,6 +331,8 @@ touch .cgcignore
 grep -qxF '.hedgehog/' .cgcignore || printf '.hedgehog/\n' >> .cgcignore
 grep -qxF 'vendor-skills/' .cgcignore || printf 'vendor-skills/\n' >> .cgcignore
 grep -qxF '.claude/' .cgcignore || printf '.claude/\n' >> .cgcignore
+grep -qxF 'AGENTS.md' .cgcignore || printf 'AGENTS.md\n' >> .cgcignore
+grep -qxF 'CLAUDE.md' .cgcignore || printf 'CLAUDE.md\n' >> .cgcignore
 ```
 
 If the project has vendored trees, build output, or dependency

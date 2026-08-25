@@ -93,7 +93,7 @@ export async function commitGateStatus(projectRoot) {
       applicable: true,
       state: 'not-installed',
       detail: 'lefthook.yml is committed, but no pre-commit hook is installed.',
-      repair: 'pnpm install   (or: pnpm dlx lefthook install)',
+      repair: 'pnpm dlx lefthook install',
     };
   }
 

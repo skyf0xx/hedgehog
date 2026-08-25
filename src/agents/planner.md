@@ -457,17 +457,22 @@ as full-stack-app's Auth/Queue/Mobile trio.
    `.hedgehog/chain/00-brief.md` per its own Confirm & Lock, in the shape
    `hedgehog-landing-loop`'s planning-intake section defines — on a first
    run only, since re-entry there requires the existing brief to still
-   hold. Then run **`hedgehog plan`** to compile those intents into
-   tasks. On re-entry this is append-only: `plan` only reads intents still
-   `proposed`/`planned`, so already-compiled work is untouched and its
-   `complete` tasks keep their status.
+   hold. **On re-entry**, also run **`hedgehog plan`** here to compile
+   those intents into tasks: the workspace and its core.yaml already
+   exist, so `plan` has what it needs. This is append-only: `plan` only
+   reads intents still `proposed`/`planned`, so already-compiled work is
+   untouched and its `complete` tasks keep their status. **On a first
+   run**, don't run `plan` yet — no core is installed until step 9's
+   `bootstrap` handoff lands one, and `plan` requires `core.yaml` to
+   exist. Leave the written intents `proposed` and continue to step 8.
 8. **Commit planning intake's output as one commit** — not on the
    adoption re-entry path, where `hedgehog-adopt` already committed its
    own work as `chore(planning): adopt change` (step 2). Elsewhere:
    `chore(planning): intake` on a first run, `chore(planning): extend
    scope` on re-entry, so the passes are distinguishable in the log. It
-   carries the committed `.hedgehog/hedgehog.db` (its new intent and task
-   rows), `.hedgehog/addons.yaml` (full-stack-app and pwa-app only, and on
+   carries the committed `.hedgehog/hedgehog.db` (its new intent rows,
+   plus task rows too on re-entry, where step 7 already ran `plan`),
+   `.hedgehog/addons.yaml` (full-stack-app and pwa-app only, and on
    re-entry only if a trigger actually changed), this core's own archival planning
    output (`.hedgehog/BMAD/` or `.hedgehog/chain/`, first run only), the
    authored core's `.hedgehog/core.yaml` and `.hedgehog/core-design.md` if
@@ -479,9 +484,14 @@ as full-stack-app's Auth/Queue/Mobile trio.
    `bootstrap` agent** once the commit lands. It scaffolds the chosen
    core's workspace (and, for full-stack-app, whichever add-ons are on;
    for pwa-app, whichever of sync/remote entities is on) before any build
-   step starts. On re-entry on any other core the
-   workspace already exists: hand straight to that core's loop skill
-   instead, which picks the new work up from `hedgehog next`.
+   step starts. Once that workspace exists, `core.yaml` exists too — this
+   is the point at which the `hedgehog plan` step 7 deferred on a first
+   run can finally succeed. `bootstrap` runs it before closing (see
+   `bootstrap.md`'s "Closing Bootstrap"), so the intents planner wrote are
+   compiled into tasks before the core's loop skill picks anything up. On
+   re-entry on any other core the workspace already exists and step 7
+   already ran `plan`: hand straight to that core's loop skill instead,
+   which picks the new work up from `hedgehog next`.
 10. **Return a summary**: which core (naming it as authored or adopted,
     if it is), the intents added (or subject statement, for
     landing-page), any open questions.

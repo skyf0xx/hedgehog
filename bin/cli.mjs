@@ -448,7 +448,22 @@ function warnOrphanedNotes({ orphanedNotes }) {
 async function writePlannedFile(f) {
   await mkdir(dirname(f.dest), { recursive: true });
   if (f.merge) {
-    let out = await readFile(join(PKG_ROOT, f.merge.shell), 'utf8');
+    // A re-run (e.g. `init --core <name> --force`, installing a core
+    // after a deferred coreless init) must not clobber a destination
+    // `planner` already filled in: {{PROJECT_NAME}}/{{PROJECT_SUMMARY}}
+    // are filled once, by hand or by `planner`, and never touched again.
+    // Starting from the existing file instead of the pristine shell
+    // whenever it's still missing only {{CORE_SECTION}} preserves that —
+    // the shell is the base only for a destination that doesn't exist
+    // yet, or one still holding the raw, unfilled template.
+    let out = null;
+    if (await exists(f.dest)) {
+      const existing = await readFile(f.dest, 'utf8');
+      if (!existing.includes('{{PROJECT_NAME}}') && existing.includes('{{CORE_SECTION}}')) {
+        out = existing;
+      }
+    }
+    if (out === null) out = await readFile(join(PKG_ROOT, f.merge.shell), 'utf8');
     // A deferred install has no core yet, so {{CORE_SECTION}} stays put
     // for whichever bootstrap-core skill runs first to fill in. The host
     // is always known at install time, so {{HOST_DISPATCH}} never is.
@@ -1208,6 +1223,14 @@ async function dbCommand(args) {
       ? `  ${green('create')}  ${path}`
       : `  ${dim('exists')}  ${path} ${dim('(no-op)')}`,
   );
+  if (!created) {
+    console.log(
+      `\n  ${dim('This only ensures the schema is present — it does not reset state.')}\n` +
+        `  ${dim('If you deleted a stale hedgehog.db expecting a clean graph and still')}\n` +
+        `  ${dim('see old intents/tasks, the file was not actually gone when this ran.')}\n` +
+        `  ${dim('Run')} ${bold('hedgehog db rebuild')} ${dim('to replay strictly from')} ${bold(INTENTS_DIR)}${dim('.')}\n`,
+    );
+  }
 }
 
 // Resolves the project's core definition: an authored .hedgehog/core.yaml

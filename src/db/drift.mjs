@@ -30,6 +30,7 @@ import {
   onceTaskId,
   taskId,
   CORE_MODULE,
+  loadIntentDependencies,
 } from './plan.mjs';
 import { loadOverrides } from './overrides.mjs';
 
@@ -166,6 +167,20 @@ export function taskDrift(db, task, core, overrides = new Map()) {
   } else {
     expectedParents = [taskId(task.intent_id, parentLayer.id)];
   }
+
+  // planTasks's "Cross-intent edge" adds, on every per-intent layer, one
+  // parent per intent this task's intent declared `--depends-on` —
+  // core.yaml alone can't say this (it comes from intent_dependencies),
+  // so a task whose intent has such a declaration always expects it here
+  // too, or every one of its layers reads as permanently drifted.
+  if (!isOnce) {
+    for (const dep of loadIntentDependencies(db)) {
+      if (dep.intent_id === task.intent_id) {
+        expectedParents = [...expectedParents, taskId(dep.depends_on_intent_id, layer.id)];
+      }
+    }
+  }
+
   const actualParents = recordedParents(db, task);
   const sortedExpected = [...expectedParents].sort();
   const sortedActual = [...actualParents].sort();
