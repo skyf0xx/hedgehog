@@ -487,6 +487,14 @@ Any Hedgehog command that runs the check works here; `status` is the
 cheapest. If it still prints `CODE INTELLIGENCE NOT SET UP`, the reason
 line names which of the four states remains — go back to that step.
 
+In the situation this skill is normally reached from — `init` gated on the
+check, in a repository that has never been initialised — there is no build
+graph yet, so `status` runs the check, then reports `No build graph found`
+and exits non-zero. That exit is about the absent graph, not the setup:
+read the lines above it. `Code intelligence is set up.` there means this
+step passed. Do not run `hedgehog db init` to satisfy it — the graph is
+`init`'s to create, and the next instruction below is what creates it.
+
 The check reads `command` from the config first and only falls back to a
 PATH lookup, so the isolated install this skill performs satisfies it with
 no change to the user's shell profile. `missing-cgc` at this point means

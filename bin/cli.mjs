@@ -1961,19 +1961,26 @@ async function noteAvailableUpdate() {
 // passes it off: `update` is run deliberately and rarely, and is the
 // command whose whole job is bringing a project current, so the gap
 // belongs in its output every time.
+//
+// Returns whether a gap was actually printed, so a caller that wants to
+// say the opposite — `status` with no build graph, which is where the
+// setup skill verifies — can tell silence-because-fine from
+// silence-because-`once`.
 async function noteCodeIntelligenceGap({ once = false } = {}) {
   try {
     const result = await checkCodeIntelligence({ cwd: DEST_ROOT });
-    if (result.ok) return;
-    if (once && !(await shouldNoteCodeIntelligence(DEST_ROOT))) return;
+    if (result.ok) return false;
+    if (once && !(await shouldNoteCodeIntelligence(DEST_ROOT))) return false;
 
     const gap = formatCodeIntelligenceGap(result);
     console.error(`\n${yellow(bold(gap[0]))}`);
     console.error(gap.slice(1).join('\n'));
 
     if (once) await recordCodeIntelligenceNotice(DEST_ROOT);
+    return true;
   } catch {
     // Advisory only — a failed check is never worth failing a command over.
+    return false;
   }
 }
 
@@ -2792,6 +2799,16 @@ async function statusCommand() {
   await ensureDb();
 
   if (!(await exists(DB_PATH))) {
+    // The code-intelligence check runs ahead of this guard rather than
+    // after it. `status` is what the setup skill verifies against, and
+    // that verification happens in the one situation where no graph
+    // exists yet: setting code intelligence up is what `init` gated on,
+    // so `init` never got far enough to create one. Reporting the graph
+    // as missing and stopping would leave that check unanswered at
+    // exactly the point it is asked.
+    if (!(await noteCodeIntelligenceGap())) {
+      console.error(`${green('Code intelligence is set up.')}`);
+    }
     console.error(`${red('No build graph found.')} Run ${bold('hedgehog db init')} first.\n`);
     process.exitCode = 1;
     return;
