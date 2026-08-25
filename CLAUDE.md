@@ -39,6 +39,11 @@ skills, and CLAUDE.md section. `src/registry/cores.json` names them;
     CLAUDE.md, `.hedgehog/core-design.md`, specs, READMEs) written as a
     current, as-is snapshot rather than a log of edits or decisions, on
     first generation and every later revision.
+  - `hedgehog-code-intelligence-setup` — installs CodeGraphContext into a
+    project-owned environment, indexes the repository, and records the
+    indexed commit in `.hedgehog/code-intelligence.json`. `init` blocks
+    until it has run. The index is refreshed from here too, when `plan` or
+    `status` reports it has drifted from HEAD.
   - `hedgehog-contributing` — forking, branching, and PR-opening
     procedure for contributing a fix or `ROADMAP.md` item back to the
     Hedgehog project itself, as opposed to a consuming project's own
@@ -77,8 +82,11 @@ skills, and CLAUDE.md section. `src/registry/cores.json` names them;
   (what to work on and lease it), `verify`/`gate` (close a layer, check a
   phase transition), `friction`, `debt`, `drift`, `boundary`, `why`,
   `overrides`, `conflict`, `commitLock`, `core`, `rebuild`,
-  `graph-server` (serves `src/templates/graph.html`'s visualization), and
-  `community` (the star prompt raised at the first completed intent).
+  `graph-server` (serves `src/templates/graph.html`'s visualization),
+  `community` (the star prompt raised at the first completed intent), and
+  `code-intelligence`/`code-intelligence-requires` (the CodeGraphContext
+  index behind pre-read context and verify-radius gaps — the latter also
+  owns the `init` gate and the HEAD-vs-`indexedSha` freshness check).
   This is the live source of truth every loop skill and its agents query
   and mutate for what's next and what's done.
 - `bin/cli.mjs` — the `hedgehog` CLI installed by `npx @skyf0xx/hedgehog`:
