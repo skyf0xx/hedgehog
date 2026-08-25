@@ -275,7 +275,10 @@ export function formatIndexStaleness(result, { indexCommand = 'cgc index . --for
         : '  HEAD could not be read, so',
       '  whether it still matches this code cannot be checked.',
       '',
-      `  Re-index to establish it: ${indexCommand}`,
+      `  Re-index: ${indexCommand}`,
+      '  Then record the commit it was built from in',
+      '  .hedgehog/code-intelligence.json (indexedSha) — re-indexing alone',
+      '  does not write it.',
     ];
   }
 
@@ -287,5 +290,7 @@ export function formatIndexStaleness(result, { indexCommand = 'cgc index . --for
     '  as it was, so they may name symbols that moved and miss ones added.',
     '',
     `  Refresh it: ${indexCommand}`,
+    '  Then update indexedSha in .hedgehog/code-intelligence.json to the new',
+    '  HEAD — the index command itself does not write that field.',
   ];
 }

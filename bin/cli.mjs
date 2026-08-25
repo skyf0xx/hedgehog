@@ -1162,7 +1162,10 @@ async function dbRebuildCommand() {
   const corePath = await resolveCorePath();
   if (!corePath) {
     console.error(
-      `${red('No core definition found.')} Expected ${bold(AUTHORED_CORE_PATH)} or a root ${bold('core.yaml')} (from \`hedgehog init\`).\n`,
+      `${red('No core definition found.')} Expected ${bold(AUTHORED_CORE_PATH)} or a root ${bold('core.yaml')}.\n` +
+        `A no-flag \`hedgehog init\` installs no core — planner picks one at planning\n` +
+        `intake. Install one now with \`hedgehog init --core <name>\` (see \`hedgehog\n` +
+        `cores list\`), or run planning intake to have it chosen for you.\n`,
     );
     process.exitCode = 1;
     return;
@@ -1523,7 +1526,10 @@ async function planCommand(args = []) {
   const corePath = await resolveCorePath();
   if (!corePath) {
     console.error(
-      `${red('No core definition found.')} Expected ${bold(AUTHORED_CORE_PATH)} or a root ${bold('core.yaml')} (from \`hedgehog init\`).\n`,
+      `${red('No core definition found.')} Expected ${bold(AUTHORED_CORE_PATH)} or a root ${bold('core.yaml')}.\n` +
+        `A no-flag \`hedgehog init\` installs no core — planner picks one at planning\n` +
+        `intake. Install one now with \`hedgehog init --core <name>\` (see \`hedgehog\n` +
+        `cores list\`), or run planning intake to have it chosen for you.\n`,
     );
     process.exitCode = 1;
     return;

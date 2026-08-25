@@ -300,7 +300,7 @@ from the indexed commit to matter.
 Write the exclusions **before** the first index. CGC generates a default
 `.cgcignore` on its first run covering the usual dependency directories
 (`venv/`, `.venv/`, `env/`, `.env/`, `node_modules/`), and none of those
-match the two trees Hedgehog itself puts in the repository:
+match the trees Hedgehog itself puts in the repository:
 
 - `.hedgehog/` — generated state, and the home of the CGC virtualenv this
   setup just created. Left in, the index walks several thousand `.py`
@@ -308,20 +308,26 @@ match the two trees Hedgehog itself puts in the repository:
 - `vendor-skills/` — the vendored BMAD planning shelf `init` installs.
   Left in, its scripts, markdown, and HTML assets outnumber the project's
   own symbols and rank above them in `cgc find name` results.
+- `.claude/` — the agents and skills `init` installs for Claude Code (and
+  the equivalent host directory for other hosts, e.g. `.cursor/`). Every
+  file in it is markdown Hedgehog wrote and the user never edits, and
+  none of it contributes a function, class, or call edge to the graph —
+  it is pure indexing cost.
 
-Both are Hedgehog-installed content that the user will never edit, and
-both degrade exactly what the index is for: pre-read context and
+All three are Hedgehog-installed content that the user will never edit,
+and all three degrade exactly what the index is for: pre-read context and
 `verify_radius` blast-radius checks computed against a graph that is
 mostly not this project.
 
-Ensure `.cgcignore` at the repository root carries both entries, creating
-the file if it does not exist and appending to it if it does — do not
-overwrite entries the project already put there:
+Ensure `.cgcignore` at the repository root carries all three entries,
+creating the file if it does not exist and appending to it if it does —
+do not overwrite entries the project already put there:
 
 ```bash
 touch .cgcignore
 grep -qxF '.hedgehog/' .cgcignore || printf '.hedgehog/\n' >> .cgcignore
 grep -qxF 'vendor-skills/' .cgcignore || printf 'vendor-skills/\n' >> .cgcignore
+grep -qxF '.claude/' .cgcignore || printf '.claude/\n' >> .cgcignore
 ```
 
 If the project has vendored trees, build output, or dependency
