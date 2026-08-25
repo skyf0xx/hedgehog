@@ -1284,6 +1284,18 @@ function startMcpClient(config) {
     for (const { reject } of pending.values()) reject(err);
     pending.clear();
   });
+  // A dead server's stdin emits EPIPE on the socket, not on the child,
+  // and an 'error' event with no listener is fatal to the process. The
+  // write below is guarded, but a socket reports EPIPE asynchronously,
+  // so the throw never reaches that try/catch. Without this handler a
+  // server that exits mid-session takes the whole command down; with it
+  // the pending calls reject and the caller degrades as it would for any
+  // other provider failure.
+  child.stdin.on('error', (err) => {
+    dead ??= err;
+    for (const { reject } of pending.values()) reject(dead);
+    pending.clear();
+  });
   child.on('exit', () => {
     dead ??= new Error('code-intelligence server exited');
     for (const { reject } of pending.values()) reject(dead);
