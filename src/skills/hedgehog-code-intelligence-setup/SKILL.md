@@ -32,14 +32,14 @@ These hold for every path through this skill.
   isolated environment under `.hedgehog/`, owned by this project. The only
   installs that touch the system are a Python interpreter itself (when the
   machine has none new enough), and only with the user's explicit consent.
-- **Never install `falkordblite`.** CGC selects the FalkorDB Lite backend
-  only when that package is present. Its absence is what makes CGC use
-  KuzuDB, which is the cross-platform backend and the one this setup
-  targets. There is no flag or environment variable that forces KuzuDB
-  with `falkordblite` installed, so absence is the mechanism. Never
-  install it, never let a "try installing the other backend" suggestion
-  from any prompt talk you into it, and never pass an extras spec that
-  might pull it in.
+- **Never install `falkordblite` yourself.** KuzuDB is the cross-platform
+  backend and the one this setup targets. CGC selects FalkorDB Lite when
+  that package is present, so never add it, never let a "try installing
+  the other backend" suggestion from any prompt talk you into it, and
+  never pass an extras spec that pulls it in. CGC does declare it as an
+  ordinary dependency on non-Windows Python 3.12+, so it may arrive on its
+  own — that is CGC's choice, not yours, and it is why `cgc config db
+  kuzudb` in Step 2 is what actually pins the selection.
 - **Ask before anything that needs `sudo`, downloads an installer, or
   writes outside this repository.** Show the exact command first.
 - **Every step checks before it acts.** This skill is re-run after partial
@@ -87,6 +87,12 @@ Skip this entirely if Step 0 found a `python3` at 3.10+.
 CGC supports Python 3.10 through 3.14. If the machine has, say, 3.9,
 installing a newer interpreter alongside it is correct — do not upgrade or
 replace the interpreter the system itself uses.
+
+Prefer 3.12 or 3.13 when you are choosing the version. On 3.14, CGC pulls
+in the KuzuDB backend only on Linux, so a 3.14 environment on macOS or
+Windows installs with no embedded backend — the commands below name 3.12
+for that reason. An existing 3.14 that a machine already has is worth
+checking against Step 2's backend probe before you build on it.
 
 ### macOS
 
@@ -242,11 +248,26 @@ idempotent. Confirm it took with:
 
 `DEFAULT_DATABASE` should read `kuzudb`.
 
-Installing `codegraphcontext` alone pulls in both the `FalkorDB` client
-and `kuzu` as dependencies, but not `falkordblite` — the package whose
-presence activates the FalkorDB Lite backend. Keeping it absent and
-setting the backend explicitly are two independent reasons the selection
-lands on KuzuDB; do the second rather than depending on the first.
+Setting it explicitly is what makes the selection KuzuDB. CGC declares
+`falkordblite` as an ordinary dependency on non-Windows Python 3.12+, so
+installing `codegraphcontext` alone can bring the FalkorDB Lite backend
+with it — the setting above is what keeps the choice yours regardless.
+
+Confirm the backend is actually usable, rather than assuming the setting
+found something to select:
+
+```bash
+.hedgehog/code-intelligence/bin/python -c "import kuzu; print(kuzu.__version__)"
+```
+
+If that raises `ModuleNotFoundError`, this environment has no KuzuDB.
+CGC requires `kuzu` only for Python below 3.14 or on Linux, so a
+**Python 3.14 environment on macOS or Windows** installs without it and
+indexing has no embedded backend to write to. The fix is to build the
+environment on Python 3.12 or 3.13 — Step 1's install, pointed at that
+version, then Step 2 again against the new interpreter. Installing `kuzu`
+by hand to paper over the gap puts the environment somewhere CGC does not
+test; prefer the supported interpreter.
 
 ## Step 3 — Index this repository
 
@@ -426,6 +447,11 @@ print(sys.prefix)"` and rebuild the environment if it points elsewhere.
 **`python3 -m venv` fails on Debian or Ubuntu.** `python3-venv` is not
 installed. Install it (Step 1) and retry; the error text names the exact
 package for the interpreter's version.
+
+**Indexing fails with no backend, or `import kuzu` raises
+`ModuleNotFoundError`.** The environment is on Python 3.14 and not Linux,
+where CGC does not pull in KuzuDB. Rebuild it on 3.12 or 3.13 (Step 1,
+then Step 2) rather than installing `kuzu` by hand.
 
 **`brew` not found but Homebrew is installed.** Its bin directory is not
 on this session's PATH. Use `/opt/homebrew/bin/brew` or
