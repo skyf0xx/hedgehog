@@ -14,7 +14,7 @@
 //   npx @skyf0xx/hedgehog --help
 
 import { cp, mkdir, access, readdir, stat, rm, readFile, writeFile } from 'node:fs/promises';
-import { constants, existsSync } from 'node:fs';
+import { constants, existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
@@ -1863,6 +1863,22 @@ async function noteCodeIntelligenceGap({ once = false } = {}) {
   }
 }
 
+// Whether two paths name the same directory once symlinks are followed.
+// `npm link` installs the global package as a symlink to a working tree,
+// so comparing the resolved-but-not-dereferenced paths reports "not
+// global" for a linked checkout and `ensureGlobalInstall` then installs
+// the published release over the link — silently reverting whoever is
+// testing a branch. Compares real paths so a link counts as global.
+// Falls back to string equality when either side cannot be resolved (the
+// global root may legitimately not exist yet).
+function samePath(a, b) {
+  try {
+    return realpathSync(a) === realpathSync(b);
+  } catch {
+    return a === b;
+  }
+}
+
 // Hedgehog runs as a global install: every host (Claude Code, Cursor,
 // Gemini CLI) drives it through the `hedgehog` binary on PATH, and `npx
 // @skyf0xx/hedgehog` is expected to arrive at that same global install
@@ -1904,7 +1920,7 @@ async function ensureGlobalInstall({ quiet = false } = {}) {
       encoding: 'utf8',
       timeout: 5_000,
     }).trim();
-    const runningFromGlobal = PKG_ROOT === join(globalRoot, '@skyf0xx/hedgehog');
+    const runningFromGlobal = samePath(PKG_ROOT, join(globalRoot, '@skyf0xx/hedgehog'));
     const { latest, stale } = await checkBinaryStaleness(DEST_ROOT, PKG_VERSION);
     if (runningFromGlobal && !stale) return { updated: false };
     if (!latest) return { updated: false };
