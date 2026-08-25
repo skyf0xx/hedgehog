@@ -1,6 +1,6 @@
 {
   "name": "hedgehog",
-  "version": "6.0.1",
+  "version": "6.0.2",
   "description": "Hedgehog build discipline: ordered, tested, verified build steps.",
   "contextFileName": "GEMINI.md"
 }
