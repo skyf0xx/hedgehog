@@ -700,6 +700,42 @@ async function confirm(question) {
   }
 }
 
+// The two trees Hedgehog itself puts in a project that are not project
+// code: `.hedgehog/` (generated state, and the home of the CodeGraphContext
+// virtualenv the setup skill builds) and `vendor-skills/` (the vendored
+// BMAD planning shelf installed just above). CGC's own default `.cgcignore`
+// covers the usual dependency directories and neither of these, so left
+// alone the index walks several thousand files of CGC's dependency tree and
+// of vendored shelf content — which then outrank the project's real symbols
+// in lookups, and are what pre-read context and verify_radius gaps get
+// computed against.
+//
+// Written at `init`, before any index exists, because `cgc index .` skips a
+// repository that is already indexed: an exclusion added after the first
+// index buys nothing until someone re-runs with `--force`.
+//
+// Appends only, and only what is missing: a project's own entries are its
+// own, and this is the one file here Hedgehog shares with the user.
+const CGCIGNORE_ENTRIES = ['.hedgehog/', 'vendor-skills/'];
+
+async function ensureCgcignore(root = DEST_ROOT) {
+  const path = join(root, '.cgcignore');
+  let existing = '';
+  try {
+    existing = await readFile(path, 'utf8');
+  } catch {
+    // No file yet — the whole set gets written below.
+  }
+
+  const lines = existing.split('\n').map((l) => l.trim());
+  const missing = CGCIGNORE_ENTRIES.filter((e) => !lines.includes(e));
+  if (missing.length === 0) return { path, added: [] };
+
+  const prefix = existing === '' || existing.endsWith('\n') ? '' : '\n';
+  await writeFile(path, `${existing}${prefix}${missing.join('\n')}\n`);
+  return { path, added: missing };
+}
+
 // `core` is the fetched core — `{ manifest, root, version }` — or null on
 // a deferred install, where planner picks one later.
 async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, globalInstall = null }) {
@@ -762,6 +798,11 @@ async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, global
   const { created: dbCreated, path: dbPath } = await dbInit(DB_PATH);
   console.log(`  ${dbCreated ? green('create') : dim('exists')}  ${dbPath}`);
   if (dbCreated) written++;
+
+  const cgcignore = await ensureCgcignore();
+  if (cgcignore.added.length) {
+    console.log(`  ${green('update')}  ${relative(DEST_ROOT, cgcignore.path)} ${dim(`(${cgcignore.added.join(', ')})`)}`);
+  }
 
   console.log(
     `\n${green(bold('Hedgehog installed.'))} ${dim(
@@ -933,6 +974,15 @@ async function update({ hosts }) {
         console.log(`  ${green('update')}  ${relative(DEST_ROOT, f.dest)}`);
       }
     }
+  }
+
+  // Backfills a project installed before these entries existed. Cheap and
+  // idempotent, and the index is only rebuilt on the next refresh anyway,
+  // so this is the moment the exclusions cost nothing to add.
+  const cgcignore = await ensureCgcignore();
+  if (cgcignore.added.length) {
+    written++;
+    console.log(`  ${green('update')}  ${relative(DEST_ROOT, cgcignore.path)} ${dim(`(${cgcignore.added.join(', ')})`)}`);
   }
 
   // Stamped after the writes land, so the recorded version always
@@ -1215,9 +1265,11 @@ async function loadCodeIntelligenceConfig() {
 // precisely so PATH stays untouched, so a generic hint would be wrong for
 // exactly the installs Hedgehog creates.
 //
-// `cgc index .` rebuilds from scratch; it is the refresh path CGC exposes
-// to a one-shot caller. (`cgc update` reads as a cheap delta but is an
-// alias for a full delete-and-rebuild, so it buys nothing here.)
+// `cgc index . --force` is the refresh path: a bare `cgc index .` skips
+// with "already indexed" and exit 0 once a repository has been indexed
+// once, which is exactly the situation a staleness notice is printed in,
+// so the flag is what makes the printed command actually do the thing
+// the notice asks for.
 // Relativized only when the binary actually sits inside the project (the
 // isolated install this setup creates), since that is the form a user
 // would type. A path outside it stays absolute: `../../../usr/local/bin/cgc`
@@ -1225,11 +1277,11 @@ async function loadCodeIntelligenceConfig() {
 async function indexCommandHint() {
   const config = await loadCodeIntelligenceConfig();
   const command = config?.command;
-  if (typeof command !== 'string' || command === '') return 'cgc index .';
+  if (typeof command !== 'string' || command === '') return 'cgc index . --force';
 
   const rel = relative(process.cwd(), command);
   const inProject = rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
-  return `${inProject ? rel : command} index .`;
+  return `${inProject ? rel : command} index . --force`;
 }
 
 // A minimal MCP stdio client: spawns the server the config names, speaks
