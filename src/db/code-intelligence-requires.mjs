@@ -13,6 +13,7 @@
 // decides what to do with the answer.
 
 import { execFileSync } from 'node:child_process';
+import { accessSync, constants } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { findBinary } from './requires.mjs';
@@ -80,6 +81,20 @@ async function loadConfig(cwd) {
   }
 }
 
+// Whether `command` names a file this process can actually execute.
+// Config carrying a path that no longer resolves is the "install broke
+// after the fact" case, which reads as a missing CGC rather than a
+// missing config.
+function isExecutable(command) {
+  if (typeof command !== 'string' || command === '') return false;
+  try {
+    accessSync(command, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // The single entry point. Checks python presence, python version, CGC
 // presence, and config presence, in that order, so the result names the
 // *first* real blocker — reporting a missing config to someone who has no
@@ -106,12 +121,19 @@ export async function checkCodeIntelligence({ env = process.env, cwd = process.c
     return { ok: false, reason: 'python-too-old', detail: { pythonPath, version } };
   }
 
-  const cgcPath = findCodeGraphContext(env);
+  // The config's own `command` is the authoritative answer, and PATH is
+  // only the fallback for finding CGC without one. Setup installs into a
+  // project-owned environment and records an absolute path there, exactly
+  // so the interpreter the user's other tools rely on stays untouched —
+  // requiring a PATH hit as well would make that correct install fail
+  // this check unless the user also edited their shell profile.
+  const config = await loadConfig(cwd);
+  const configuredPath = config && isExecutable(config.command) ? config.command : null;
+  const cgcPath = configuredPath ?? findCodeGraphContext(env);
   if (!cgcPath) {
     return { ok: false, reason: 'missing-cgc', detail: { pythonPath, version } };
   }
 
-  const config = await loadConfig(cwd);
   if (!config) {
     return { ok: false, reason: 'missing-config', detail: { pythonPath, version, cgcPath } };
   }
