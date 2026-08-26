@@ -8,10 +8,11 @@ discipline's stance and rationale.
 
 This repo is the engine: the CLI, the build graph, the host adapters, the
 core registry, and the agents and skills every core shares. Each core —
-`full-stack-app`, `pwa-app`, `landing-page`, `deepseek-harness`, `authored`
-— ships as its own npm package holding that core's workspace, agents,
-skills, and CLAUDE.md section. `src/registry/cores.json` names them;
-`init` fetches the one a project asks for.
+`full-stack-app`, `pwa-app`, `landing-page`, `deepseek-harness`, and
+`authored` (brownfield adoption) — ships as its own npm package holding
+that core's workspace, agents, skills, and CLAUDE.md section.
+`src/registry/cores.json` names them; `init` fetches the one a project asks
+for.
 
 ## Layout
 
@@ -90,16 +91,20 @@ skills, and CLAUDE.md section. `src/registry/cores.json` names them;
   This is the live source of truth every loop skill and its agents query
   and mutate for what's next and what's done.
 - `bin/cli.mjs` — the `hedgehog` CLI installed by `npx @skyf0xx/hedgehog`:
-  `init` (installer) plus the subcommands (`status`, `next`, `verify`,
-  `claim`, `intent add`, `plan`, `friction add`/`list`, …) that read and
-  write `src/db/`'s build graph.
+  `init` (installer), `core record-adopted` (lands the `authored` core's
+  agents/skills and records them for `hedgehog-adopt`, which has no `init`
+  step of its own to call from), and the subcommands (`status`, `next`,
+  `verify`, `claim`, `intent add`, `plan`, `friction add`/`list`, …) that
+  read and write `src/db/`'s build graph.
 - `src/hosts/` — one entry per coding agent Hedgehog installs into
   (Claude Code, Cursor, Gemini CLI): where the payload lands, which
   instructions file that agent loads, and how to emit the agent files
   when its format differs from the canonical one. `capabilities.mjs`
   owns the agent → tool-grant fact for hosts that can't register a
   per-agent grant; `routing.mjs` generates the root `AGENTS.md` index
-  from the agents' and skills' own frontmatter. `version.mjs` owns
+  from the agents' and skills' own frontmatter; `claude-md-merge.mjs`
+  safely merges a core's CLAUDE.md section into a repo's hand-written
+  root instructions file (adoption case). `version.mjs` owns
   payload-staleness detection: `init` and `update` stamp the version they
   wrote into `.hedgehog/version.json`, and that stamp is compared against
   the newest published release. See

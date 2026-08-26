@@ -1,14 +1,16 @@
 // Core package registry. One entry per Hedgehog core — full-stack-app,
-// pwa-app, landing-page, authored — naming the npm package that ships its
-// agents, skills, and (for the three shipped cores) scaffold, plus the CLI
-// flag `hedgehog init` accepts for it and the prose `planner` reads aloud
-// in Phase 0 to choose one. A fixed table, one entry per core, discovered
-// by name or flag rather than convention.
+// pwa-app, landing-page, deepseek-harness, and authored — naming the npm
+// package that ships its agents, skills, and (for the first four) scaffold,
+// plus the CLI flag `hedgehog init` accepts for it and the prose `planner`
+// reads aloud in Phase 0 to choose one. A fixed table, one entry per core,
+// discovered by name or flag rather than convention.
 //
 // `authored` carries no flag — it is never selected off a fixed list at
-// install time. hedgehog-core-design chooses it during planning, from the
-// drivers hedgehog-planning-intake's Phase 0 elicits, not from a value a
-// user passes to `init`.
+// install time. hedgehog-core-design chooses it during planning (from-scratch
+// design path), or hedgehog-adopt brings it to an existing repo (brownfield
+// adoption path), from the drivers hedgehog-planning-intake's Phase 0 elicits
+// or the repo characteristics adoption discovers, not from a value a user
+// passes to `init`.
 
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';

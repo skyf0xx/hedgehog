@@ -40,10 +40,14 @@ Run the matching command:
   framework, or otherwise extending an existing DSH installation via its
   plugin/bundle system. `DSH`, `Cordis`, `defineTool`, `ctx.tools.register`,
   or a `cordis.patch.yml` manifest are strong signals.
-- Anything else — CLI, library, browser extension, data pipeline, an
-  existing codebase, or not yet clear from the conversation:
-  `npx @skyf0xx/hedgehog init` with no core flag. Planning intake decides
-  from there, so prefer this over guessing between the shipped cores.
+- Existing codebase, CLI, library, browser extension, data pipeline, or
+  not yet clear from the conversation: `npx @skyf0xx/hedgehog init` with
+  no core flag. `planner`'s Phase 0 decides from there — including routing
+  a repo that already has real source files to `hedgehog-adopt` (shipped
+  in `@skyf0xx/hedgehog-core-authored`, a separate package), which brings
+  Hedgehog's discipline to the existing codebase without bootstrapping a
+  workspace. Prefer this coreless install over guessing between the
+  shipped cores.
 
 Add a host flag when the user is on Cursor or Gemini CLI rather than
 Claude Code: `--cursor`, `--gemini`, `--host=claude,cursor`, or

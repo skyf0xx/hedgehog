@@ -5,10 +5,11 @@
 //
 // full-stack-app and pwa-app: one task per layer per intent (an intent is
 // a domain module — see the core definition's `{module}` placeholder).
-// landing-page: one task per phase, no module axis. All three are the
-// same operation — walk a core definition's layer chain once per intent
-// — because a linear chain is the degenerate case of the layer graph
-// (spec: MVP scope item 5).
+// landing-page, deepseek-harness, and authored (whether designed from
+// scratch or adopted onto an existing repo): one task per phase/layer, no
+// module axis. All are the same operation — walk a core definition's layer
+// chain once per intent — because a linear chain is the degenerate case of
+// the layer graph (spec: MVP scope item 5).
 //
 // Layer cardinality: a layer marked `once: true` in the core definition
 // opts out of that per-intent multiplication and compiles a single task

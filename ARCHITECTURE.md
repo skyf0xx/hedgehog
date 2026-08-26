@@ -141,9 +141,11 @@ calls are the concrete signals `planner` reads to route here instead of
 
 Package and source: [`skyf0xx/hedgehog-core-authored`](https://github.com/skyf0xx/hedgehog-core-authored).
 
-Unlike `full-stack-app`, `landing-page`, and `deepseek-harness`, this core
-ships no pre-built workspace and no fixed stack table —
-`hedgehog-core-design` picks the stack and derives the layer sequence per
-project, then generates and verifies the workspace live. The same package
-also carries the design for adopting Hedgehog's discipline into an
-existing repo without bootstrapping a workspace at all.
+Two paths. **From-scratch design** (`hedgehog-core-design`): unlike
+`full-stack-app`, `landing-page`, and `deepseek-harness`, this core ships no
+pre-built workspace and no fixed stack table — `hedgehog-core-design` picks
+the stack and derives the layer sequence per project, then generates and
+verifies the workspace live. **Brownfield adoption** (`hedgehog-adopt`):
+brings Hedgehog's discipline to a repo that already exists without
+bootstrapping a workspace, installing agents/skills and the build graph
+alongside the existing code structure. Both paths ship in this same package.

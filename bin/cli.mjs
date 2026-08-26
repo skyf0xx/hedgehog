@@ -80,6 +80,7 @@ import { rebuildDb } from '../src/db/rebuild.mjs';
 import { loadOverrides, addOverride, orphanedOverrides, OVERRIDES_DIR } from '../src/db/overrides.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
+import { wrapSection } from '../src/hosts/claude-md-merge.mjs';
 import {
   recordVersion,
   checkForUpdate,
@@ -88,7 +89,7 @@ import {
 } from '../src/hosts/version.mjs';
 import { loadRegistry, resolveCore } from '../src/registry/index.mjs';
 import { fetchCore, cachedCore, cachedVersions, cachedEngine } from '../src/registry/fetch.mjs';
-import { recordCore, installedCore } from '../src/registry/installed.mjs';
+import { recordCore, installedCore, ADOPTED_CORE_NAME } from '../src/registry/installed.mjs';
 
 const AUTHORED_CORE_PATH = '.hedgehog/core.yaml';
 const CODE_INTELLIGENCE_CONFIG_PATH = '.hedgehog/code-intelligence.json';
@@ -472,7 +473,13 @@ async function writePlannedFile(f) {
         join(f.merge.includeRoot ?? PKG_ROOT, f.merge.include),
         'utf8',
       );
-      out = out.replaceAll('{{CORE_SECTION}}', section.trimEnd());
+      // Wrapped in the same markers appendCoreSection uses on a
+      // brownfield CLAUDE.md with no {{CORE_SECTION}} placeholder to
+      // substitute into — see src/hosts/claude-md-merge.mjs. Keeping
+      // both paths' output mutually recognizable is what lets
+      // hasCoreSection/appendCoreSection treat a template-filled file
+      // and an appended one the same way on a later re-run.
+      out = out.replaceAll('{{CORE_SECTION}}', wrapSection(section));
     }
     const dispatch = await readFile(join(PKG_ROOT, f.merge.dispatch), 'utf8');
     await writeFile(f.dest, out.replaceAll('{{HOST_DISPATCH}}', dispatch.trimEnd()));
@@ -544,6 +551,9 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog init --pwa-app            scaffold the pwa-app core now
   npx @skyf0xx/hedgehog init --landing-page       scaffold the landing-page core now
   npx @skyf0xx/hedgehog cores list                every core this release can install
+  npx @skyf0xx/hedgehog core record-adopted       land the authored core's agents/skills and record
+                                                   this project as adopted (hedgehog-adopt calls this
+                                                   after writing .hedgehog/core.yaml; not for other cores)
   npx @skyf0xx/hedgehog init --cursor             install for Cursor (default: Claude Code)
   npx @skyf0xx/hedgehog init --host=claude,gemini install for several coding agents at once
   npx @skyf0xx/hedgehog init --all-hosts          install for every supported coding agent
@@ -1171,6 +1181,84 @@ async function resolveInstalledCore() {
     );
     return UNRESOLVED;
   }
+}
+
+// `hedgehog core record-adopted` — the record path for `hedgehog-adopt`
+// (shipped in @skyf0xx/hedgehog-core-authored), which brings the
+// discipline to an existing repo by writing `.hedgehog/core.yaml` and
+// `.hedgehog/adoption.md` directly. That path has no `init` step and so
+// never fetches the `authored` package or calls `recordCore` — a no-flag
+// `init` (what the offer skill actually runs before adoption) installs
+// only the shared engine payload, never a core's own agents/skills, and
+// `bootstrap` (the only other place a core package gets fetched) is
+// explicitly skipped for adoption. Left alone, `hedgehog-authored-loop`
+// and `layer-eng` — the skill and agent adoption hands off to — would
+// never land on disk, and even if they did by some other means, `update`
+// would have nothing telling it they're there: `resolveInstalledCore`
+// falls through to `detectUnrecordedCore`, which only looks for a root
+// `core.yaml` (the shipped-core workspace marker) and finds nothing for
+// an adopted repo's `.hedgehog/core.yaml`, so it would read as "no core
+// yet" and update would silently rewrite `.claude/agents`/`.claude/skills`
+// down to just the shared payload, deleting the authored package's files
+// with nothing put back.
+//
+// This command is both fixes at once: it fetches the `authored` package
+// and lands its agents/skills for every host this project already has
+// installed (never its workspace, template, or vendor_skills — adoption
+// already wrote its own CLAUDE.md section and root workspace is the one
+// thing adoption must never touch), then records the core with
+// `adopted: true` so `update` refreshes it correctly from here on.
+// Idempotent and safe to re-run — e.g. from a later `hedgehog-adopt` pass
+// adding new change-work — since it always overwrites from the current
+// package rather than merging.
+async function recordAdoptedCommand() {
+  const entry = await resolveCore(ADOPTED_CORE_NAME);
+  if (!entry) {
+    console.error(
+      `${red('authored core not in this release.')} This Hedgehog release's registry has no\n` +
+        `entry named "authored" — nothing to install. Update Hedgehog and retry.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  let core;
+  try {
+    core = await fetchCore(entry);
+  } catch (err) {
+    console.error(`\n${red(bold('Core unavailable.'))} ${err.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const targets = await installedHosts(DEST_ROOT);
+  let written = 0;
+  for (const host of targets) {
+    const h = HOSTS[host];
+    for (const payloadEntry of corePayload(core, h, { hostOnly: true })) {
+      for (const f of await plannedFiles(payloadEntry)) {
+        await writePlannedFile(f);
+        written++;
+        console.log(`  ${green('install')}  ${relative(DEST_ROOT, f.dest)}`);
+      }
+    }
+  }
+
+  await recordCore(DEST_ROOT, { name: core.manifest.name, version: core.version, adopted: true });
+
+  console.log(
+    `\n${green(bold('Adopted core recorded.'))} ${dim(
+      `${written} file(s) written for ${targets.map((h) => HOSTS[h].label).join(', ')}`,
+    )}\n`,
+  );
+  console.log(
+    dim(
+      'hedgehog-authored-loop and layer-eng are now on disk and this project is\n' +
+        'recorded as adopted — `hedgehog update` will keep them current alongside\n' +
+        "the shared engine payload, and will never treat this project's core as a\n" +
+        'name it gets to change.\n',
+    ),
+  );
 }
 
 async function dbRebuildCommand() {
@@ -3569,6 +3657,21 @@ function engineNote(engine) {
   return `${engine} ${dim(`— CLI is ${PKG_VERSION}`)}`;
 }
 
+// `hedgehog core record-adopted` — see recordAdoptedCommand for why this
+// exists. `cores` (plural) lists the registry; `core` (singular) acts on
+// this project's own core, so the two don't collide despite the name.
+async function coreCommand(args) {
+  const sub = args[0];
+  if (sub !== 'record-adopted') {
+    console.error(
+      `${red('Unknown core subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog core record-adopted\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  await recordAdoptedCommand();
+}
+
 // Wraps prose to `width`, indenting every line after the first so it sits
 // under the column its label opened.
 function wrapProse(text, width, indent) {
@@ -3672,6 +3775,11 @@ async function main() {
 
   if (cmd === 'cores') {
     await coresCommand(args.slice(1));
+    return;
+  }
+
+  if (cmd === 'core') {
+    await coreCommand(args.slice(1));
     return;
   }
 
