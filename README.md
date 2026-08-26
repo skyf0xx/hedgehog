@@ -202,9 +202,7 @@ Where possible, Hedgehog uses a battle-tested blueprint in [`hedgehog-core-autho
 
 ### Existing codebases
 
-Hedgehog also adopts onto a repo it didn't build. It reads the repo read-only and proposes a layer chain that verifies with the repo's own test/lint/build commands — never invented, never a push to migrate the stack.
-
-From there, every new change goes through the same scoped, verified, committed loop as any other core. Coverage only ever covers what's changed since adoption; a large ask gets a short clarifying pass before becoming an intent.
+Hedgehog also adopts onto a repo it didn't build. It reads the repo and proposes a layer chain that verifies with the repo's own test/lint/build commands.
 
 ## Why Hedgehog Works
 
