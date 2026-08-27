@@ -424,6 +424,17 @@ async function writePlannedFile(f) {
       const existing = await readFile(f.dest, 'utf8');
       if (!existing.includes('{{PROJECT_NAME}}') && existing.includes('{{CORE_SECTION}}')) {
         out = existing;
+      } else if (!existing.includes('{{PROJECT_NAME}}') && !f.merge.include) {
+        // Brownfield: hand-written content that predates Hedgehog, with
+        // no shell markers at all, on the coreless deferred path (no
+        // `include` — there's no core section yet to fill in). Nothing
+        // to merge in here; the file is untouched until `hedgehog-adopt`
+        // later appends its own core section via appendCoreSection
+        // (src/hosts/claude-md-merge.mjs). Overwriting it with the
+        // greenfield shell, or even just filling {{HOST_DISPATCH}} into
+        // it, would assert a fresh-install shape onto a repo that isn't
+        // new.
+        return;
       }
     }
     if (out === null) out = await readFile(join(PKG_ROOT, f.merge.shell), 'utf8');
@@ -688,11 +699,26 @@ async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, global
   // the project, so rewriting it loses nothing and never counts as a
   // conflict — that's what lets a second host be added to a project the
   // first one already set up.
+  //
+  // A deferred (coreless) install's root-instructions merge is exempted
+  // too, but only when the existing file is a brownfield one: hand-written
+  // content with no {{PROJECT_NAME}} shell marker. That file was never a
+  // Hedgehog shell to overwrite — writePlannedFile leaves it untouched,
+  // for hedgehog-adopt's own merge step to append its delimited core
+  // section into later (src/hosts/claude-md-merge.mjs), once a core is
+  // actually known. A file still carrying {{PROJECT_NAME}} (a previous
+  // deferred init's untouched shell) is not brownfield content and keeps
+  // hitting the ordinary conflict/--force path below.
   const conflicts = [];
   for (const { entry, files } of groups) {
     if (entry.type === 'generated') continue;
     for (const f of files) {
-      if (await exists(f.dest)) conflicts.push(f.dest);
+      if (!(await exists(f.dest))) continue;
+      if (core === null && f.merge) {
+        const existing = await readFile(f.dest, 'utf8');
+        if (!existing.includes('{{PROJECT_NAME}}')) continue;
+      }
+      conflicts.push(f.dest);
     }
   }
 
@@ -719,7 +745,15 @@ async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, global
   for (const { files } of groups) {
     for (const f of files) {
       const already = await exists(f.dest);
+      // Brownfield CLAUDE.md on the coreless path: writePlannedFile
+      // leaves it untouched (see its own comment) rather than overwriting
+      // it, so this write must not be logged or counted as one.
+      const before = already && f.merge ? await readFile(f.dest, 'utf8') : null;
       await writePlannedFile(f);
+      if (before !== null && (await readFile(f.dest, 'utf8')) === before) {
+        console.log(`  ${dim('keep')}  ${relative(DEST_ROOT, f.dest)}`);
+        continue;
+      }
       if (already) overwritten++;
       else written++;
       const label = already ? yellow('overwrite') : green('create');
