@@ -17,6 +17,7 @@ import { AGENT_CAPABILITY } from '../src/hosts/capabilities.mjs';
 import { loadCore, lintCore } from '../src/db/core.mjs';
 import { loadRegistry } from '../src/registry/index.mjs';
 import { parseCoreManifest } from '../src/registry/manifest.mjs';
+import { fetchCore } from '../src/registry/fetch.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -190,6 +191,45 @@ for (const core of cores) {
             `published version is ${latest}. Widen the pin (e.g. ">=X.0.0 <Y.0.0" spanning ` +
             `the current major) so a future release of that core doesn't require a new ` +
             `hedgehog release just to reach it.`,
+        );
+      }
+    }
+  }
+}
+
+// ── 2d. Every core's fixture manifest is not just internally consistent
+//    but a true subset of what the published package it stands in for
+//    actually ships. The sibling-checkout comparison above (2b) only runs
+//    when that core's repo happens to be checked out next to this one —
+//    true for a maintainer mid-release, never for CI or a contributor. This
+//    is the check that runs everywhere: it fetches the real published
+//    package at its pinned version and fails if the fixture claims an
+//    agent or skill the package doesn't actually carry, so a payload move
+//    in a core repo breaks `npm run check` here rather than a user's
+//    install (#304). Network-dependent, same skip as 2c. ─────────────────
+{
+  const skipReason = process.env.HEDGEHOG_SKIP_REGISTRY_VERSION_CHECK;
+  if (!skipReason) {
+    for (const core of cores) {
+      if (!core.package || !core.version) continue;
+      const fixturePath = join(ROOT, `repro/fixtures/cores/${core.name}.manifest.yaml`);
+      const fixtureText = await readFile(fixturePath, 'utf8');
+      const fixture = parseCoreManifest(fixtureText, `${core.name}.manifest.yaml`);
+
+      let published;
+      try {
+        published = await fetchCore(core);
+      } catch {
+        continue; // offline or registry unreachable — not this check's failure to report
+      }
+      const publishedNames = new Set([...published.manifest.agents, ...published.manifest.skills]);
+      const fixtureNames = [...fixture.agents, ...fixture.skills];
+      const missing = fixtureNames.filter((name) => !publishedNames.has(name));
+      if (missing.length > 0) {
+        fail(
+          `repro/fixtures/cores/${core.name}.manifest.yaml: claims ${missing.join(', ')}, but ` +
+            `the published ${core.package}@${published.version} carries no such agent or skill. ` +
+            `Update the fixture to match what that package actually ships.`,
         );
       }
     }
