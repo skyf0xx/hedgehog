@@ -11,7 +11,6 @@
 //   engine: "^<major>.<minor>.<patch>" which CLI versions can install it
 //   workspace: workspace/              omitted by a core that scaffolds nothing
 //   template: CLAUDE.core.md           fills the CLAUDE.md shell's core section
-//   template_adopted: <path>           optional second section, for adoption
 //   agents: [<name>, ...]              agents/<name>.md in the package
 //   skills: [<name>, ...]              skills/<name>/ in the package
 //   vendor_skills: [<name>, ...]       vendor-skills/<name>/ in the package

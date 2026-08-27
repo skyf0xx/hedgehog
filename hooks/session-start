@@ -179,8 +179,9 @@ graph, and phase gates, in place of ad-hoc scaffolding.
 What the discipline consists of differs by core, and a core is not just
 scaffolding — `landing-page` sequences copy and conversion, `full-stack-app`
 and `pwa-app` sequence modules split by where the data lives,
-`deepseek-harness` fits a DSH plugin/tool/hook build, and `authored`
-(brownfield adoption) brings the discipline to an existing codebase without
+`deepseek-harness` fits a DSH plugin/tool/hook build, `authored` designs a
+layer sequence from scratch for something no shipped core fits, and
+`adopted` brings the discipline to an existing codebase without
 bootstrapping a workspace. The `hedgehog` skill carries the full per-core
 selection criteria; judge a request against the core that actually fits it,
 not against a single core's shape.

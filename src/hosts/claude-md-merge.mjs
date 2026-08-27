@@ -13,7 +13,7 @@
 // instead of substituting into one.
 //
 // Referenced by name (not substance) from hedgehog-adopt's own SKILL.md
-// in the @skyf0xx/hedgehog-core-authored package — that skill invokes
+// in the @skyf0xx/hedgehog-core-adopted package — that skill invokes
 // `appendCoreSection` the same way it already invokes `loadCore` from
 // src/db/core.mjs, via `node -e "import('<path-to-hedgehog-install>/
 // src/hosts/claude-md-merge.mjs')..."`.

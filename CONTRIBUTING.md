@@ -64,10 +64,10 @@ mechanically enforced (Nx boundaries, phase gates, lefthook) rather than
 a convention the AI is asked to follow. Proposing a stack swap for an
 existing core means proposing an equivalent enforcement mechanism in the
 new tooling, not just a preference, and lands as a PR against that core's
-own repo rather than this one. `authored` has no locked stack table for
-its from-scratch-design path — `hedgehog-core-design` picks the stack per
-project instead. The brownfield adoption path (`hedgehog-adopt`) works with
-existing stacks as-is.
+own repo rather than this one. `authored` has no locked stack table —
+`hedgehog-core-design` picks the stack per project instead. `adopted` has
+none either — `hedgehog-adopt` works with whatever stack the existing
+repo already has, as-is.
 
 When a core's own workspace template needs a new piece of repeatable
 boilerplate — a new module shape, a new generated file type — prefer

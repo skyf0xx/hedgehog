@@ -31,7 +31,8 @@ You run on two paths, and Workflow step 2 decides which:
   scope into additional intents without re-running the BMAD shelf.
   Landing-page has no module axis, so this path doesn't apply to it — see
   the landing-page constraint below for where its new scope actually
-  goes.
+  goes. New change-work on an **adopted** core is a separate case again —
+  see "An existing repo, ongoing adoption" below.
 
 Either path is entered when the user says "plan", "scope", "break down",
 asks for something that's new scope rather than a tweak (routed here by
@@ -200,14 +201,14 @@ none of them is a description matching a `when` paragraph:
   repo", "add Hedgehog to my existing project", "I want scope/verify
   enforcement on my changes here"). This is a distinct question from
   everything above: it's not about which core fits new work, because no
-  new workspace gets built at all. Route straight to `hedgehog-adopt` —
-  bootstrap and every other Phase 0 outcome are skipped entirely, since
-  there is no workspace to scaffold and no shipped stack to adopt toward.
-  `hedgehog-adopt` runs its own read-only intake and writes its own
-  `.hedgehog/core.yaml`; don't run `hedgehog-planning-intake`'s BMAD shelf
-  first — the drivers that skill elicits (persistence, stack, deployment
-  target) are already settled facts of the existing repo, not open
-  decisions.
+  new workspace gets built at all. This project gets the **adopted
+  core**. Route straight to `hedgehog-adopt` — bootstrap and every other
+  Phase 0 outcome are skipped entirely, since there is no workspace to
+  scaffold and no shipped stack to adopt toward. `hedgehog-adopt` runs
+  its own read-only intake and writes its own `.hedgehog/core.yaml`;
+  don't run `hedgehog-planning-intake`'s BMAD shelf first — the drivers
+  that skill elicits (persistence, stack, deployment target) are already
+  settled facts of the existing repo, not open decisions.
 
 State the decision plainly before Phase 1 begins, with the one-line
 reason it landed there — this is cheap to correct now and expensive once
@@ -375,7 +376,7 @@ as full-stack-app's Auth/Queue/Mobile trio.
   the build graph.
 - **landing-page**: owns `.hedgehog/BMAD/` and
   `.hedgehog/chain/00-brief.md` as artifacts.
-- **brownfield adoption**: owns nothing here — `hedgehog-adopt` owns
+- **adopted**: owns nothing here — `hedgehog-adopt` owns
   `.hedgehog/core.yaml` and `.hedgehog/adoption.md`, the same way an
   authored core's design is `hedgehog-core-design`'s.
 

@@ -3,7 +3,6 @@ flag: null
 language: typescript
 engine: "^6.0.0"
 template: CLAUDE.core.md
-template_adopted: CLAUDE.core.adopted.md
 agents: [layer-eng]
 skills: [hedgehog-core-design, hedgehog-bootstrap-authored-core,
-         hedgehog-authored-loop, hedgehog-adopt, hedgehog-adopt-elicit]
+         hedgehog-authored-loop]

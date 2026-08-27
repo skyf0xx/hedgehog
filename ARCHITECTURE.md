@@ -35,6 +35,7 @@ A core that ships a pre-built `workspace/` (`full-stack-app`, `pwa-app`, `landin
 - `landing-page` has no coupled version matrix (Astro, Tailwind, and the rest resolve independently), so its update workflow is an ordinary grouped dependency bump gated on `astro check`, `eslint`, and `astro build`.
 - `deepseek-harness` has no coupled version matrix, so its update workflow is an ordinary grouped dependency bump gated on scaffolding a throwaway plugin through `generate:tool` and running `verify-scaffold.mjs` against it.
 - `authored` ships no pre-built workspace — its stack is chosen per-project at design time, not pinned in the package — so it has no workspace dependencies to keep current.
+- `adopted` ships no pre-built workspace either — it wraps whatever stack the adopted repo already had — so it too has no workspace dependencies to keep current.
 
 A new core that ships a pre-built workspace should add the equivalent: a scheduled workflow that updates that workspace's dependencies as a single reviewable PR, gated on real targets run against the real workspace, never merging or publishing itself.
 
@@ -145,7 +146,16 @@ Package and source: [`skyf0xx/hedgehog-core-authored`](https://github.com/skyf0x
 the stack and derives the layer sequence per project, then generates and
 verifies the workspace live.
 
+## `adopted` core
+
+Package and source: [`skyf0xx/hedgehog-core-adopted`](https://github.com/skyf0xx/hedgehog-core-adopted).
+
 **Brownfield adoption** (`hedgehog-adopt`):
 brings Hedgehog's discipline to a repo that already exists without
 bootstrapping a workspace, installing agents/skills and the build graph
-alongside the existing code structure.
+alongside the existing code structure. Carries its own copy of
+`hedgehog-authored-loop` and `layer-eng`, tuned for adoption's per-change
+Stop Condition and linear-chain-only shape — a separate package from
+`authored` rather than a second mode of it, since the two diverge in
+intake, lock artifact, and Stop Condition semantics and share only that
+build loop.

@@ -9,7 +9,7 @@ independently.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for how the engine resolves and
 installs a core, and its per-core tables for what `full-stack-app`,
-`pwa-app`, `landing-page`, and `authored` each chose and why.
+`pwa-app`, `landing-page`, `authored`, and `adopted` each chose and why.
 
 This doc is the package contract a new core must satisfy, plus the edits
 in this repo that make it installable.
@@ -43,10 +43,8 @@ At the package root:
   - `language`, `template` — required. `template` names the file that
     fills the installed `CLAUDE.md` shell's core section
     (`CLAUDE.core.md`).
-  - `template_adopted` — optional second section, for adopting Hedgehog
-    into an existing repo instead of scaffolding fresh.
   - `workspace` — path to the scaffold (e.g. `workspace/`). Omitted by a
-    core that scaffolds nothing (`authored`).
+    core that scaffolds nothing (`authored`, `adopted`).
   - `agents`, `skills`, `vendor_skills` — lists naming `agents/<name>.md`,
     `skills/<name>/`, and `vendor-skills/<name>/` inside the package.
   - `engine` — a caret range over a three-part version (e.g. `"^5.0.0"`)
@@ -161,7 +159,6 @@ satisfies the package contract above.
 - [ ] `name` matches the core's entry in `src/registry/cores.json`.
 - [ ] `language` and `template` are present; `template` names a file that
       actually exists in the package and fills `CLAUDE.core.md`.
-- [ ] `template_adopted`, if present, is a real file.
 - [ ] `workspace` points at a real path, or is omitted (workspace-less
       cores only).
 - [ ] Every name listed under `agents`, `skills`, `vendor_skills`

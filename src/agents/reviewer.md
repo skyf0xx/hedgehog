@@ -30,7 +30,8 @@ Everything the commit gate already enforces — the layer's own `verify`
 command, and whatever typecheck/lint/test it runs — is out of scope;
 don't re-report a green gate. Read the core's own design first: its loop
 skill for a shipped core, `.hedgehog/core.yaml` and
-`.hedgehog/core-design.md` for an authored one. That is where the layer
+`.hedgehog/core-design.md` for an authored one, `.hedgehog/core.yaml` and
+`.hedgehog/adoption.md` for an adopted one. That is where the layer
 boundaries, the interface between them, and this core's own conventions
 are stated. Your checklist is derived from it, not from a stack you
 recognize.
@@ -96,7 +97,7 @@ Check what the gate structurally cannot:
 - Don't nitpick style. Focus on structural correctness relative to the
   stack and build order the core's own design fixed — its loop and
   bootstrap skills on a shipped core, `.hedgehog/core-design.md` on an
-  authored one.
+  authored one, `.hedgehog/adoption.md` on an adopted one.
 - 3 real findings beats 20 suggestions. This review sits at a phase or
   layer boundary, not mid-Loop — don't slow the Loop down for anything
   that isn't load-bearing for the work that comes next.

@@ -44,7 +44,7 @@ Run the matching command:
   not yet clear from the conversation: `npx @skyf0xx/hedgehog init` with
   no core flag. `planner`'s Phase 0 decides from there — including routing
   a repo that already has real source files to `hedgehog-adopt` (shipped
-  in `@skyf0xx/hedgehog-core-authored`, a separate package), which brings
+  in `@skyf0xx/hedgehog-core-adopted`, a separate package), which brings
   Hedgehog's discipline to the existing codebase without bootstrapping a
   workspace. Prefer this coreless install over guessing between the
   shipped cores.

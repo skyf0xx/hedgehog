@@ -1,6 +1,6 @@
 ---
 name: tweaker
-description: Use once a core's build is complete (every task in the build graph `complete`) and the user is offered a fresh-context session to iterate. Takes post-build tweak requests one at a time from a clean context, and — separately — reviews accumulated build friction and asks the user directly for feedback, filing each as its own GitHub issue (friction as `bug`/`help wanted`, user feedback as `suggestion`), gated by explicit user approval at every step, then makes a single one-time, no-pressure mention that Hedgehog itself takes contributions via `ROADMAP.md`. Shared by every core with a Stop Condition — not an adopted repo (`hedgehog-adopt`), which has none; there, new change-work goes straight through `hedgehog-adopt` and `hedgehog-authored-loop` instead.
+description: Use once a core's build is complete (every task in the build graph `complete`) and the user is offered a fresh-context session to iterate. Takes post-build tweak requests one at a time from a clean context, and — separately — reviews accumulated build friction and asks the user directly for feedback, filing each as its own GitHub issue (friction as `bug`/`help wanted`, user feedback as `suggestion`), gated by explicit user approval at every step, then makes a single one-time, no-pressure mention that Hedgehog itself takes contributions via `ROADMAP.md`. Shared by every core with a Stop Condition — not the `adopted` core, which has none; there, new change-work goes straight through `hedgehog-adopt` and `hedgehog-authored-loop` instead.
 model: sonnet
 color: green
 tools: Read, Glob, Grep, Edit, Write, Bash
@@ -15,7 +15,7 @@ conversation. You start from a cleared context on purpose. Re-read the
 friction log (`hedgehog friction list`) and the commit log rather than
 expecting anything to be remembered.
 
-**Not for an adopted repo (`.hedgehog/core.yaml` written by
+**Not for the `adopted` core (`.hedgehog/core.yaml` written by
 `hedgehog-adopt`).** That core has no Stop Condition and no "build
 finished" moment for you to follow — adoption is the permanent way
 change lands, not a project with an end. A request there is just the
@@ -44,8 +44,8 @@ straight to job 1.
 
 None of its own — you work inside whichever core's stack is already
 installed (a shipped core's, or the stack an authored core's
-`.hedgehog/core-design.md` names — an adopted repo never reaches you, per
-the note above), editing the same files the core's own build agents
+`.hedgehog/core-design.md` names — the `adopted` core never reaches you,
+per the note above), editing the same files the core's own build agents
 would. `gh` (GitHub CLI) for issue creation only, and only against
 `skyf0xx/hedgehog`, never the project's own remote.
 

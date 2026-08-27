@@ -39,10 +39,18 @@
     {
       "name": "authored",
       "package": "@skyf0xx/hedgehog-core-authored",
-      "version": "^1.0.2",
+      "version": "^1.1.0",
       "language": "typescript",
       "repository": "https://github.com/skyf0xx/hedgehog-core-authored",
-      "selects_when": "Neither shipped core fits, but the description names a real artifact a Builder step would produce — just not in either shipped core's shape. This core is designed by the planner rather than chosen from a fixed set: hedgehog-planning-intake's Phase 0 elicits the drivers first, then hedgehog-core-design names the system shape, picks the stack, derives the layers, and writes .hedgehog/core.yaml. It carries the same enforcement as a shipped core — ordered layers, scoped file access, verification before completion — but the sequence is designed for this project rather than battle-tested across many."
+      "selects_when": "Neither shipped core fits, but the description names a real artifact a Builder step would produce — just not in either shipped core's shape. This core is designed by the planner rather than chosen from a fixed set: hedgehog-planning-intake's Phase 0 elicits the drivers first, then hedgehog-core-design names the system shape, picks the stack, derives the layers, and writes .hedgehog/core.yaml. It carries the same enforcement as a shipped core — ordered layers, scoped file access, verification before completion — but the sequence is designed for this project rather than battle-tested across many. This is the core most often confused with adopted: authored designs a workspace from scratch for a project being built new, while adopted brings Hedgehog's discipline to a repo that already exists — route here only when there is no existing codebase this work is being added to."
+    },
+    {
+      "name": "adopted",
+      "package": "@skyf0xx/hedgehog-core-adopted",
+      "version": "^1.0.0",
+      "language": "typescript",
+      "repository": "https://github.com/skyf0xx/hedgehog-core-adopted",
+      "selects_when": "The description is about bringing Hedgehog's discipline to a codebase that already exists, rather than building something new — the repo already has real source files, or the user says so explicitly: \"adopt this repo\", \"add Hedgehog to my existing project\", \"I want scope/verify enforcement on my changes here\". Not chosen by matching a `when` paragraph the way a shipped core is: hedgehog-adopt reads the repo read-only, proposes a linear-chain .hedgehog/core.yaml whose verify commands are the repo's own, and writes only .hedgehog/ — never a workspace, never a stack migration. This is the core most often confused with authored: adopted brings discipline to an existing repo, while authored designs and scaffolds a workspace from scratch for something being built new — route here only when the work is landing on a codebase that already exists."
     }
   ]
 }

@@ -281,19 +281,6 @@ function corePayload(core, h, { hostOnly = false } = {}) {
     // than generating it live. A core that scaffolds nothing (its
     // workspace is designed during planning) declares no `workspace`.
     ...(manifest.workspace ? [{ type: 'dir', root, from: manifest.workspace, to: '.' }] : []),
-    // A second CLAUDE.md section for cores whose path fills
-    // {{CORE_SECTION}} after install rather than at it — adoption reads
-    // it from the project instead of the package it ships in.
-    ...(manifest.template_adopted
-      ? [
-          {
-            type: 'file',
-            root,
-            from: manifest.template_adopted,
-            to: `.hedgehog/${manifest.template_adopted}`,
-          },
-        ]
-      : []),
   ];
 }
 
@@ -526,7 +513,7 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog init --pwa-app            scaffold the pwa-app core now
   npx @skyf0xx/hedgehog init --landing-page       scaffold the landing-page core now
   npx @skyf0xx/hedgehog cores list                every core this release can install
-  npx @skyf0xx/hedgehog core record-adopted       land the authored core's agents/skills and record
+  npx @skyf0xx/hedgehog core record-adopted       land the adopted core's agents/skills and record
                                                    this project as adopted (hedgehog-adopt calls this
                                                    after writing .hedgehog/core.yaml; not for other cores)
   npx @skyf0xx/hedgehog init --cursor             install for Cursor (default: Claude Code)
@@ -1046,10 +1033,10 @@ async function resolveInstalledCore() {
 }
 
 // `hedgehog core record-adopted` — the record path for `hedgehog-adopt`
-// (shipped in @skyf0xx/hedgehog-core-authored), which brings the
+// (shipped in @skyf0xx/hedgehog-core-adopted), which brings the
 // discipline to an existing repo by writing `.hedgehog/core.yaml` and
 // `.hedgehog/adoption.md` directly. That path has no `init` step and so
-// never fetches the `authored` package or calls `recordCore` — a no-flag
+// never fetches the `adopted` package or calls `recordCore` — a no-flag
 // `init` (what the offer skill actually runs before adoption) installs
 // only the shared engine payload, never a core's own agents/skills, and
 // `bootstrap` (the only other place a core package gets fetched) is
@@ -1061,24 +1048,27 @@ async function resolveInstalledCore() {
 // `core.yaml` (the shipped-core workspace marker) and finds nothing for
 // an adopted repo's `.hedgehog/core.yaml`, so it would read as "no core
 // yet" and update would silently rewrite `.claude/agents`/`.claude/skills`
-// down to just the shared payload, deleting the authored package's files
+// down to just the shared payload, deleting the adopted package's files
 // with nothing put back.
 //
-// This command is both fixes at once: it fetches the `authored` package
+// This command is both fixes at once: it fetches the `adopted` package
 // and lands its agents/skills for every host this project already has
-// installed (never its workspace, template, or vendor_skills — adoption
-// already wrote its own CLAUDE.md section and root workspace is the one
-// thing adoption must never touch), then records the core with
-// `adopted: true` so `update` refreshes it correctly from here on.
-// Idempotent and safe to re-run — e.g. from a later `hedgehog-adopt` pass
-// adding new change-work — since it always overwrites from the current
-// package rather than merging.
+// installed (never its workspace or vendor_skills — root workspace is
+// the one thing adoption must never touch), plus a local copy of its
+// `CLAUDE.core.md` at `.hedgehog/CLAUDE.core.md` — `hedgehog-adopt`'s own
+// Confirm & Lock step reads that file from there to merge into root
+// `CLAUDE.md`, since a no-flag `init` never ran the normal
+// `{{CORE_SECTION}}` merge this project's core would otherwise get — then
+// records the core the same as any other, naming `adopted`, so `update`
+// refreshes it correctly from here on. Idempotent and safe to re-run —
+// e.g. from a later `hedgehog-adopt` pass adding new change-work — since
+// it always overwrites from the current package rather than merging.
 async function recordAdoptedCommand() {
   const entry = await resolveCore(ADOPTED_CORE_NAME);
   if (!entry) {
     console.error(
-      `${red('authored core not in this release.')} This Hedgehog release's registry has no\n` +
-        `entry named "authored" — nothing to install. Update Hedgehog and retry.\n`,
+      `${red('adopted core not in this release.')} This Hedgehog release's registry has no\n` +
+        `entry named "adopted" — nothing to install. Update Hedgehog and retry.\n`,
     );
     process.exitCode = 1;
     return;
@@ -1106,7 +1096,19 @@ async function recordAdoptedCommand() {
     }
   }
 
-  await recordCore(DEST_ROOT, { name: core.manifest.name, version: core.version, adopted: true });
+  const templateFile = (
+    await plannedFiles({
+      type: 'file',
+      root: core.root,
+      from: core.manifest.template,
+      to: '.hedgehog/CLAUDE.core.md',
+    })
+  )[0];
+  await writePlannedFile(templateFile);
+  written++;
+  console.log(`  ${green('install')}  ${relative(DEST_ROOT, templateFile.dest)}`);
+
+  await recordCore(DEST_ROOT, { name: core.manifest.name, version: core.version });
 
   console.log(
     `\n${green(bold('Adopted core recorded.'))} ${dim(

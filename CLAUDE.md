@@ -8,11 +8,11 @@ discipline's stance and rationale.
 
 This repo is the engine: the CLI, the build graph, the host adapters, the
 core registry, and the agents and skills every core shares. Each core —
-`full-stack-app`, `pwa-app`, `landing-page`, `deepseek-harness`, and
-`authored` (brownfield adoption) — ships as its own npm package holding
-that core's workspace, agents, skills, and CLAUDE.md section.
-`src/registry/cores.json` names them; `init` fetches the one a project asks
-for.
+`full-stack-app`, `pwa-app`, `landing-page`, `deepseek-harness`,
+`authored` (a from-scratch design), and `adopted` (brownfield adoption) —
+ships as its own npm package holding that core's workspace, agents,
+skills, and CLAUDE.md section. `src/registry/cores.json` names them;
+`init` fetches the one a project asks for.
 
 ## Layout
 
@@ -51,9 +51,10 @@ for.
     own PRs.
 - `src/registry/` — the core table and the fetcher that acts on it.
   `cores.json` names every core, the npm package that ships it, its
-  version range, its install flag (absent on `authored`, which is chosen
-  during planning rather than at install time), and the prose `planner`
-  reads in Phase 0 to pick one; `index.mjs` loads and resolves it by name
+  version range, its install flag (absent on `authored` and `adopted`,
+  which are chosen during planning rather than at install time), and the
+  prose `planner` reads in Phase 0 to pick one; `index.mjs` loads and
+  resolves it by name
   or flag. `manifest.mjs` owns the shape of the `hedgehog-core.yaml` every
   core package carries at its root — which agents, skills, vendored
   shelves, workspace, and CLAUDE.md section that core contributes.
@@ -95,7 +96,7 @@ for.
   This is the live source of truth every loop skill and its agents query
   and mutate for what's next and what's done.
 - `bin/cli.mjs` — the `hedgehog` CLI installed by `npx @skyf0xx/hedgehog`:
-  `init` (installer), `core record-adopted` (lands the `authored` core's
+  `init` (installer), `core record-adopted` (lands the `adopted` core's
   agents/skills and records them for `hedgehog-adopt`, which has no `init`
   step of its own to call from), and the subcommands (`status`, `next`,
   `verify`, `claim`, `intent add`, `plan`, `friction add`/`list`, …) that
