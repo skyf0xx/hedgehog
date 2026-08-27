@@ -202,9 +202,11 @@ none of them is a description matching a `when` paragraph:
   enforcement on my changes here"). This is a distinct question from
   everything above: it's not about which core fits new work, because no
   new workspace gets built at all. This project gets the **adopted
-  core**. Route straight to `hedgehog-adopt` — bootstrap and every other
-  Phase 0 outcome are skipped entirely, since there is no workspace to
-  scaffold and no shipped stack to adopt toward. `hedgehog-adopt` runs
+  core**. Run `hedgehog core record-adopted` first — a no-flag `init`
+  never fetched the `adopted` package, so `hedgehog-adopt` is not yet on
+  disk to route to — then route to `hedgehog-adopt`. Bootstrap and every
+  other Phase 0 outcome are skipped entirely, since there is no workspace
+  to scaffold and no shipped stack to adopt toward. `hedgehog-adopt` runs
   its own read-only intake and writes its own `.hedgehog/core.yaml`;
   don't run `hedgehog-planning-intake`'s BMAD shelf first — the drivers
   that skill elicits (persistence, stack, deployment target) are already
@@ -389,18 +391,23 @@ as full-stack-app's Auth/Queue/Mobile trio.
      run.** Continue at step 3.
    - **No intents in the graph, and the request is adoption onto an
      existing repo → brownfield first run.** Skip Phase 0's core
-     selection and every step below through step 9 — go straight to
-     `hedgehog-adopt`. It runs its own intake and Confirm & Lock, writes
-     `.hedgehog/core.yaml` and `.hedgehog/adoption.md`, and adds the
-     first intent(s) itself. Return the summary (step 10) once it's done.
+     selection and every step below through step 9. Run `hedgehog core
+     record-adopted` first — a no-flag `init` never fetched the
+     `adopted` package, so `hedgehog-adopt` is not yet on disk — then go
+     straight to `hedgehog-adopt`. It runs its own intake and Confirm &
+     Lock, writes `.hedgehog/core.yaml` and `.hedgehog/adoption.md`, and
+     adds the first intent(s) itself. Return the summary (step 10) once
+     it's done.
    - **One or more intents, on `.hedgehog/core.yaml` written by
      `hedgehog-adopt` → adoption re-entry.** New change-work on a repo
-     already under adoption. Skip steps 3 through 9 — route straight to
-     `hedgehog-adopt` again instead, same as brownfield first run above.
-     It owns everything the other path's steps 5, 7, 8, and 9 would
-     otherwise do: it sizes the request (a large or ambiguous one gets its
-     own short clarifying pass, a clear small one doesn't), adds the
-     intent(s), runs `hedgehog plan`, and commits its own work as `chore
+     already under adoption. Skip steps 3 through 9. Run `hedgehog core
+     record-adopted` first — safe and idempotent to re-run, and the only
+     guarantee that `hedgehog-adopt` is on disk in this session — then
+     route straight to `hedgehog-adopt` again, same as brownfield first
+     run above. It owns everything the other path's steps 5, 7, 8, and 9
+     would otherwise do: it sizes the request (a large or ambiguous one
+     gets its own short clarifying pass, a clear small one doesn't), adds
+     the intent(s), runs `hedgehog plan`, and commits its own work as `chore
      (planning): adopt change`. Don't run `hedgehog-planning-intake`'s
      Re-entry pass here — there is no BMAD archive to read as context on
      this path, since adoption never runs one. Return the summary (step
