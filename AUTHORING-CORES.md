@@ -71,6 +71,32 @@ At the package root:
   [`src/db/requires.mjs`](src/db/requires.mjs)'s header comment for the
   resolution semantics.
 
+## The loop skill's dispatch step needs a fallback pointer
+
+A core's own loop skill (`hedgehog-loop`, `hedgehog-dsh-loop`,
+`hedgehog-landing-loop`, `hedgehog-authored-loop`, or the equivalent in a
+new core) has exactly one step that dispatches a claimed packet to a
+named subagent (`backend-eng`, `pwa-eng`, `harness-eng`, `landing-builder`,
+`layer-eng`, or whatever this core's own build agent is called). That
+subagent is installed by this same `init`/`update` call, in the same
+session — and Claude Code (per `src/hosts/claude/DISPATCH.md`) registers
+agents once, at session start, so a name-based dispatch immediately after
+install reports the agent as not found even though its file exists on
+disk. This is the default first-build experience, not an edge case: `init`
+→ `planner` → `bootstrap` → the loop all naturally happen in one
+continuous session.
+
+Root CLAUDE.md already carries the explanation and the workaround (read
+the agent's file directly rather than waiting for a session restart) via
+`{{HOST_DISPATCH}}`. A core's loop skill doesn't need to restate that
+explanation — it needs one sentence at its own dispatch step pointing
+back to it, so an agent deep in loop execution doesn't have to
+rediscover the fallback on its own or treat the failure as fatal. Model
+the wording on the existing cores' loop skills: *"If a dispatch by name
+reports the agent as not found — expected right after `init`/`update`
+installed it this same session — see root CLAUDE.md's 'Delegating on
+this host' note rather than treating it as fatal."*
+
 ## Registering the core
 
 Adding the package to the CLI's `init` menu is one entry in
@@ -117,10 +143,12 @@ way it is.
 2. If it ships a workspace, build its generators before hand-authoring
    any repeatable scaffolding, and add the dependency-update workflow
    described above.
-3. Add the entry to `src/registry/cores.json`, including `selects_when`.
-4. Sweep the places that enumerate cores by hand rather than reading the
+3. In the loop skill's per-packet dispatch step, add the fallback pointer
+   to root CLAUDE.md's "Delegating on this host" note described above.
+4. Add the entry to `src/registry/cores.json`, including `selects_when`.
+5. Sweep the places that enumerate cores by hand rather than reading the
    registry — `CLAUDE.md` names the full list to update in the same PR.
-5. Run `npm run check` — it asserts a manifest's `selects_when` isn't
+6. Run `npm run check` — it asserts a manifest's `selects_when` isn't
    silently duplicating the registry's, among other structural checks.
 
 ## Auditing an existing core
@@ -158,6 +186,13 @@ satisfies the package contract above.
       `docker-compose`).
 - [ ] No `requires:` entries for ordinary JS/TS toolchain binaries
       (vitest, tsc, eslint, nx, …) — those don't belong there.
+
+### Loop skill
+
+- [ ] The per-packet dispatch step points back to root CLAUDE.md's
+      "Delegating on this host" note for the not-found-on-first-session
+      case, per "The loop skill's dispatch step needs a fallback pointer"
+      above.
 
 ### `src/registry/cores.json` entry
 
