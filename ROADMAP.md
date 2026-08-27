@@ -191,6 +191,23 @@ it's a single file.
 
 Anything in a skill that can be trimmed (removing excess verbosity while maintaining essentials)
 
+### Brownfield adoption hardening
+
+Bringing Hedgehog to a repo that already exists is two paths: onboarding
+(`init` on a repo with its own `CLAUDE.md` and source, routing to
+`hedgehog-adopt` without losing either) and extension (a second or third
+adoption pass on an already-adopted repo, adding change-work without
+re-running planning intake's BMAD shelf or re-scaffolding). Both are
+live and exercised — `src/hosts/claude-md-merge.mjs` and `src/agents/
+planner.md`'s adoption-re-entry branch (Workflow step 2) cover onboarding,
+`@skyf0xx/hedgehog-core-adopted`'s `hedgehog-adopt` skill covers
+extension, keeping `.hedgehog/core.yaml` and `adoption.md` locked and
+byte-identical across re-entries. This entry exists so the area keeps an
+owner: further gaps found while actually adopting a real repo (a repo
+shape Step 1 misreads, a verify-command heuristic that's too narrow, a
+rough edge in the re-entry elicitation pass) belong here rather than as
+one-off closed bugs with no place to land the next one.
+
 ## Contributing to this list
 
 Adding an item here is itself a contribution. Keep new entries scoped the
