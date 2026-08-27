@@ -24,12 +24,24 @@ export const dbAbsPath = (root = process.cwd()) => resolve(root, DB_PATH);
 // a call site that forgot them. journal_mode is skipped for read-only
 // handles — it requires write access and a readOnly connection has no
 // business changing the file's journal mode anyway.
+//
+// applySchema also runs here, not only from `dbInit`: a graph created by
+// an older CLI version is missing whatever tables/columns shipped since,
+// and every command besides `init`/`update` opens the graph straight
+// from here rather than going through dbInit first. Without this, those
+// commands only see the fix after someone thinks to rerun `init` on an
+// already-initialized project — which nothing prompts them to do — and
+// until then every query naming a newer column fails with "no such
+// column". Skipped for read-only handles for the same reason
+// journal_mode is: it requires write access, and a readOnly caller is
+// only ever reached after a writable open earlier in the same command.
 export function openDb({ readOnly = false } = {}) {
   const db = new DatabaseSync(dbAbsPath(), { readOnly });
   db.exec('PRAGMA foreign_keys = ON');
   db.exec('PRAGMA busy_timeout = 10000');
   if (!readOnly) db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA synchronous = NORMAL');
+  if (!readOnly) applySchema(db);
   return db;
 }
 

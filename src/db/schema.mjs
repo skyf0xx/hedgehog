@@ -121,7 +121,25 @@ CREATE TABLE IF NOT EXISTS friction (
 // IF NOT EXISTS` above is a no-op against a DB created by an earlier
 // version, so a new column has to be ALTERed in explicitly or every
 // statement naming it fails on that DB. Each entry is `[name, ddl]`.
-const TASK_COLUMN_MIGRATIONS = [['claim_snapshot', 'claim_snapshot TEXT']];
+//
+// The lease columns (lease_owner, lease_expires_at, leased_at) and their
+// siblings (exclusive, verify_radius, blocked_reason) shipped together in
+// the same commit that introduced them to SCHEMA_SQL above, but were
+// never added here — so a graph created before that commit still lacks
+// them today, with every query naming lease_owner failing "no such
+// column" instead of self-healing the way claim_snapshot already does.
+const TASK_COLUMN_MIGRATIONS = [
+  ['exclusive', 'exclusive INTEGER NOT NULL DEFAULT 0'],
+  ['verify_radius', 'verify_radius TEXT'],
+  [
+    'blocked_reason',
+    "blocked_reason TEXT CHECK (blocked_reason IS NULL OR blocked_reason IN ('scope_violation','verification_failed','lease_expired'))",
+  ],
+  ['lease_owner', 'lease_owner TEXT'],
+  ['lease_expires_at', 'lease_expires_at TEXT'],
+  ['leased_at', 'leased_at TEXT'],
+  ['claim_snapshot', 'claim_snapshot TEXT'],
+];
 
 // Brings an already-created `tasks` table up to the current column set.
 // Idempotent and cheap (one PRAGMA), so callers that must not fail on a
