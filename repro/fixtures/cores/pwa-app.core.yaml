@@ -23,9 +23,10 @@
 # layers land, the backstop that catches cross-module breakage (or a
 # Dexie version collision) that the parallel per-module layers can't see.
 id: pwa-app
+pattern: vertical-slice
 layers:
   - id: schema
-    scope: ["src/features/{module}/data/{module}.schema.ts", "src/db/tables/{module}.table.ts", "src/db/schema.ts"]
+    scope: ["src/features/{module}/data/{module}.schema.ts", "src/features/{module}/data/{module}.schema.spec.ts", "src/db/tables/{module}.table.ts", "src/db/schema.ts"]
     verify: "pnpm vitest run src/features/{module}/data/{module}.schema"
     commit: "feat({module}): schema"
   - id: repository
@@ -40,7 +41,7 @@ layers:
     commit: "feat({module}): hooks"
   - id: screen
     depends_on: hook
-    scope: ["src/features/{module}/components/**", "src/features/{module}/index.ts", "src/app/{module}/**"]
+    scope: ["src/features/{module}/components/**", "src/features/{module}/index.ts", "src/app/{module}/**", "src/app/page.tsx"]
     verify: "pnpm vitest run src/features/{module}/components/"
     commit: "feat({module}): screen"
   # Workspace-wide by design: the only gate that can see cross-module

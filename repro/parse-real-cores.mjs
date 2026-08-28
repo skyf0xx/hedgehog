@@ -52,6 +52,12 @@ for (const file of files) {
       console.log('  !! loadCore and parseCoreYaml disagree');
       failed++;
     }
+    // Every shipped core declares a pattern (skyf0xx/hedgehog#315) — a
+    // future core landing without one should fail here, not silently.
+    if (!core.pattern) {
+      console.log('  !! no pattern declared — every shipped core must state its architecture');
+      failed++;
+    }
     console.log(JSON.stringify(core, null, 2));
   } catch (error) {
     console.log(`  !! FAILED TO LOAD: ${error.message}`);

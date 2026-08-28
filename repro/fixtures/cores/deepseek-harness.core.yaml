@@ -1,0 +1,44 @@
+# Shipped core definition for deepseek-harness. Module axis: one intent
+# per plugin ({module} = plugin name) — the common v0.1 case of one
+# plugin per project just never has a second intent; nothing forces or
+# blocks multi-plugin.
+id: deepseek-harness
+pattern: vertical-slice
+pluralizes: false
+layers:
+  - id: scaffold
+    scope: ["plugins/{module}/**", ".hedgehog/dsh-smoke/{module}.md"]
+    verify: "node tools/generators/verify-scaffold.mjs {module}"
+    commit: "feat({module}): scaffold"
+
+  - id: logic
+    depends_on: scaffold
+    scope: ["plugins/{module}/src/**"]
+    verify: "pnpm --filter {module} exec tsc --noEmit"
+    commit: "feat({module}): logic"
+
+  - id: wiring
+    depends_on: logic
+    scope: ["plugins/{module}/cordis.patch.yml", "plugins/{module}/package.json"]
+    verify: "NODE_OPTIONS=--experimental-strip-types pnpm dsh --profile headless --patch plugins/{module}/cordis.yml --dump-config"
+    commit: "feat({module}): wiring"
+
+  - id: smoke
+    depends_on: wiring
+    scope: [".hedgehog/dsh-smoke/{module}.md"]
+    verify: "NODE_OPTIONS=--experimental-strip-types pnpm dsh --profile headless --patch plugins/{module}/cordis.yml \"$(cat .hedgehog/dsh-smoke/{module}.md)\""
+    commit: "test({module}): smoke"
+
+  - id: bundle
+    depends_on: smoke
+    scope: ["plugins/{module}/package.json", "plugins/{module}/lib/**"]
+    verify: "pnpm --filter {module} build && pnpm --filter {module} pack --pack-destination \"$(mktemp -d)\""
+    commit: "feat({module}): bundle"
+
+  - id: join
+    depends_on: bundle
+    scope: ["**"]
+    verify: "pnpm -r exec tsc --noEmit"
+    exclusive: true
+    once: true
+    commit: "chore: join"

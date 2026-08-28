@@ -53,17 +53,18 @@ try {
   });
 }
 
-// ── every shipped core still loads and validates unchanged ─────────────
-for (const name of ['full-stack-app', 'landing-page', 'pwa-app']) {
+// ── every shipped core still loads and validates ────────────────────────
+// Each of these now declares its own pattern (skyf0xx/hedgehog#315), so
+// this no longer asserts pattern === null — it asserts what this block's
+// own name always meant: the shipped core loads and validates without
+// throwing, whatever it declares.
+for (const name of ['full-stack-app', 'landing-page', 'pwa-app', 'deepseek-harness']) {
   const path = join(REPO_ROOT, 'repro/fixtures/cores', `${name}.core.yaml`);
   try {
-    const core = await loadCore(path);
-    check(`${name}: loads and validates with pattern === null`, core.pattern === null, {
-      expected: 'null',
-      actual: String(core.pattern),
-    });
+    await loadCore(path);
+    check(`${name}: loads and validates`, true, {});
   } catch (err) {
-    check(`${name}: loads and validates with pattern === null`, false, {
+    check(`${name}: loads and validates`, false, {
       expected: 'loads cleanly',
       actual: err.message,
     });

@@ -1,19 +1,27 @@
 # Shipped core definition for landing-page. A linear chain, no module
 # axis — the degenerate case of the layer graph (spec: MVP scope item 5).
-# Each phase groups the rows of src/skills/hedgehog-landing-loop's Chain
-# Method table that share one agent context and one commit:
+# Each phase groups the rows of this package's skills/hedgehog-landing-loop
+# Chain Method table that share one agent context and one commit, run by
+# landing-builder (Stages 1-3, 6-7) and landing-copywriter (Stages 4-5,
+# delegated from landing-builder within the sequence layer):
 #   brief    — planning intake's mined subject statement (Phase 0)
-#   feeling  — Strategist/Brand Anthropologist/Psychologist/Perfumer (landing-strategist)
-#   tokens   — Ingredient Director/Copywriter/Systems Designer/Signature Element (landing-systems)
-#   sequence — Sequencer, Headline, per-section Copywriter (landing-sequencer, landing-headline-writer, landing-copywriter)
-#   artifact — Critic + Builder (landing-critic, landing-builder)
+#   feeling  — Strategy: subject statement, adjective pairs, emotional
+#              sort, note timing (landing-builder Stage 1)
+#   tokens   — Systems: dial table, voice spec, token system, signature
+#              element (landing-builder Stage 2)
+#   sequence — Sequence (landing-builder Stage 3), then headline and
+#              section copy with its AI-tell self-check
+#              (landing-copywriter Stages 4-5)
+#   artifact — Traceability self-check and build (landing-builder
+#              Stages 6-7)
 #
 # feeling, tokens, and sequence each write their own chain-record file
 # (same pattern "brief" already uses) as the artifact hedgehog verify
 # checks for — a test -s only proves the file was written, not that the
-# judgment inside it is sound; that judgment stays landing-critic's job
-# at the artifact layer, unchanged.
+# judgment inside it is sound; that judgment stays landing-builder's
+# Stage 6 traceability self-check, run at the artifact layer, unchanged.
 id: landing-page
+pattern: layered
 layers:
   - id: brief
     scope: [".hedgehog/chain/00-brief.md"]

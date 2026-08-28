@@ -1,6 +1,6 @@
 # Shipped core definition for full-stack-app. Layer order, scope, and
-# verify commands are the same shape src/skills/hedgehog-loop's Domain
-# Module step tables describe in prose — this file is their data form.
+# verify commands are the same shape this package's skills/hedgehog-loop
+# Domain Module step tables describe in prose — this file is their data form.
 # {module} is filled in by the compiler with the domain module name a
 # task is generated for.
 #
@@ -17,6 +17,7 @@
 # every test once after every module's layers land, in exchange for those
 # layers running in parallel.
 id: full-stack-app
+pattern: vertical-slice
 layers:
   - id: schema
     scope: ["packages/db/src/schema/{module}/**", "packages/db/src/schema/index.ts"]
