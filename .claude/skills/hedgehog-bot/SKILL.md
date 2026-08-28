@@ -43,7 +43,9 @@ directly.
 
 2. Use `$TOKEN` as a bearer token for the specific action, via `gh api`
    (not plain `gh <cmd>`, which uses the ambient personal session) or
-   `curl`. Examples:
+   `curl`. Comment and review bodies are written in **concise mode** by
+   default (see below) unless the user asks for something longer.
+   Examples:
 
    **Comment on a PR:**
    ```bash
@@ -69,6 +71,27 @@ directly.
 
 3. Confirm the action succeeded by checking the response, and tell the
    user it landed as `hedgehog-bot[bot]`.
+
+## Concise mode
+
+The default voice for anything posted as `hedgehog-bot`: one short,
+friendly sentence — the way a helpful bot would talk, not a report.
+State the one fact that matters and stop.
+
+- One sentence. No headers, no bullet list, no restating the issue back
+  to its author.
+- Friendly, plain tone — a colleague dropping a quick note, not a status
+  generator.
+- Say the outcome, not the process that produced it.
+
+Example — closing an issue because its work is done:
+> All the linked sub-issues are wrapped up, so I'm closing this one out — nice work!
+
+Example — commenting on a PR that looks ready:
+> This looks good to me — nice and clean, ready to merge whenever you are.
+
+Use a longer, structured comment only when the user explicitly asks for
+detail (e.g. "give the full review", "write it up properly").
 
 ## Boundaries
 
