@@ -49,6 +49,11 @@ skills, and CLAUDE.md section. `src/registry/cores.json` names them;
     passing, one change per PR) for a PR, commit message, or review
     comment in any repo. `hedgehog-contributing` uses it for Hedgehog's
     own PRs.
+  - `filing-issues` — the mechanics of getting planned work into GitHub
+    issues: which repo an issue belongs in, when to split a plan into a
+    tracking issue plus sub-issues, which account files it, labels, and
+    acceptance criteria. Defers to `pr-writing` for how an issue is
+    worded.
 - `src/registry/` — the core table and the fetcher that acts on it.
   `cores.json` names every core, the npm package that ships it, its
   version range, its install flag (absent on `authored` and `adopted`,
