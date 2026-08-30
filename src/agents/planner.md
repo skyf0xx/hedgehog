@@ -135,13 +135,13 @@ substitutes for `hedgehog-planning-intake`'s own elicitation once a
 core is chosen — that's a full BMAD-driven pass; this is three
 questions to pick which pass to run.
 
-Data that gets stored is not, by itself, `full-stack-app` — that used to
-be the rule, and it swallowed every candidate for `pwa-app` (a tracker,
+Data that gets stored is not, by itself, `full-stack-app` — a tracker,
 journal, notebook, or planner whose data belongs on the user's own
-device). The real question is where the data lives and who needs to
-enforce the rules around it. A description naming a local-first app —
-offline capability or installability named explicitly is a strong
-signal — is `pwa-app`, even with sharing, accounts, or multi-device sync
+device is `pwa-app` even though it stores data. The real question is
+where the data lives and who needs to enforce the rules around it. A
+description naming a local-first app — offline capability or
+installability named explicitly is a strong signal — is `pwa-app`, even
+with sharing, accounts, or multi-device sync
 in scope (Dexie Cloud covers that), and even with a small number of
 entities that must be server-authoritative (those go `--remote`, backed
 by Supabase, without moving the whole project off `pwa-app`). What
