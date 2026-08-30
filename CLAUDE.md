@@ -33,6 +33,14 @@ skills, and CLAUDE.md section. `src/registry/cores.json` names them;
     on `full-stack-app`. Invoked by `planner`; `landing-page` runs this
     skill's shelf too, then mines the same archive through
     `hedgehog-landing-loop`'s own planning-intake section instead.
+  - `hedgehog-daily` — the shared triage gate for a change request on a
+    project that already has a build graph and nothing in flight. Reads
+    the installed core's layer sequence, scope globs and verify commands
+    from `.hedgehog/core.yaml` and routes to one of three exits: a tweak
+    made and committed on the spot (one layer, existing files, and the
+    default under ambiguity), change-work through `hedgehog intent add`
+    and the core's own loop, or a re-plan. `tweaker` runs it for job 1's
+    sizing call.
   - `conventional-commits` — reconstructs step-shaped, conventional
     commit history when work didn't land cleanly as it went (mainly
     Correction Protocol cleanups).
