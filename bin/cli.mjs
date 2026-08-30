@@ -1261,8 +1261,9 @@ async function dbRebuildCommand() {
   }
   if (result.orphanedAbandonments?.length > 0) {
     console.log(
-      `${yellow(bold('Abandonments without an intent.'))} ${result.orphanedAbandonments.join(', ')} —\n` +
-        `no intent with this id exists in the rebuilt graph, so each does nothing.\n`,
+      `${yellow(bold('Abandonments not replayed.'))} ${result.orphanedAbandonments.join(', ')} —\n` +
+        `either no intent with this id exists in the rebuilt graph, or it is already\n` +
+        `complete (merged since), so each does nothing.\n`,
     );
   }
   warnOrphanedNotes(result);
@@ -3415,6 +3416,27 @@ async function mergeCommand(args) {
     process.exitCode = 1;
     return;
   }
+  // Every git/DB call below defaults to `process.cwd()` and assumes it's
+  // trunk: `rebuildDb` mutates whichever `.hedgehog/hedgehog.db` that cwd
+  // resolves to, `mergeBranch` runs `git merge --no-ff` there, and
+  // `removeWorktree`'s `git worktree remove` refuses to delete a worktree
+  // you're standing in. Run from inside the intent's own worktree
+  // checkout — a realistic mistake, since the worktree is exactly where a
+  // user would `cd` in to inspect the work before merging it — every one
+  // of those would operate on (or fail against) the wrong checkout. Same
+  // guard `hedgehog plan` uses to detect it's inside a worktree
+  // (worktree.mjs#onHedgehogBranch), applied here as a refusal rather than
+  // a trigger-skip.
+  if (onHedgehogBranch()) {
+    console.error(
+      `${red('Run `hedgehog merge` from trunk, not from inside a worktree.')}\n` +
+        `This checkout is on a \`hedgehog/*\` branch — merging from here would run\n` +
+        `\`git merge\` against the worktree itself instead of trunk. \`cd\` back to the\n` +
+        `main checkout and run \`hedgehog merge ${intentId}\` there.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
   // No case-folding: unlike a task id (plan.mjs#taskId always upper-cases
   // one), an intent id is stored exactly as given to `hedgehog intent add
   // --id` — intent.mjs never normalizes its case — so it must be typed
@@ -3434,8 +3456,27 @@ async function mergeCommand(args) {
   // Opened against the worktree's own DB (its cwd), never trunk's — the
   // completeness check this command exists to enforce has no meaning
   // against a graph that never compiled this intent's tasks at all.
+  //
+  // Checked for existence first: if the recursive `hedgehog plan`
+  // subprocess planCommand runs for a freshly created worktree ever
+  // failed (the case its own catch block already anticipates, telling the
+  // user to `cd` in and re-run), `.hedgehog/hedgehog.db` was never created
+  // inside that worktree, and openDbAt would otherwise throw a raw SQLite
+  // "unable to open database file" error instead of the friendly
+  // `no_tasks` message the branch below was written to produce for
+  // exactly this situation.
+  const worktreeDbPath = join(worktree.path, DB_PATH);
+  if (!existsSync(worktreeDbPath)) {
+    console.error(
+      `${red('Nothing to merge.')} ${bold(id)} has no build graph in its own worktree yet\n` +
+        `(${worktreeDbPath} does not exist). Run \`hedgehog plan\` inside the worktree first.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   let readiness;
-  const worktreeDb = openDbAt(join(worktree.path, DB_PATH), { readOnly: true });
+  const worktreeDb = openDbAt(worktreeDbPath, { readOnly: true });
   try {
     readiness = intentReadyToMerge(worktreeDb, id);
   } finally {
@@ -3479,13 +3520,36 @@ async function mergeCommand(args) {
   const db = openDb();
   let result;
   try {
-    result = await rebuildDb(db, { corePath });
+    // `id`'s worktree is still active at this point (removed only after a
+    // successful rebuild, below) — rebuildDb's own open-worktree exclusion
+    // would otherwise treat the intent this command exists to bring onto
+    // trunk as still worktree-only. mergingIntentId names the one
+    // exception.
+    result = await rebuildDb(db, { corePath, mergingIntentId: id });
   } finally {
     db.close();
   }
   console.log(
     `  ${green('rebuilt')}  ${dim(`${result.intentsReplayed} intent(s) replayed, ${result.tasksMarkedComplete} task(s) marked complete`)}`,
   );
+  if (result.intentsMarkedComplete?.length > 0) {
+    console.log(
+      `  ${dim(`${result.intentsMarkedComplete.length} intent(s) closed: ${result.intentsMarkedComplete.join(', ')}`)}`,
+    );
+  }
+  if (result.abandonmentsReplayed?.length > 0) {
+    console.log(
+      `  ${dim(`${result.abandonmentsReplayed.length} intent(s) replayed from ${ABANDONED_DIR}/ — kept at planned, not active:`)}\n` +
+        result.abandonmentsReplayed.map(({ intentId, reason }) => `    ${intentId}   ${dim(reason)}`).join('\n'),
+    );
+  }
+  if (result.orphanedAbandonments?.length > 0) {
+    console.log(
+      `  ${yellow(bold('Abandonments not replayed.'))} ${result.orphanedAbandonments.join(', ')} —\n` +
+        `  either no intent with this id exists in the rebuilt graph, or it is already\n` +
+        `  complete (merged since), so each does nothing.`,
+    );
+  }
   warnOrphanedNotes(result);
   warnRebuildDrift(result, corePath);
 
@@ -3523,6 +3587,20 @@ async function abandonCommand(args) {
     process.exitCode = 1;
     return;
   }
+  // Same reasoning and same guard as mergeCommand: applyAbandonment and
+  // removeWorktree both default to `process.cwd()` and assume it's trunk.
+  // Run from inside the intent's own worktree checkout, this would mutate
+  // the worktree's own DB instead of trunk's and then fail to remove a
+  // worktree the command is standing in.
+  if (onHedgehogBranch()) {
+    console.error(
+      `${red('Run `hedgehog abandon` from trunk, not from inside a worktree.')}\n` +
+        `This checkout is on a \`hedgehog/*\` branch. \`cd\` back to the main checkout\n` +
+        `and run \`hedgehog abandon ${intentId} --reason "..."\` there.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
   // No case-folding — same reasoning as mergeCommand: an intent id is
   // never case-normalized, so it must be typed exactly as declared.
   const id = intentId;
@@ -3530,6 +3608,35 @@ async function abandonCommand(args) {
   await ensureDb();
   if (!(await exists(DB_PATH))) {
     console.error(`${red('No build graph found.')} Run ${bold('hedgehog db init')} first.\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Refuse before writing anything — same "validate before the committed
+  // file exists" shape as reconcile.mjs#confirmReconciliation refusing an
+  // already-complete task. An intent already merged (`hedgehog merge`
+  // flips it to 'complete' and removes its worktree) has real, shipped
+  // work on trunk; applyAbandonment has no notion of "already done" and
+  // would silently reset its tasks back to 'planned' — un-shipping merged
+  // work by mistake (wrong id, stale memory) — and the abandonment record,
+  // once committed, would keep re-applying that reset on every future
+  // `hedgehog db rebuild` via replayAbandonments. Checked here rather than
+  // only inside applyAbandonment so the abandonment file is never written
+  // for an operation this refuses.
+  const statusCheckDb = openDb({ readOnly: true });
+  let existingStatus;
+  try {
+    existingStatus = statusCheckDb.prepare('SELECT status FROM intents WHERE id = ?').get(id)
+      ?.status;
+  } finally {
+    statusCheckDb.close();
+  }
+  if (existingStatus === 'complete') {
+    console.error(
+      `${red('Cannot abandon')} ${bold(id)}${red(':')} it is already complete on trunk —\n` +
+        `merged work, not something left to drop. If this was a mistake, use the\n` +
+        `Correction Protocol to undo the specific change instead.\n`,
+    );
     process.exitCode = 1;
     return;
   }

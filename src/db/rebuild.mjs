@@ -41,7 +41,13 @@ import {
   RECONCILED_DIR,
 } from './reconcile.mjs';
 import { loadNotes, NOTES_DIR } from './notes.mjs';
-import { loadAbandoned, replayAbandonments, ABANDONED_DIR } from './worktree.mjs';
+import {
+  loadAbandoned,
+  replayAbandonments,
+  ABANDONED_DIR,
+  hedgehogWorktrees,
+  onHedgehogBranch,
+} from './worktree.mjs';
 
 // Alphabetical by filename, purely to make the *tie-break* deterministic
 // across machines and runs. It is NOT the replay order — see
@@ -417,6 +423,17 @@ export async function rebuildDb(
     reconciledDir = RECONCILED_DIR,
     notesDir = NOTES_DIR,
     abandonedDir = ABANDONED_DIR,
+    // `hedgehog merge <id>`'s own rebuild call (bin/cli.mjs#mergeCommand):
+    // at the point it calls rebuildDb, `git merge --no-ff` has already
+    // landed the merged intent's sources onto trunk, but its worktree
+    // hasn't been removed yet (removal happens after, deliberately — see
+    // mergeCommand — so a failed removal doesn't leave trunk un-rebuilt).
+    // `hedgehogWorktrees()` therefore still reports it as open, and
+    // without this override the exclusion logic below would exclude the
+    // very intent this rebuild exists to bring onto trunk. Named, not
+    // just "don't exclude anything", so the caller states which intent it
+    // just merged rather than this function guessing.
+    mergingIntentId = null,
   } = {},
 ) {
   applySchema(db);
@@ -431,7 +448,36 @@ export async function rebuildDb(
   const notesByTask = await loadNotes(notesDir);
   const abandonments = await loadAbandoned(abandonedDir);
 
-  planTasks(db, core, overrides);
+  // Mirrors bin/cli.mjs#planCommand's own exclusion set: an intent still
+  // holding an open, unmerged, unabandoned `hedgehog/*` worktree has its
+  // tasks compiled only inside that worktree's own graph (worktree.mjs's
+  // file header), never on trunk. `hedgehog merge`/`hedgehog abandon` both
+  // remove the worktree as part of closing it out, so hedgehogWorktrees()
+  // — read against `process.cwd()` — reports exactly the still-open set.
+  // Without this, a rebuild run directly on trunk while a worktree is
+  // open (rather than through `hedgehog merge`, which never reaches this
+  // far while a *different* intent's worktree is still open) would
+  // recompile that intent's tasks onto trunk too, producing two divergent
+  // copies of the same intent with no reconciliation path.
+  //
+  // Skipped entirely when this rebuild is itself running inside a
+  // `hedgehog/*` worktree (onHedgehogBranch — the same guard
+  // bin/cli.mjs#planCommand uses to stop its own recursive trigger).
+  // `git worktree list --porcelain` reports every worktree of the repo
+  // from any of their checkouts, including the one you're standing in —
+  // so without this guard, a worktree's own `hedgehog db rebuild` (or the
+  // recursive `hedgehog plan` that runs one right after `git worktree
+  // add`) would see itself in hedgehogWorktrees() and exclude its own
+  // intent from its own compile, the exact self-exclusion this function
+  // exists to prevent everywhere else.
+  const openWorktreeIntentIds = onHedgehogBranch()
+    ? new Set()
+    : new Set(
+        hedgehogWorktrees()
+          .map((w) => w.intentId)
+          .filter((intentId) => intentId !== mergingIntentId),
+      );
+  planTasks(db, core, overrides, { excludeIntentIds: openWorktreeIntentIds });
 
   const commitSubjects = loadCommitSubjects();
   const tasksMarkedComplete = markCompletedTasks(db, commitSubjects);

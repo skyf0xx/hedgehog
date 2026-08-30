@@ -141,11 +141,19 @@ export function eligibleIntents(db) {
 // merged/abandoned record — the idempotency check that keeps a repeat
 // `hedgehog plan` from creating a second worktree for an intent that
 // already has one.
+//
+// Matched line-exact against `git worktree list --porcelain`'s own
+// `branch refs/heads/<name>` line, not a raw substring search: a plain
+// `.includes()` against the whole porcelain output would treat intent id
+// "foo"'s branch (`refs/heads/hedgehog/foo`) as present whenever
+// "foobar"'s worktree exists too, since the former is a substring of the
+// latter's own `branch refs/heads/hedgehog/foobar` line.
 export function hasWorktree(intentId, { repoRoot = process.cwd() } = {}) {
   const branch = branchName(intentId);
   const list = gitOrNull(['worktree', 'list', '--porcelain'], { cwd: repoRoot });
   if (list === null) return false;
-  return list.includes(`refs/heads/${branch}`);
+  const target = `branch refs/heads/${branch}`;
+  return list.split('\n').some((line) => line === target);
 }
 
 // `git worktree add` checks out the branch it creates from the current
@@ -161,6 +169,16 @@ export function hasWorktree(intentId, { repoRoot = process.cwd() } = {}) {
 // compiles nothing.
 export function intentFileCommitted(intentId, { repoRoot = process.cwd() } = {}) {
   const path = intentFilePath(intentId);
+  // `git status --porcelain -- <path>` on a path that was never written
+  // (a typo'd intent id, or a file that plain doesn't exist) also returns
+  // empty output and exit 0 — indistinguishable, on its own, from "clean,
+  // tracked, committed". `git ls-files --error-unmatch` is checked first
+  // so a nonexistent or untracked path is caught here instead of being
+  // read as committed and letting createWorktree proceed into a worktree
+  // with no intent file inside it.
+  const tracked = gitOrNull(['ls-files', '--error-unmatch', '--', path], { cwd: repoRoot });
+  if (tracked === null) return false;
+
   const output = gitOrNull(['status', '--porcelain', '--', path], { cwd: repoRoot });
   // null means git itself couldn't run (not a repo) — treated as "not
   // committed" so the caller's own error path fires rather than this
@@ -173,14 +191,36 @@ export function intentFileCommitted(intentId, { repoRoot = process.cwd() } = {})
   return output.trim() === '';
 }
 
-// Creates `hedgehog/<intent-id>` off the current HEAD and a sibling
-// worktree checked out onto it. `-b` fails loudly if the branch already
-// exists — a caller must check hasWorktree first, the same "check before
-// acting" contract every other write in this file follows.
+// True when `branch` already exists as a ref, regardless of whether any
+// worktree currently has it checked out — `git branch --list <branch>`
+// prints the ref's name when it exists and nothing when it doesn't.
+function branchExists(branch, { repoRoot = process.cwd() } = {}) {
+  const output = gitOrNull(['branch', '--list', branch], { cwd: repoRoot });
+  return output !== null && output.trim() !== '';
+}
+
+// Creates a sibling worktree checked out onto `hedgehog/<intent-id>`, off
+// the current HEAD when the branch is new. A caller must check
+// hasWorktree first (this feature's "check before acting" contract) —
+// but hasWorktree only reports an *active* worktree, so it's true even
+// when the branch survives with none: a worktree directory removed by
+// hand (`rm -rf`, a lost machine) without an intervening `hedgehog
+// merge`/`hedgehog abandon` leaves `hedgehog/<intent-id>` behind as an
+// orphaned ref with no worktree entry pointing at it
+// (worktreeStatus's own orphan case). `-b` requires a *new* branch name
+// and fails loudly against that survivor, so this checks for it first and
+// reattaches to the existing branch instead (`git worktree add <path>
+// <branch>`, no `-b`) — the exact by-hand recovery worktreeStatus already
+// tells the user to run, done automatically instead of leaving the intent
+// permanently excluded from trunk with no self-heal.
 export function createWorktree(intentId, { repoRoot = process.cwd() } = {}) {
   const branch = branchName(intentId);
   const path = worktreePath(intentId, { repoRoot });
-  git(['worktree', 'add', '-b', branch, path], { cwd: repoRoot });
+  if (branchExists(branch, { repoRoot })) {
+    git(['worktree', 'add', path, branch], { cwd: repoRoot });
+  } else {
+    git(['worktree', 'add', '-b', branch, path], { cwd: repoRoot });
+  }
   return { branch, path };
 }
 
@@ -372,17 +412,15 @@ export async function writeAbandonedFile(record, abandonedDir = ABANDONED_DIR) {
   return record;
 }
 
-// Resets every task of `intentId` to `planned` on whichever DB `db` is
-// open against (trunk, by the CLI's own contract — see abandonCommand),
-// clears any lease, and reopens the intent itself to `planned` so a later
-// `hedgehog plan` recompiles it (or, if its tasks were never compiled on
-// trunk at all — the normal case, since an eligible intent's tasks are
-// only ever compiled inside its own worktree — this is simply a no-op on
-// tasks that don't exist yet). Mirrors reconcile.mjs#applyReconciliation's
-// shape: the committed file is written first, this is applied second.
-export function applyAbandonment(db, intentId) {
-  const intent = db.prepare('SELECT id, status FROM intents WHERE id = ?').get(intentId);
-  const resetTasks = db
+// Shared by applyAbandonment (live) and replayAbandonments (rebuild
+// replay) — both reset the same columns for the same reason: an abandoned
+// intent's tasks must not be left `building`/`verifying`/leased, since
+// `hedgehog plan` only ever recompiles `proposed`/`planned` intents and a
+// stale lease would otherwise sit there forever with no live command left
+// to release it. One prepared statement, run by both callers, so the two
+// paths can't silently diverge on which columns a reset touches.
+function resetIntentTasksToPlanned(db, intentId) {
+  return db
     .prepare(
       `UPDATE tasks SET status = 'planned', blocked_reason = NULL,
         lease_owner = NULL, lease_expires_at = NULL, leased_at = NULL,
@@ -391,6 +429,35 @@ export function applyAbandonment(db, intentId) {
        RETURNING id`,
     )
     .all(intentId);
+}
+
+// Resets every task of `intentId` to `planned` on whichever DB `db` is
+// open against (trunk, by the CLI's own contract — see abandonCommand),
+// clears any lease, and reopens the intent itself to `planned` so a later
+// `hedgehog plan` recompiles it (or, if its tasks were never compiled on
+// trunk at all — the normal case, since an eligible intent's tasks are
+// only ever compiled inside its own worktree — this is simply a no-op on
+// tasks that don't exist yet). Mirrors reconcile.mjs#applyReconciliation's
+// shape: the committed file is written first, this is applied second.
+//
+// Refuses an intent already `complete` (merged, real shipped work) —
+// same reasoning as reconcile.mjs#confirmReconciliation refusing an
+// already-complete task: applyAbandonment resets tasks to 'planned'
+// unconditionally otherwise, which would un-ship already-merged work on
+// nothing more than a typo'd or misremembered intent id. abandonCommand
+// checks this before ever writing the committed abandonment file (so a
+// refused abandonment leaves no record on disk), but this function
+// carries its own guard too — replayAbandonments (rebuild replay) calls
+// the same reset path directly and must not regress a `complete` intent
+// either, whatever wrote the record it's replaying.
+export function applyAbandonment(db, intentId) {
+  const intent = db.prepare('SELECT id, status FROM intents WHERE id = ?').get(intentId);
+  if (intent?.status === 'complete') {
+    throw new Error(
+      `intent "${intentId}" is already complete — abandoning it would reset merged, shipped work back to planned`,
+    );
+  }
+  const resetTasks = resetIntentTasksToPlanned(db, intentId);
 
   if (intent) {
     db.prepare("UPDATE intents SET status = 'planned' WHERE id = ?").run(intentId);
@@ -411,26 +478,29 @@ export function applyAbandonment(db, intentId) {
 // exactly the silent-drop shape the debt/decisions prerequisite fixed for
 // notes. This keeps the intent's status 'planned' (not 'active') after
 // replay and returns the ids touched, for the CLI to report.
+//
+// A record whose intent is `complete` on the graph being rebuilt (e.g. a
+// stale abandonment file left behind after the intent was later merged by
+// some other route) is skipped, not applied — a rebuild must never regress
+// shipped work back to 'planned', mirroring applyAbandonment's own guard.
+// Skipped rather than thrown, since a rebuild has to finish and report
+// rather than abort over one stale committed file; folded into `orphaned`
+// so dbRebuildCommand's existing "abandonments without an intent" warning
+// covers it without a third bucket to teach the CLI to print.
 export function replayAbandonments(db, abandonments) {
   const setPlanned = db.prepare("UPDATE intents SET status = 'planned' WHERE id = ?");
-  const intentExists = db.prepare('SELECT 1 FROM intents WHERE id = ?');
-  const resetTasks = db.prepare(
-    `UPDATE tasks SET status = 'planned', blocked_reason = NULL,
-      lease_owner = NULL, lease_expires_at = NULL, leased_at = NULL,
-      claim_snapshot = NULL
-     WHERE intent_id = ? AND status <> 'planned'
-     RETURNING id`,
-  );
+  const getIntent = db.prepare('SELECT status FROM intents WHERE id = ?');
 
   const replayed = [];
   const orphaned = [];
   for (const [intentId, record] of abandonments) {
-    if (intentExists.get(intentId) === undefined) {
+    const intent = getIntent.get(intentId);
+    if (intent === undefined || intent.status === 'complete') {
       orphaned.push(intentId);
       continue;
     }
     setPlanned.run(intentId);
-    resetTasks.all(intentId);
+    resetIntentTasksToPlanned(db, intentId);
     replayed.push({ intentId, reason: record.reason });
   }
   return { replayed, orphaned };
