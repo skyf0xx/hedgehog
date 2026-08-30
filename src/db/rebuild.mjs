@@ -2,8 +2,10 @@
 // source-of-truth files, for a fresh clone (no `.hedgehog/hedgehog.db`)
 // or after suspected corruption. The DB itself is a derived artifact:
 // everything it holds is either replayable from `.hedgehog/intents/*.json`
-// (via the same normalize/insert path `intent add`/`plan` already use) or
-// recoverable from git history (which tasks' commits already landed).
+// (via the same normalize/insert path `intent add`/`plan` already use),
+// recoverable from git history (which tasks' commits already landed), or
+// replayable from `.hedgehog/reconciled/*.json` (which tasks a user
+// confirmed as done by work git history cannot credit — reconcile.mjs).
 // What isn't recoverable — `verifications.output`, the ephemeral
 // diagnostics of a run that already passed — is an accepted loss; this
 // only reconciles `tasks.status`.
@@ -23,6 +25,13 @@ import { planTasks, CORE_MODULE } from './plan.mjs';
 import { loadCore } from './core.mjs';
 import { detectDrift } from './drift.mjs';
 import { loadOverrides, OVERRIDES_DIR } from './overrides.mjs';
+import {
+  loadReconciliations,
+  orphanedReconciliations,
+  reconciledNote,
+  RECONCILED_DIR,
+  RECONCILED_NOTE_PREFIX,
+} from './reconcile.mjs';
 
 // Alphabetical by filename, purely to make the *tie-break* deterministic
 // across machines and runs. It is NOT the replay order — see
@@ -59,9 +68,19 @@ function intentExists(db, id) {
 // so a note re-attaches to the same task the replay recompiles). A note
 // whose task no longer exists in the new graph has nowhere to live and is
 // reported rather than silently dropped.
+//
+// One class of decision row is excluded from that carry-across: the
+// provenance note a reconciliation writes (reconcile.mjs). That one DOES
+// have a committed source — `.hedgehog/reconciled/*.json` — and
+// replayReconciliations below re-writes it from that file. Carrying it
+// across as well would give a reconciled task two identical notes after
+// the first rebuild, and one more on every rebuild after that.
 function clearDerivedGraph(db) {
   const debt = db.prepare('SELECT task_id, note, logged_at FROM debt').all();
-  const decisions = db.prepare('SELECT task_id, note, logged_at FROM decisions').all();
+  const decisions = db
+    .prepare('SELECT task_id, note, logged_at FROM decisions')
+    .all()
+    .filter((row) => !row.note.startsWith(RECONCILED_NOTE_PREFIX));
   const friction = db.prepare('SELECT task_id, note, logged_at FROM friction').all();
 
   db.prepare('DELETE FROM intents').run();
@@ -312,10 +331,48 @@ function markCompletedTasks(db, commitSubjects) {
   return complete.size;
 }
 
+// Replays `.hedgehog/reconciled/*.json` — the committed record of every
+// task a user confirmed as already done by work that landed outside the
+// loop (reconcile.mjs).
+//
+// This runs after markCompletedTasks and does the same job by a different
+// route. markCompletedTasks credits a task only when some commit subject
+// matches its `commit_message` exactly, which is the subject `verify`
+// itself writes — a hand-written commit never matches, by construction,
+// which is the whole reason reconcile exists. So a reconciled task needs
+// no commit-message match here: the committed confirmation IS the source,
+// exactly as an override file is the source for a widened scope.
+//
+// Without this step a rebuild silently reverts every confirmed
+// reconciliation and reintroduces the problem reconcile was run to fix,
+// which is worse than never reconciling — it looks like it worked.
+//
+// The provenance note is re-written here too, so a reconciled task's
+// "closed without a verify run" fact reaches its dependents' packets on a
+// fresh clone the same as it did on the machine that confirmed it.
+function replayReconciliations(db, reconciliations) {
+  const setComplete = db.prepare(
+    "UPDATE tasks SET status = 'complete', blocked_reason = NULL WHERE id = ?",
+  );
+  const insertNote = db.prepare('INSERT INTO decisions (task_id, note) VALUES (?, ?)');
+  const taskExists = db.prepare('SELECT 1 FROM tasks WHERE id = ?');
+
+  let replayed = 0;
+  for (const [taskId, record] of reconciliations) {
+    if (taskExists.get(taskId) === undefined) continue;
+    setComplete.run(taskId);
+    insertNote.run(taskId, reconciledNote(record));
+    replayed++;
+  }
+  return replayed;
+}
+
 // Rebuilds `db` from scratch: schema, then every committed intent
 // replayed in dependency order, then planTasks to re-derive tasks +
 // dependencies, then git history to reconcile which tasks already
-// completed. Returns a summary for the CLI to print.
+// completed, then `.hedgehog/reconciled/*.json` for the tasks a user
+// confirmed as done by work that git history cannot credit. Returns a
+// summary for the CLI to print.
 //
 // `drift` in the return is the honest disclosure this rebuild owes its
 // caller. A rebuild re-derives every task's layer-derived fields from
@@ -330,7 +387,12 @@ function markCompletedTasks(db, commitSubjects) {
 // of something they discover three layers later.
 export async function rebuildDb(
   db,
-  { corePath, intentsDir = INTENTS_DIR, overridesDir = OVERRIDES_DIR } = {},
+  {
+    corePath,
+    intentsDir = INTENTS_DIR,
+    overridesDir = OVERRIDES_DIR,
+    reconciledDir = RECONCILED_DIR,
+  } = {},
 ) {
   applySchema(db);
 
@@ -340,15 +402,26 @@ export async function rebuildDb(
 
   const core = await loadCore(corePath);
   const overrides = await loadOverrides(overridesDir);
+  const reconciliations = await loadReconciliations(reconciledDir);
 
   planTasks(db, core, overrides);
 
   const commitSubjects = loadCommitSubjects();
   const tasksMarkedComplete = markCompletedTasks(db, commitSubjects);
 
+  const tasksReconciled = replayReconciliations(db, reconciliations);
+  const orphanedReconciled = orphanedReconciliations(db, reconciliations);
+
   const orphanedNotes = restoreNotes(db, notes);
 
   const drift = detectDrift(db, core, { overrides });
 
-  return { intentsReplayed, tasksMarkedComplete, orphanedNotes, drift };
+  return {
+    intentsReplayed,
+    tasksMarkedComplete,
+    tasksReconciled,
+    orphanedReconciled,
+    orphanedNotes,
+    drift,
+  };
 }
