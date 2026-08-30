@@ -41,7 +41,7 @@ import {
   reapExpiredLeases,
 } from '../src/db/claim.mjs';
 import { readyTasks, formatReady } from '../src/db/ready.mjs';
-import { graphStatus, formatStatus } from '../src/db/status.mjs';
+import { graphStatus, formatStatus, inFlightTasks, formatBrief } from '../src/db/status.mjs';
 import { boundaryState, formatBoundary, formatPosition, formatHandoff } from '../src/db/boundary.mjs';
 import { commitGateStatus, formatCommitGate } from '../src/db/gate.mjs';
 import { detectDrift, recompileTasks, formatRecompile } from '../src/db/drift.mjs';
@@ -559,6 +559,7 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog verify <task-id> --owner <owner>   run scope + verify checks, commit on pass
   npx @skyf0xx/hedgehog status                    graph overview: counts by status, ready list, in flight,
                                                    and any drift from core.yaml
+  npx @skyf0xx/hedgehog status --brief            one line: what is in flight, and nothing else
   npx @skyf0xx/hedgehog ready                     preview which ready tasks are claimable now vs held back
   npx @skyf0xx/hedgehog quiesce                   report whether anything is still in flight
   npx @skyf0xx/hedgehog boundary                  is this a moment to clear context? exits 0 only if it is,
@@ -2529,12 +2530,38 @@ async function coreWarningLines() {
   ];
 }
 
-async function statusCommand() {
+// `--brief` answers one question — is anything `building` or
+// `verifying` — and prints one line. It exists because `hedgehog-daily`
+// asks that question before every change request, including the ones
+// that end in a two-line edit, and the full report below costs a core
+// load, a drift comparison, a readiness simulation, an override scan,
+// a commit-gate probe and an update check to answer it. The default
+// report is unchanged: this adds a cheaper question, it does not
+// replace the existing one, and a "yes" here is the cue to read the
+// full report.
+async function statusCommand(args = []) {
+  const brief = args.includes('--brief');
+
   await ensureDb();
 
   if (!(await exists(DB_PATH))) {
     console.error(`${red('No build graph found.')} Run ${bold('hedgehog init')} first.\n`);
     process.exitCode = 1;
+    return;
+  }
+
+  if (brief) {
+    const db = openDb();
+    let inFlight;
+    try {
+      // Same reaping contract as the full report — a dead agent's
+      // expired lease must not read as in-flight work on either path.
+      reapExpiredLeases(db);
+      inFlight = inFlightTasks(db);
+    } finally {
+      db.close();
+    }
+    console.log(formatBrief(inFlight));
     return;
   }
 
@@ -3514,7 +3541,7 @@ async function main() {
   }
 
   if (cmd === 'status') {
-    await statusCommand();
+    await statusCommand(args.slice(1));
     return;
   }
 

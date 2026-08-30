@@ -55,6 +55,27 @@ function loadInFlightTasks(db) {
   return db.prepare(IN_FLIGHT_TASKS_SQL).all();
 }
 
+// The in-flight list on its own, without the rest of graphStatus. The
+// full report costs a drift comparison against core.yaml, a readiness
+// simulation, an override scan, and two side-channel reads — everything
+// `hedgehog status` prints. `hedgehog-daily` asks only "is a build in
+// flight" and asks it before every change request, so it must not pay
+// for a report it discards. Same query and same reaping contract as the
+// full path; only the other sections are skipped.
+export function inFlightTasks(db) {
+  return loadInFlightTasks(db);
+}
+
+// One line for `hedgehog status --brief`: what is in flight, or that
+// nothing is. Deliberately not a subset of formatStatus's sections — a
+// caller reading this wants a verdict, and the full report stays the
+// right thing to read once the verdict is "something is".
+export function formatBrief(inFlight) {
+  if (inFlight.length === 0) return 'IN FLIGHT  0  — nothing building or verifying';
+  const ids = inFlight.map((task) => task.id).join(', ');
+  return `IN FLIGHT  ${inFlight.length}  — ${ids}`;
+}
+
 function countTasksByStatus(db) {
   const rows = db
     .prepare('SELECT status, COUNT(*) AS n FROM tasks GROUP BY status')
