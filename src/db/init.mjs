@@ -54,6 +54,22 @@ export function withDb(fn, opts) {
   }
 }
 
+// openDb's cwd-relative counterpart for the one caller that has to open a
+// build graph that is deliberately not the one `process.cwd()` names:
+// `hedgehog merge` reads a worktree's own `.hedgehog/hedgehog.db` (its
+// completeness check) while running from trunk's checkout. Same pragmas,
+// same schema-apply-on-writable-open contract as openDb — the only
+// difference is the path is given rather than resolved from DB_PATH.
+export function openDbAt(absPath, { readOnly = false } = {}) {
+  const db = new DatabaseSync(absPath, { readOnly });
+  db.exec('PRAGMA foreign_keys = ON');
+  db.exec('PRAGMA busy_timeout = 10000');
+  if (!readOnly) db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA synchronous = NORMAL');
+  if (!readOnly) applySchema(db);
+  return db;
+}
+
 // BEGIN IMMEDIATE rather than a bare BEGIN: acquires the write lock up
 // front instead of on the first write statement, so two concurrent
 // writers fail fast with SQLITE_BUSY (retried via busy_timeout) instead

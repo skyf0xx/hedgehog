@@ -18,7 +18,7 @@ import { constants, existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
-import { dbInit, DB_PATH, dbAbsPath, openDb } from '../src/db/init.mjs';
+import { dbInit, DB_PATH, dbAbsPath, openDb, openDbAt } from '../src/db/init.mjs';
 import { loadCore, lintCore, isModuleAxis } from '../src/db/core.mjs';
 import { planTasks, CORE_INTENT_ID } from '../src/db/plan.mjs';
 import { addIntent, INTENTS_DIR } from '../src/db/intent.mjs';
@@ -41,7 +41,13 @@ import {
   reapExpiredLeases,
 } from '../src/db/claim.mjs';
 import { readyTasks, formatReady } from '../src/db/ready.mjs';
-import { graphStatus, formatStatus, inFlightTasks, formatBrief } from '../src/db/status.mjs';
+import {
+  graphStatus,
+  graphWorktreeStatus,
+  formatStatus,
+  inFlightTasks,
+  formatBrief,
+} from '../src/db/status.mjs';
 import { boundaryState, formatBoundary, formatPosition, formatHandoff } from '../src/db/boundary.mjs';
 import { commitGateStatus, formatCommitGate } from '../src/db/gate.mjs';
 import { detectDrift, recompileTasks, formatRecompile } from '../src/db/drift.mjs';
@@ -61,6 +67,25 @@ import {
   REPO_URL,
 } from '../src/db/community.mjs';
 import { rebuildDb } from '../src/db/rebuild.mjs';
+import {
+  eligibleIntents,
+  hasWorktree,
+  createWorktree,
+  hedgehogWorktrees,
+  branchName,
+  worktreePath,
+  intentReadyToMerge,
+  intentTaskStatuses,
+  mergeBranch,
+  removeWorktree,
+  intentFileCommitted,
+  onHedgehogBranch,
+  loadAbandoned,
+  writeAbandonedFile,
+  applyAbandonment,
+  replayAbandonments,
+  ABANDONED_DIR,
+} from '../src/db/worktree.mjs';
 import { loadOverrides, addOverride, orphanedOverrides, OVERRIDES_DIR } from '../src/db/overrides.mjs';
 import {
   gatherEvidence,
@@ -549,6 +574,9 @@ ${bold('Usage')}
                                                    outside 'hedgehog verify' — run it to mark that work complete
   npx @skyf0xx/hedgehog plan                      compile pending intents into tasks + dependencies
                                                    (starts no graph server; --no-open says so explicitly)
+                                                   an intent whose declared intent_dependencies just
+                                                   cleared gets its own git worktree + branch instead of
+                                                   compiling here; see 'hedgehog merge'/'hedgehog abandon'
   npx @skyf0xx/hedgehog plan --open               also start the graph server and open it, if anything compiled
   npx @skyf0xx/hedgehog plan --recompile          rewrite core.yaml-derived fields on not-started tasks
                                                    [--dry-run] [--include-blocked] [--strict]
@@ -561,6 +589,13 @@ ${bold('Usage')}
                                                    close one task on your judgment — no scope gate and no
                                                    verify command run; records it under .hedgehog/reconciled/
   npx @skyf0xx/hedgehog reconcile list            list recorded reconciliations
+  npx @skyf0xx/hedgehog merge <intent-id>         merge that intent's worktree branch into trunk,
+                                                   rebuild trunk's graph, remove the worktree — fails
+                                                   if the intent's tasks aren't all complete there
+  npx @skyf0xx/hedgehog abandon <intent-id> --reason "<why>"
+                                                   drop an intent that will never finish: records why,
+                                                   resets its tasks to planned on trunk, removes its
+                                                   worktree and branch
   npx @skyf0xx/hedgehog intent add [flags]        add an intent (rules/requirements/dependencies)
   npx @skyf0xx/hedgehog intent add --file <path>  add an intent from a JSON file
   npx @skyf0xx/hedgehog next                      print the task packet for one ready task
@@ -1217,6 +1252,19 @@ async function dbRebuildCommand() {
         `no task with this id exists in the rebuilt graph, so each closes nothing.\n`,
     );
   }
+  if (result.abandonmentsReplayed?.length > 0) {
+    console.log(
+      `${dim(`${result.abandonmentsReplayed.length} intent(s) replayed from ${ABANDONED_DIR}/ — kept at planned, not active:`)}\n` +
+        result.abandonmentsReplayed.map(({ intentId, reason }) => `  ${intentId}   ${dim(reason)}`).join('\n') +
+        '\n',
+    );
+  }
+  if (result.orphanedAbandonments?.length > 0) {
+    console.log(
+      `${yellow(bold('Abandonments without an intent.'))} ${result.orphanedAbandonments.join(', ')} —\n` +
+        `no intent with this id exists in the rebuilt graph, so each does nothing.\n`,
+    );
+  }
   warnOrphanedNotes(result);
   warnRebuildDrift(result, corePath);
 }
@@ -1435,12 +1483,96 @@ async function planCommand(args = []) {
 
   const overrides = await loadOverrides();
 
+  // Worktree trigger: an intent whose `intent_dependencies` just cleared
+  // (eligibleIntents.mjs's rule — see worktree.mjs for why "declares at
+  // least one dependency" is part of that rule, not just "all complete")
+  // gets its own `git worktree` and branch instead of compiling onto this
+  // checkout. Read before planTasks runs, against the same handle, so the
+  // exclusion set reflects the graph plan is about to compile against.
+  //
+  // Skipped entirely when this checkout is itself already a `hedgehog/*`
+  // worktree (onHedgehogBranch) — this is the recursive `hedgehog plan`
+  // this same command runs inside a worktree it just created, to compile
+  // that worktree's own intent, and that intent reads as "eligible" again
+  // by the same rule that got it a worktree in the first place. Without
+  // this guard, that recursive call would try to create a second,
+  // colliding worktree for itself instead of just compiling normally.
+  let eligible = [];
+  if (!onHedgehogBranch()) {
+    const eligibilityDb = openDb({ readOnly: true });
+    try {
+      eligible = eligibleIntents(eligibilityDb);
+    } finally {
+      eligibilityDb.close();
+    }
+  }
+
+  // Every eligible intent is excluded from planTasks's own compile-onto-
+  // trunk path below, whether or not this loop actually manages to give
+  // it a worktree this run (hasWorktree true already, or the commit check
+  // below defers it) — an eligible intent must never fall through to
+  // compiling on trunk, or it would sit there just like any pre-feature
+  // intent and this feature would have done nothing for it.
+  const excludeIntentIds = new Set(eligible.map((i) => i.id));
+
+  const worktreesCreated = [];
+  for (const intent of eligible) {
+    if (hasWorktree(intent.id)) continue; // already has one — idempotent re-run
+    // A new worktree checks out its branch from HEAD's committed tree —
+    // it cannot see an intent file still sitting uncommitted in trunk's
+    // working directory (worktree.mjs#intentFileCommitted). Left pending
+    // rather than either worktree'd-with-nothing-in-it or silently
+    // compiled onto trunk: the next `hedgehog plan`, after the commit
+    // lands, picks it up correctly.
+    if (!intentFileCommitted(intent.id)) {
+      console.log(
+        `  ${yellow('pending')}  ${bold(intent.id)} ${dim(`is worktree-eligible but .hedgehog/intents/${intent.id}.json isn't committed yet — commit it, then run \`hedgehog plan\` again`)}`,
+      );
+      continue;
+    }
+    let created;
+    try {
+      created = createWorktree(intent.id);
+    } catch (err) {
+      console.error(
+        `${yellow('Could not create a worktree for')} ${bold(intent.id)}${dim(':')} ${err.message}\n`,
+      );
+      continue;
+    }
+    worktreesCreated.push({ intentId: intent.id, ...created });
+  }
+
   const db = openDb();
   let result;
   try {
-    result = planTasks(db, core, overrides);
+    result = planTasks(db, core, overrides, { excludeIntentIds });
   } finally {
     db.close();
+  }
+
+  for (const { intentId, branch, path } of worktreesCreated) {
+    console.log(`  ${green('worktree')}  ${bold(intentId)} ${dim(`${branch} → ${path}`)}`);
+  }
+
+  // Compiles the new worktree's own graph from inside it — a plain
+  // `hedgehog plan` subprocess with `cwd` set to the worktree, so that
+  // intent's tasks land only in its own `.hedgehog/hedgehog.db`, per this
+  // feature's DB-shape rule (worktree.mjs's file header). `ensureDb`
+  // (this file) creates that DB from the intent files the new branch
+  // already carries — no different from a fresh clone.
+  for (const { intentId, path } of worktreesCreated) {
+    try {
+      execFileSync(process.execPath, [fileURLToPath(import.meta.url), 'plan'], {
+        cwd: path,
+        stdio: 'inherit',
+        env: { ...process.env, HEDGEHOG_NO_UPDATE_CHECK: '1' },
+      });
+    } catch (err) {
+      console.error(
+        `${yellow('Worktree created but its own `hedgehog plan` failed:')} ${bold(intentId)}\n` +
+          `  ${dim(err.message)}\n  cd ${path} && hedgehog plan\n`,
+      );
+    }
   }
 
   for (const id of result.once) {
@@ -2644,6 +2776,7 @@ async function statusCommand(args = []) {
     // blocked" until some other command happens to reap it first.
     reapExpiredLeases(db);
     result = graphStatus(db, { core, overrides });
+    result.worktrees = await graphWorktreeStatus(db);
   } finally {
     db.close();
   }
@@ -3266,6 +3399,195 @@ async function reconcileCommand(args) {
   console.log(`${formatEvidence(evidence)}\n`);
 }
 
+// `hedgehog merge <intent-id>` — merges `hedgehog/<intent-id>` into trunk
+// with `git merge --no-ff`, rebuilds trunk's graph from what merged, then
+// removes the worktree and its branch. See src/db/worktree.mjs for why a
+// rebuild is the whole merge step: no DB row ever crosses from the
+// worktree's own graph to trunk's.
+//
+// Refuses before touching git at all if the intent's tasks are not all
+// `complete` in the worktree's own graph — checked there, never here,
+// since trunk has no row for a task compiled only inside the worktree.
+async function mergeCommand(args) {
+  const intentId = args[0];
+  if (!intentId || intentId.startsWith('--')) {
+    console.error(`${red('Usage:')} hedgehog merge <intent-id>\n`);
+    process.exitCode = 1;
+    return;
+  }
+  // No case-folding: unlike a task id (plan.mjs#taskId always upper-cases
+  // one), an intent id is stored exactly as given to `hedgehog intent add
+  // --id` — intent.mjs never normalizes its case — so it must be typed
+  // here exactly as it was there.
+  const id = intentId;
+
+  const worktrees = hedgehogWorktrees();
+  const worktree = worktrees.find((w) => w.intentId === id);
+  if (!worktree) {
+    console.error(
+      `${red('No active worktree for')} ${bold(id)}${red('.')} ${dim(`Expected branch ${branchName(id)} from \`git worktree list\`.`)}\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  // Opened against the worktree's own DB (its cwd), never trunk's — the
+  // completeness check this command exists to enforce has no meaning
+  // against a graph that never compiled this intent's tasks at all.
+  let readiness;
+  const worktreeDb = openDbAt(join(worktree.path, DB_PATH), { readOnly: true });
+  try {
+    readiness = intentReadyToMerge(worktreeDb, id);
+  } finally {
+    worktreeDb.close();
+  }
+
+  if (!readiness.ready) {
+    if (readiness.reason === 'no_tasks') {
+      console.error(
+        `${red('Nothing to merge.')} ${bold(id)} has no compiled tasks in its own worktree graph\n` +
+          `(${join(worktree.path, DB_PATH)}). Run \`hedgehog plan\` inside the worktree first.\n`,
+      );
+    } else {
+      console.error(
+        `${red('Not all tasks are complete.')} ${bold(id)}'s worktree graph still has:\n\n` +
+          readiness.incomplete.map((t) => `  ${t.id}   ${t.status}`).join('\n') +
+          '\n\nFinish and verify every task in the worktree before merging.\n',
+      );
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(`  ${dim('merging')}  ${worktree.branch} → trunk`);
+  try {
+    mergeBranch(id);
+  } catch (err) {
+    console.error(
+      `${red('git merge failed:')} ${err.message}\n\n` +
+        `Resolve the conflict by hand in this checkout, then finish with:\n` +
+        `  git add -A && git commit\n` +
+        `  hedgehog db rebuild\n` +
+        `  git worktree remove ${worktree.path} && git branch -D ${worktree.branch}\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  printDbTarget();
+  const corePath = await resolveCorePath();
+  const db = openDb();
+  let result;
+  try {
+    result = await rebuildDb(db, { corePath });
+  } finally {
+    db.close();
+  }
+  console.log(
+    `  ${green('rebuilt')}  ${dim(`${result.intentsReplayed} intent(s) replayed, ${result.tasksMarkedComplete} task(s) marked complete`)}`,
+  );
+  warnOrphanedNotes(result);
+  warnRebuildDrift(result, corePath);
+
+  try {
+    removeWorktree(worktree.path, { branch: worktree.branch, removeBranch: true });
+    console.log(`  ${green('removed')}  ${worktree.path} ${dim(`(and branch ${worktree.branch})`)}`);
+  } catch (err) {
+    console.error(
+      `${yellow('Merged, but could not remove the worktree:')} ${err.message}\n` +
+        `  git worktree remove ${worktree.path} && git branch -D ${worktree.branch}\n`,
+    );
+  }
+
+  console.log(`\n${green(bold('Merged.'))} ${bold(id)} is complete on trunk.\n`);
+}
+
+// `hedgehog abandon <intent-id> --reason "<why>"` — drops an intent that
+// will never be finished: writes a committed abandonment record
+// (`.hedgehog/abandoned/<intent-id>.json`, worktree.mjs — the same
+// temp-file+rename, replayed-on-rebuild shape reconcile.mjs's confirmed
+// reconciliations use), resets the intent's tasks to `planned` on trunk,
+// and removes the worktree and branch.
+//
+// Never routed through claim.mjs's lease-expiry reaping — a worktree
+// legitimately sits idle for days between sessions, and treating that
+// idleness as a dead lease would garbage-collect real, unfinished work.
+// Abandonment is a deliberate act with a stated reason, not a timeout.
+async function abandonCommand(args) {
+  const intentId = args[0];
+  const reasonIdx = args.indexOf('--reason');
+  const reason = reasonIdx !== -1 ? args[reasonIdx + 1] : undefined;
+
+  if (!intentId || intentId.startsWith('--') || !reason) {
+    console.error(`${red('Usage:')} hedgehog abandon <intent-id> --reason "<why>"\n`);
+    process.exitCode = 1;
+    return;
+  }
+  // No case-folding — same reasoning as mergeCommand: an intent id is
+  // never case-normalized, so it must be typed exactly as declared.
+  const id = intentId;
+
+  await ensureDb();
+  if (!(await exists(DB_PATH))) {
+    console.error(`${red('No build graph found.')} Run ${bold('hedgehog db init')} first.\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const record = {
+    intent: id,
+    reason,
+    abandoned_at: new Date().toISOString(),
+  };
+
+  try {
+    await writeAbandonedFile(record);
+  } catch (err) {
+    console.error(`${red('Failed to record abandonment:')} ${err.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`  ${green('recorded')}  ${ABANDONED_DIR}/${id.toLowerCase()}.json`);
+
+  printDbTarget();
+  const db = openDb();
+  let applied;
+  try {
+    applied = applyAbandonment(db, id);
+  } finally {
+    db.close();
+  }
+  if (!applied.intentExisted) {
+    console.error(
+      `${yellow('No such intent in the build graph:')} ${bold(id)}. The abandonment record was\n` +
+        `still written — it will apply if an intent with this id is compiled later — but\n` +
+        `nothing on trunk changed just now. Check for a typo, or run \`hedgehog status\`.\n`,
+    );
+  }
+  if (applied.resetTaskIds.length > 0) {
+    console.log(`  ${green('reset')}  ${applied.resetTaskIds.join(', ')} ${dim('→ planned')}`);
+  }
+
+  const worktree = hedgehogWorktrees().find((w) => w.intentId === id);
+  if (worktree) {
+    try {
+      removeWorktree(worktree.path, { branch: worktree.branch, removeBranch: true });
+      console.log(`  ${green('removed')}  ${worktree.path} ${dim(`(and branch ${worktree.branch})`)}`);
+    } catch (err) {
+      console.error(
+        `${yellow('Could not remove the worktree:')} ${err.message}\n` +
+          `  git worktree remove ${worktree.path} && git branch -D ${worktree.branch}\n`,
+      );
+    }
+  }
+
+  console.log(
+    `\n${bold('Abandoned.')} ${dim(`${id} is reset to planned on trunk. Commit ${ABANDONED_DIR}/${id.toLowerCase()}.json —`)}\n` +
+      `${dim('the build graph is derived and gitignored, and an uncommitted abandonment')}\n` +
+      `${dim('is reverted by the next `hedgehog db rebuild`.')}\n`,
+  );
+}
+
 // `hedgehog debt add <task-id> "<note>"` / `hedgehog debt list [<task-id>]`
 // — declared debt between tasks. A note recorded against a task is
 // rendered into the INHERITED DEBT section of the packet of every task
@@ -3729,6 +4051,16 @@ async function main() {
 
   if (cmd === 'reconcile') {
     await reconcileCommand(args.slice(1));
+    return;
+  }
+
+  if (cmd === 'merge') {
+    await mergeCommand(args.slice(1));
+    return;
+  }
+
+  if (cmd === 'abandon') {
+    await abandonCommand(args.slice(1));
     return;
   }
 

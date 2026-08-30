@@ -451,8 +451,18 @@ const insertTaskRequirement = (db) =>
 // override written after the fact needs `hedgehog plan --recompile`
 // (drift.mjs composes the same overrides Map) the same as any other
 // core.yaml-derived field would.
-export function planTasks(db, core, overrides = new Map()) {
-  const intents = loadPendingIntents(db);
+//
+// `excludeIntentIds` (worktree.mjs's eligibleIntents feeds this, from
+// `hedgehog plan`) is the set of pending intents this call leaves
+// untouched — neither compiled nor skipped-as-already-compiled, simply
+// not considered. It exists for exactly one caller: an intent whose
+// `intent_dependencies` just cleared is worktree-eligible, and its tasks
+// belong in that worktree's own graph, never in the one `planTasks` is
+// running against here (trunk). Defaulted to an empty Set, so every
+// existing caller — including a project that never uses worktrees — sees
+// the identical behavior this function always had.
+export function planTasks(db, core, overrides = new Map(), { excludeIntentIds = new Set() } = {}) {
+  const intents = loadPendingIntents(db).filter((intent) => !excludeIntentIds.has(intent.id));
   const intentDependencies = loadIntentDependencies(db);
   const ordered = orderIntents(intents, intentDependencies);
 

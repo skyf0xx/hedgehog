@@ -1,14 +1,23 @@
 // `hedgehog db rebuild` — reconstructs the build graph from committed
-// source-of-truth files, for a fresh clone (no `.hedgehog/hedgehog.db`)
-// or after suspected corruption. The DB itself is a derived artifact:
-// everything it holds is either replayable from `.hedgehog/intents/*.json`
-// (via the same normalize/insert path `intent add`/`plan` already use),
-// recoverable from git history (which tasks' commits already landed), or
-// replayable from `.hedgehog/reconciled/*.json` (which tasks a user
-// confirmed as done by work git history cannot credit — reconcile.mjs).
-// What isn't recoverable — `verifications.output`, the ephemeral
-// diagnostics of a run that already passed — is an accepted loss; this
-// only reconciles `tasks.status`.
+// source-of-truth files, for a fresh clone (no `.hedgehog/hedgehog.db`),
+// a `git worktree` that just merged back into trunk, or after suspected
+// corruption. The DB itself is a derived artifact: everything it holds is
+// either replayable from `.hedgehog/intents/*.json` (via the same
+// normalize/insert path `intent add`/`plan` already use), recoverable
+// from git history (which tasks' commits already landed), replayable
+// from `.hedgehog/reconciled/*.json` (which tasks a user confirmed as
+// done by work git history cannot credit — reconcile.mjs), or replayable
+// from `.hedgehog/abandoned/*.json` (which intents were deliberately
+// dropped rather than finished — worktree.mjs). What isn't recoverable —
+// `verifications.output`, the ephemeral diagnostics of a run that already
+// passed — is an accepted loss; this only reconciles `tasks.status`.
+//
+// This is also `hedgehog merge`'s entire "merge the graph" step: a
+// worktree's own `.hedgehog/hedgehog.db` never crosses into trunk's — git
+// merges the committed sources (the intent file, the source code, any
+// notes/reconciliation/abandonment records), and this function re-derives
+// trunk's graph from what merged, exactly as it would for a fresh clone.
+// No DB row is ever copied between databases.
 //
 // A rebuild READS the permanent record. It never writes it: replay goes
 // through `insertIntentRows`, not `addIntent`, so no intent file is
@@ -21,7 +30,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { execSync } from 'node:child_process';
 import { applySchema } from './schema.mjs';
 import { normalizeIntent, insertIntentRows, INTENTS_DIR } from './intent.mjs';
-import { planTasks, CORE_MODULE } from './plan.mjs';
+import { planTasks, CORE_MODULE, CORE_INTENT_ID } from './plan.mjs';
 import { loadCore } from './core.mjs';
 import { detectDrift } from './drift.mjs';
 import { loadOverrides, OVERRIDES_DIR } from './overrides.mjs';
@@ -32,6 +41,7 @@ import {
   RECONCILED_DIR,
 } from './reconcile.mjs';
 import { loadNotes, NOTES_DIR } from './notes.mjs';
+import { loadAbandoned, replayAbandonments, ABANDONED_DIR } from './worktree.mjs';
 
 // Alphabetical by filename, purely to make the *tie-break* deterministic
 // across machines and runs. It is NOT the replay order — see
@@ -310,6 +320,40 @@ function markCompletedTasks(db, commitSubjects) {
   return complete.size;
 }
 
+// Closes every intent whose tasks are all `complete` — the same rule
+// verify.mjs#completeIntentIfDone applies live, one task at a time, as
+// each one verifies. A rebuild has to re-derive the same fact in bulk: a
+// task's own completion is recovered above (from git history) or below
+// (from a reconciliation record), but neither path touches `intents.status`
+// — that row was set live, by the `verify`/`reconcile confirm` call that
+// happened to close the intent's last task, and a rebuild that never ran
+// through either path has no equivalent write. Left undone, an intent
+// whose tasks all read `complete` after a rebuild would still read
+// `active` — which is silently wrong on its own (`hedgehog status`'s
+// intent-facing views would call finished work still in progress) and,
+// for worktree.mjs#eligibleIntents specifically, load-bearing: a
+// dependent intent's `intent_dependencies` gate reads `intents.status`,
+// not task status, so a rebuild that skipped this step would leave an
+// otherwise-finished intent permanently ineligible for the worktree
+// trigger. The synthesised core intent (plan.mjs's CORE_INTENT_ID) is
+// deliberately excluded — its own completion is a different rule
+// (planTasks/reopenOnceTasks manage it directly, tied to once-layer
+// re-entrancy) that this generic sweep would get wrong.
+function markCompletedIntents(db) {
+  const rows = db
+    .prepare(
+      `UPDATE intents SET status = 'complete'
+       WHERE status <> 'complete' AND id <> ?
+         AND id IN (SELECT intent_id FROM tasks)
+         AND NOT EXISTS (
+           SELECT 1 FROM tasks WHERE tasks.intent_id = intents.id AND tasks.status <> 'complete'
+         )
+       RETURNING id`,
+    )
+    .all(CORE_INTENT_ID);
+  return rows.map((r) => r.id);
+}
+
 // Replays `.hedgehog/reconciled/*.json` — the committed record of every
 // task a user confirmed as already done by work that landed outside the
 // loop (reconcile.mjs).
@@ -372,6 +416,7 @@ export async function rebuildDb(
     overridesDir = OVERRIDES_DIR,
     reconciledDir = RECONCILED_DIR,
     notesDir = NOTES_DIR,
+    abandonedDir = ABANDONED_DIR,
   } = {},
 ) {
   applySchema(db);
@@ -384,6 +429,7 @@ export async function rebuildDb(
   const overrides = await loadOverrides(overridesDir);
   const reconciliations = await loadReconciliations(reconciledDir);
   const notesByTask = await loadNotes(notesDir);
+  const abandonments = await loadAbandoned(abandonedDir);
 
   planTasks(db, core, overrides);
 
@@ -393,16 +439,40 @@ export async function rebuildDb(
   const tasksReconciled = replayReconciliations(db, reconciliations);
   const orphanedReconciled = orphanedReconciliations(db, reconciliations);
 
+  // After every task-status recovery path above (history-matched commits,
+  // then reconciliation) — either can close an intent's last open task,
+  // and this is the single place that re-derives `intents.status` from
+  // whatever task statuses just settled, in bulk, the same fact
+  // verify.mjs#completeIntentIfDone writes live one task at a time.
+  const intentsMarkedComplete = markCompletedIntents(db);
+
   const orphanedNotes = replayNotes(db, notesByTask);
+
+  // After planTasks and markCompletedTasks, not before: an abandoned
+  // intent's `.hedgehog/intents/<id>.json` is still on disk (abandonment
+  // never deletes it — only merge and a fresh `intent add` touch that
+  // file), so planTasks recompiles its tasks fresh, all `planned`, and
+  // flips the intent to `active`. This replay is what corrects the
+  // intent's own status back to `planned` and, on the rarer path where
+  // some of its tasks previously reached trunk before being reset (a
+  // second abandon after a partial reconcile, for instance), resets them
+  // too — see worktree.mjs#replayAbandonments.
+  const { replayed: abandonmentsReplayed, orphaned: orphanedAbandonments } = replayAbandonments(
+    db,
+    abandonments,
+  );
 
   const drift = detectDrift(db, core, { overrides });
 
   return {
     intentsReplayed,
     tasksMarkedComplete,
+    intentsMarkedComplete,
     tasksReconciled,
     orphanedReconciled,
     orphanedNotes,
+    abandonmentsReplayed,
+    orphanedAbandonments,
     drift,
   };
 }
