@@ -18,6 +18,7 @@ import { orphanedOverrides } from './overrides.mjs';
 import { RECONCILED_DIR, RECONCILED_NOTE_PREFIX } from './reconcile.mjs';
 import { formatMissingRequirements } from './requires.mjs';
 import { readyTasks, heldBackReason } from './ready.mjs';
+import { worktreeStatus } from './worktree.mjs';
 
 // The task lifecycle in order, matching the tasks CHECK constraint in
 // schema.mjs exactly — every status the engine can write, and no others.
@@ -218,6 +219,12 @@ function countFriction(db) {
 // in every count and list here. Reported unconditionally, not as a
 // warning: reconciling is a supported act, and the point is that the
 // distinction stays visible after the session that made it is gone.
+// Synchronous, as it always was: `boundary.mjs#boundaryState` (a hot path
+// that only ever reads `graph.inFlight`) depends on that, and every other
+// section here is a plain SQL read with no I/O to await. The worktree
+// section is deliberately not part of this function's result — see
+// worktreeSection below — so adding it never has to touch this signature
+// or ripple `async` into boundaryState's own synchronous contract.
 export function graphStatus(db, { core = null, overrides = new Map() } = {}) {
   const counts = countTasksByStatus(db);
   const ready = loadReadyTasks(db);
@@ -243,6 +250,16 @@ export function graphStatus(db, { core = null, overrides = new Map() } = {}) {
     reconciled,
     total,
   };
+}
+
+// The one section of `hedgehog status`'s report that needs I/O beyond a
+// SQL read — worktreeStatus shells out to `git worktree`/`git branch` and
+// reads `.hedgehog/abandoned/*.json`. Kept out of graphStatus's own return
+// (see its comment) and called separately by the CLI, which already
+// awaits several other async sections (loadOverrides, etc.) before
+// rendering the report — this is one more.
+export async function graphWorktreeStatus(db, opts) {
+  return worktreeStatus(db, opts);
 }
 
 const BLOCKED_REASON_LABELS = {
@@ -276,6 +293,7 @@ export function formatStatus({
   debt = [],
   frictionCount = 0,
   reconciled = [],
+  worktrees = { active: [], orphaned: [] },
   total,
   missingRequirements,
 }) {
@@ -313,6 +331,32 @@ export function formatStatus({
     for (const task of inFlight) {
       lines.push(`  ${task.id}   ${task.layer}   ${task.status}    owner: ${task.lease_owner}`);
     }
+  }
+
+  // Active worktrees first (one per intent whose intent_dependencies
+  // cleared — worktree.mjs), orphaned ones called out separately since an
+  // orphan means something needs a decision (was it merged by hand
+  // outside `hedgehog merge`? abandoned without `hedgehog abandon`? just
+  // lost?) rather than reporting normal, in-progress concurrent work.
+  if (worktrees.active.length > 0) {
+    lines.push('');
+    lines.push('WORKTREES');
+    for (const w of worktrees.active) {
+      lines.push(`  ${w.intentId}   ${w.branch}   ${w.path}`);
+    }
+  }
+
+  if (worktrees.orphaned.length > 0) {
+    lines.push('');
+    lines.push('ORPHANED WORKTREES');
+    for (const w of worktrees.orphaned) {
+      lines.push(`  ${w.intentId}   ${w.branch}   branch exists, no active worktree, not merged or abandoned`);
+    }
+    lines.push('');
+    lines.push(
+      '  Each needs a decision: finish it (`git worktree add <path> ' +
+        '<branch>`, then `hedgehog merge <intent-id>`), or `hedgehog abandon <intent-id> --reason "<why>"`.',
+    );
   }
 
   if (attention && attention.length > 0) {

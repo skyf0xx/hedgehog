@@ -451,9 +451,62 @@ const insertTaskRequirement = (db) =>
 // override written after the fact needs `hedgehog plan --recompile`
 // (drift.mjs composes the same overrides Map) the same as any other
 // core.yaml-derived field would.
-export function planTasks(db, core, overrides = new Map()) {
-  const intents = loadPendingIntents(db);
+//
+// `excludeIntentIds` (worktree.mjs's eligibleIntents feeds this, from
+// `hedgehog plan`) is the set of pending intents this call leaves
+// untouched — neither compiled nor skipped-as-already-compiled, simply
+// not considered. It exists for exactly one caller: an intent whose
+// `intent_dependencies` just cleared is worktree-eligible, and its tasks
+// belong in that worktree's own graph, never in the one `planTasks` is
+// running against here (trunk). Defaulted to an empty Set, so every
+// existing caller — including a project that never uses worktrees — sees
+// the identical behavior this function always had.
+//
+// Expanded to its transitive closure before anything else reads it: an
+// intent C that `--depends-on` an excluded intent B is not itself
+// worktree-eligible (eligibleIntents requires B to be `complete`, and an
+// excluded-but-not-yet-merged B never is), so left out of the exclusion
+// set C would still compile onto trunk here — and the cross-intent edge
+// loop below would then try to INSERT a `dependencies` row onto one of
+// B's task ids, which was never inserted anywhere (B's tasks exist only
+// in B's own worktree, if it has one yet, or nowhere at all if it's still
+// waiting on its own commit — see the `pending` branch in
+// bin/cli.mjs#planCommand). `dependencies.depends_on_task_id` is a
+// FOREIGN KEY with no bypass (schema.mjs, `foreign_keys = ON`), so that
+// INSERT throws and aborts the whole `hedgehog plan` transaction. Mirrors
+// eligibleIntents' own rule — a dependency has to be actually finished
+// before its dependent can proceed — rather than inventing a second rule
+// here that could drift from it.
+function expandExcludedIntentIds(excludeIntentIds, intentDependencies) {
+  if (excludeIntentIds.size === 0) return excludeIntentIds;
+
+  const dependsOn = new Map();
+  for (const { intent_id, depends_on_intent_id } of intentDependencies) {
+    if (!dependsOn.has(intent_id)) dependsOn.set(intent_id, []);
+    dependsOn.get(intent_id).push(depends_on_intent_id);
+  }
+
+  const expanded = new Set(excludeIntentIds);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [intentId, deps] of dependsOn) {
+      if (expanded.has(intentId)) continue;
+      if (deps.some((depId) => expanded.has(depId))) {
+        expanded.add(intentId);
+        changed = true;
+      }
+    }
+  }
+  return expanded;
+}
+
+export function planTasks(db, core, overrides = new Map(), { excludeIntentIds = new Set() } = {}) {
   const intentDependencies = loadIntentDependencies(db);
+  const effectiveExcludeIntentIds = expandExcludedIntentIds(excludeIntentIds, intentDependencies);
+  const intents = loadPendingIntents(db).filter(
+    (intent) => !effectiveExcludeIntentIds.has(intent.id),
+  );
   const ordered = orderIntents(intents, intentDependencies);
 
   const dependsOnByIntent = new Map();
