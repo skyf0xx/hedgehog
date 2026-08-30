@@ -15,6 +15,7 @@ import { listDebt } from './debt.mjs';
 import { detectDrift, formatDrift } from './drift.mjs';
 import { listFriction } from './friction.mjs';
 import { orphanedOverrides } from './overrides.mjs';
+import { RECONCILED_DIR, RECONCILED_NOTE_PREFIX } from './reconcile.mjs';
 import { formatMissingRequirements } from './requires.mjs';
 import { readyTasks, heldBackReason } from './ready.mjs';
 
@@ -123,6 +124,34 @@ function loadDebtByTask(db) {
     .sort((a, b) => a.taskId.localeCompare(b.taskId));
 }
 
+// Every task that reached `complete` through `hedgehog reconcile` rather
+// than through `hedgehog verify`, in task-id order.
+//
+// A reconciled task is `complete` like any other, so it is invisible in
+// the counts above and in every list below them — and it is the one
+// `complete` status the engine never checked: no scope gate ran and no
+// verify command ran on it. Reading it back off the provenance note
+// reconcile.mjs writes (a `decisions` row carrying
+// RECONCILED_NOTE_PREFIX) keeps that fact in one place rather than adding
+// a task column that every other command would then have to know about,
+// and it survives a rebuild for free, since the replay re-writes the same
+// note from the committed file.
+function loadReconciledTasks(db) {
+  try {
+    return db
+      .prepare(
+        `SELECT DISTINCT d.task_id AS taskId, t.layer AS layer
+         FROM decisions d JOIN tasks t ON t.id = d.task_id
+         WHERE d.note LIKE ? || '%'
+         ORDER BY d.task_id`,
+      )
+      .all(RECONCILED_NOTE_PREFIX);
+  } catch {
+    // No `decisions` table yet (a build graph from before it existed).
+    return [];
+  }
+}
+
 // The friction row count, or 0. `listFriction` reads the table
 // unguarded, so a build graph predating it throws here where `listDebt`
 // would return [] — caught rather than propagated for the same reason
@@ -138,7 +167,7 @@ function countFriction(db) {
 }
 
 // Returns { counts, ready, heldBack, inFlight, attention, drift,
-// orphanedOverrides, debt, frictionCount, total } —
+// orphanedOverrides, debt, frictionCount, reconciled, total } —
 // counts keyed by every status in the tasks CHECK constraint (present
 // even at zero), ready the full list of currently-pickable tasks,
 // heldBack the subset of those that `hedgehog claim` would skip over
@@ -181,6 +210,14 @@ function countFriction(db) {
 // only the existence signal: `debt list` needs a task id the operator
 // has no way to guess, and `friction list` needs the operator to
 // already suspect there is something to read.
+//
+// `reconciled` is the tasks that reached `complete` through `hedgehog
+// reconcile` rather than through `hedgehog verify`. Those are the only
+// `complete` tasks the engine never checked — no scope gate, no verify
+// command — and they are otherwise indistinguishable from verified ones
+// in every count and list here. Reported unconditionally, not as a
+// warning: reconciling is a supported act, and the point is that the
+// distinction stays visible after the session that made it is gone.
 export function graphStatus(db, { core = null, overrides = new Map() } = {}) {
   const counts = countTasksByStatus(db);
   const ready = loadReadyTasks(db);
@@ -191,6 +228,7 @@ export function graphStatus(db, { core = null, overrides = new Map() } = {}) {
   const orphaned = orphanedOverrides(db, overrides);
   const debt = loadDebtByTask(db);
   const frictionCount = countFriction(db);
+  const reconciled = loadReconciledTasks(db);
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return {
     counts,
@@ -202,6 +240,7 @@ export function graphStatus(db, { core = null, overrides = new Map() } = {}) {
     orphanedOverrides: orphaned,
     debt,
     frictionCount,
+    reconciled,
     total,
   };
 }
@@ -216,8 +255,9 @@ const BLOCKED_REASON_LABELS = {
 // status (only non-zero ones, in lifecycle order), any declared binary
 // this environment can't resolve, the ready list, tasks currently in
 // flight, anything needing attention, core.yaml drift, overrides
-// pointing at no task, and what has been recorded in the two
-// append-only side channels (declared debt, logged friction).
+// pointing at no task, what has been recorded in the two append-only
+// side channels (declared debt, logged friction), and which complete
+// tasks closed by reconciliation rather than by verification.
 //
 // `missingRequirements` comes from the core definition rather than the
 // database (src/db/requires.mjs#coreMissingRequirements), so the caller
@@ -235,6 +275,7 @@ export function formatStatus({
   orphanedOverrides = [],
   debt = [],
   frictionCount = 0,
+  reconciled = [],
   total,
   missingRequirements,
 }) {
@@ -344,6 +385,23 @@ export function formatStatus({
     lines.push(`FRICTION LOGGED  ${frictionCount}`);
     lines.push('');
     lines.push('  Reviewed as a batch at the end of a build. See: hedgehog friction list');
+  }
+
+  // Last, because it is the only section here that reports something
+  // already settled rather than something outstanding. It is reported at
+  // all because a reconciled task is `complete` in every count above and
+  // is the one `complete` the engine never checked — the distinction is
+  // invisible without this line, and it is exactly what a reader deciding
+  // how much to trust the graph needs.
+  if (reconciled.length > 0) {
+    lines.push('');
+    lines.push(`CLOSED BY RECONCILIATION  ${reconciled.length}`);
+    for (const { taskId, layer } of reconciled) {
+      lines.push(`  ${taskId}   ${layer}   confirmed by the user, not verified`);
+    }
+    lines.push('');
+    lines.push(`  No scope gate and no verify command ran on these. Recorded in ${RECONCILED_DIR}/.`);
+    lines.push('  See: hedgehog reconcile list');
   }
 
   return lines.join('\n');
