@@ -76,29 +76,22 @@ paragraph.
    land correctly, and that the specific thing you changed shows up as
    expected (a new skill directory copied over, a new host's files in the
    right place, a new blueprint reachable from `hedgehog-core-design`).
-5. **Commit with Conventional Commits.** If the change is already one
-   logical unit, commit it directly (`feat(hosts): add windsurf support`,
-   `fix(tweaker): ...`, `docs(roadmap): ...`) — Hedgehog's commit format,
-   same as the one `hedgehog-loop` uses for a project build. If the working
-   tree has accumulated several unrelated changes that need splitting into
-   atomic commits, use the `conventional-commits` skill rather than
-   hand-rolling the split.
+5. **Commit with Conventional Commits**, in the format the
+   `conventional-commits` skill states. If the change is already one
+   logical unit, commit it directly. If the working tree has accumulated
+   several unrelated changes that need splitting into atomic commits, use
+   the `conventional-commits` skill rather than hand-rolling the split.
 6. **Push and open the PR**, following `pr-writing`'s checklist and shape
    (CI passing, one change, only verified claims):
    ```bash
    git push -u origin <branch-name>
-   gh pr create --repo skyf0xx/hedgehog --title "<type>(<scope>): <summary>" --body "$(cat <<'EOF'
-   ## Summary
-   <1-3 bullets: what changed and why>
-
-   ## Test plan
-   - [ ] Ran `node bin/cli.mjs init` in a scratch dir and confirmed the change lands correctly
-   EOF
-   )"
+   gh pr create --repo skyf0xx/hedgehog --title "<type>(<scope>): <summary>" --body "..."
    ```
-   If the PR closes or addresses a `ROADMAP.md` item or a filed issue,
-   reference it (`Addresses the "<item name>" item in ROADMAP.md`, or
-   `Fixes #<n>`).
+   The body follows `pr-writing`'s shape (a short Summary, a Test plan
+   listing what was actually run — for this repo, `node bin/cli.mjs init`
+   in a scratch dir, confirming the change lands correctly). If the PR
+   closes or addresses a `ROADMAP.md` item or a filed issue, reference it
+   (`Addresses the "<item name>" item in ROADMAP.md`, or `Fixes #<n>`).
 7. **Check CI** with `gh pr checks <number> --repo skyf0xx/hedgehog` after
    opening. Fix a red check before asking for review.
 8. **Report the PR URL** `gh` returns and stop — don't merge, don't push
