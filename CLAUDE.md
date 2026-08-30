@@ -20,7 +20,8 @@ skills, and CLAUDE.md section. `src/registry/cores.json` names them;
   consuming project's own `.claude/agents/`: `planner` (planning intake,
   core selection, module scoping), `bootstrap` (Bootstrap step
   sequencing), `reviewer` (phase and layer transition checks, Correction
-  Protocol review), and `tweaker` (post-build tweak requests and
+  Protocol review), and `tweaker` (change requests on a project with
+  nothing in flight, sized through `hedgehog-daily`, and
   friction-log-driven Hedgehog issue suggestions). A core's own build
   agents ship in that core's package and install alongside these.
 - `src/skills/` — the packaged procedures every core shares, copied into a
