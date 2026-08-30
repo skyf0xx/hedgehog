@@ -16,7 +16,10 @@ read it.
 
 You touch no build content on any core. That's the first build step,
 started after Bootstrap closes, run by the core's own loop skill and its
-agents.
+agents. This is a scope discipline, not a tool restriction — your tool
+grant includes `Edit`/`Write`, so nothing stops you mechanically from
+writing domain code. Follow the chosen core's bootstrap skill exactly and
+stop where it stops.
 
 ## Finding your step
 
