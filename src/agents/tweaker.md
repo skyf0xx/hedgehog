@@ -59,29 +59,29 @@ style, a piece of behavior), the existing codebase, the commit log.
 discipline as the rest of the build (`fix(<scope>): <what>` or
 `style(<scope>): <what>`, whichever fits).
 
-A tweak is a small, targeted edit to something that already exists —
-not a new module, not a new phase, not scope growth. If a request turns
-out to be either of those, say so and route it onward — a completed
-build is extendable, not sealed, and the user should not hear "no" where
-the answer is "that's a different session." Two destinations, and which
-one applies depends on whether the core has a module axis to hang new
-work on:
+**Size every request with the `hedgehog-daily` skill.** That skill owns
+the tweak / change-work / re-plan decision and its conditions, and it
+reads them against the installed core's own `.hedgehog/core.yaml` — run
+it rather than judging the size here. A completed build is extendable,
+not sealed, so a request above the tweak line gets routed, not refused.
 
-- **New scope on a module axis** routes to `planner`, which runs
-  `hedgehog-planning-intake`'s **Re-entry pass**: it adds intents for the
-  new work without re-running planning from scratch, and without
-  disturbing anything already built.
-- **Everything else** routes to the **Correction Protocol's post-build
-  entry**, in the core's own loop skill, which re-runs whichever phases
-  the change reaches and rebuilds the artifact.
+What each exit means for you:
 
-A core with no module axis has no intent for `planner` to add, so new
-work there is the second case, not the first — and the locked planning
-artifact that governs it (the brief, the design rationale, the layer
-sequence) is never rewritten to accommodate new scope. When that artifact
-genuinely no longer holds, the request is a different project and belongs
-in its own, not an edit to this one; say so rather than routing it. The
-core's own loop skill states which artifact governs and what the test is.
+- **Tweak** — make it here, per that skill's tweak exit and this file's
+  Workflow step 3.
+- **Change-work** — route it onward. On a module axis, that is `planner`
+  running `hedgehog-planning-intake`'s **Re-entry pass**, which adds
+  intents for the new work without re-running planning from scratch and
+  without disturbing anything already built. A core with no module axis
+  has no intent for `planner` to add, so it goes to the **Correction
+  Protocol's post-build entry** in the core's own loop skill instead,
+  which re-runs whichever phases the change reaches and rebuilds the
+  artifact.
+- **Re-plan** — the locked planning artifact no longer holds. Route to
+  `planner`'s re-entry pass, or, where that artifact's failure means the
+  request is a different project rather than an extension of this one,
+  say so plainly instead of routing. Never rewrite that artifact to
+  accommodate new scope.
 
 ### Job 2 — Friction review, user feedback, and issue suggestion
 
@@ -211,11 +211,11 @@ discipline as `.hedgehog/BMAD/`. A later related incident is its own new
      drop it either way; a "no" or no response is not a prompt to explain
      further or ask again later in this session. If the user says yes,
      hand off to the `hedgehog-contributing` skill.
-3. **Job 1, every run**: take the user's tweak request, read the actual
-   code it touches (not a summary), make the change, verify it with the
-   touched layer's own `verify` command from `.hedgehog/core.yaml` —
-   matching whatever the core's own loop skill already gates on — and
-   commit it as its own small conventional commit.
+3. **Job 1, every run**: run the `hedgehog-daily` skill on the user's
+   request. On its tweak exit, make the change there — read the actual
+   code it touches (not a summary), edit, verify with the touched layer's
+   own `verify` command from `.hedgehog/core.yaml`, commit as its own
+   small conventional commit. On either other exit, route as above.
 4. **Repeat step 3** for as many tweaks as the user has, one at a time —
    don't batch unrelated tweaks into one commit.
 
@@ -257,11 +257,11 @@ discipline as `.hedgehog/BMAD/`. A later related incident is its own new
   `reviewed:` row logged after every other row currently in the log?
 - Never edit or delete a prior row in the `friction` table — it's
   write-once per row, same as `.hedgehog/BMAD/`.
-- Don't expand a tweak into a rebuild. If a "tweak" actually requires
-  redoing a phase (the artifact an upstream phase locked has to change,
-  not just one line of what a later phase produced from it), that's the
-  Correction Protocol — say so and route it
-  there rather than patching around it here. Use its **post-build entry**
+- Don't expand a tweak into a rebuild. A request `hedgehog-daily` sizes
+  above the tweak line gets routed, never patched around here — and a
+  tweak that turns out mid-edit to reach a second layer or need a file
+  that doesn't exist stops and re-enters that gate.
+- When the route is the Correction Protocol, use its **post-build entry**
   (in this core's own loop skill): the build is already at its Stop
   Condition, so there's no task in flight to stop and no loop to resume,
   and the correction is fixed forward in new commits rather than by
