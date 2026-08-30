@@ -12,27 +12,33 @@
 // records the note against the declaring task, and next.mjs renders it
 // into the packet of every task that depends on it.
 //
-// Same as debt: nothing is written to a committed markdown log, so a
-// decision has no source `hedgehog db rebuild` could replay it from —
-// rebuild.mjs carries debt, decisions, and friction across a rebuild by
-// task id instead, for exactly this reason.
+// Same as debt: a note recorded here has a committed source behind it —
+// `.hedgehog/notes/<task-id>.json` (notes.mjs), the same way
+// `.hedgehog/reconciled/*.json` backs a reconciliation. `hedgehog db
+// rebuild` replays it from there, alongside overrides and
+// reconciliations.
 
 import { applySchema } from './schema.mjs';
+import { appendNote } from './notes.mjs';
 
 const insertDecision = (db) =>
   db.prepare(`
-    INSERT INTO decisions (task_id, note)
-    VALUES (?, ?)
+    INSERT INTO decisions (task_id, note, logged_at)
+    VALUES (?, ?, ?)
   `);
 
 function taskExists(db, taskId) {
   return db.prepare('SELECT 1 FROM tasks WHERE id = ?').get(taskId) !== undefined;
 }
 
-// Writes one decision row against `taskId`. The task must exist — a
-// decision addressed to nobody reaches nobody, and the schema's foreign
-// key would reject it anyway, less legibly.
-export function addDecision(db, { taskId, note }) {
+// Writes one decision row against `taskId`, and its committed record. The
+// task must exist — a decision addressed to nobody reaches nobody, and
+// the schema's foreign key would reject it anyway, less legibly.
+//
+// Committed file before DB row, deliberately — reconcile.mjs's same
+// ordering, for the same reason: if the write fails, nothing has been
+// recorded on a fact that would not survive the next rebuild.
+export async function addDecision(db, { taskId, note }, notesDir = undefined) {
   // Idempotent, and the migration path for a build graph created before
   // the `decisions` table existed: dbInit only applies the schema to a DB
   // it just created, so an in-flight project's DB would otherwise have no
@@ -43,7 +49,10 @@ export function addDecision(db, { taskId, note }) {
   if (!note) throw new Error('decision requires a note');
   if (!taskExists(db, taskId)) throw new Error(`no such task: ${taskId}`);
 
-  const result = insertDecision(db).run(taskId, note);
+  const loggedAt = new Date().toISOString();
+  await appendNote(taskId, { kind: 'decision', note, loggedAt }, notesDir);
+
+  const result = insertDecision(db).run(taskId, note, loggedAt);
   return { id: Number(result.lastInsertRowid), taskId, note };
 }
 

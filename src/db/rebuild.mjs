@@ -30,8 +30,8 @@ import {
   orphanedReconciliations,
   reconciledNote,
   RECONCILED_DIR,
-  RECONCILED_NOTE_PREFIX,
 } from './reconcile.mjs';
+import { loadNotes, NOTES_DIR } from './notes.mjs';
 
 // Alphabetical by filename, purely to make the *tie-break* deterministic
 // across machines and runs. It is NOT the replay order — see
@@ -61,38 +61,32 @@ function intentExists(db, id) {
 // back, producing a graph no set of committed intents describes.
 //
 // Deleting `intents` cascades through requirements, tasks,
-// task_requirements, dependencies, artifacts and verifications — every
-// one of which this run re-derives. `debt`, `decisions`, and `friction`
-// are the exception: they are operator- or agent-recorded notes with no
-// committed source, so they are carried across by task id (deterministic,
-// so a note re-attaches to the same task the replay recompiles). A note
-// whose task no longer exists in the new graph has nowhere to live and is
-// reported rather than silently dropped.
+// task_requirements, dependencies, artifacts, verifications, `debt` and
+// `decisions` (all `ON DELETE CASCADE` from `tasks`) — every one of which
+// this run re-derives. `debt` and `decisions` are then replayed from
+// `.hedgehog/notes/*.json` (replayNotes, below) rather than carried
+// across from the DB's own prior rows — a worktree's own DB never held a
+// sibling worktree's notes, so carrying across only the current DB's rows
+// would silently drop everything logged elsewhere. `friction` keeps its
+// own committed source (`.hedgehog/friction/log.md`, friction.mjs) and is
+// left untouched here — its `task_id` is `ON DELETE SET NULL`, not
+// CASCADE, so its rows outlive this delete unattached rather than being
+// cleared.
 //
-// One class of decision row is excluded from that carry-across: the
-// provenance note a reconciliation writes (reconcile.mjs). That one DOES
-// have a committed source — `.hedgehog/reconciled/*.json` — and
-// replayReconciliations below re-writes it from that file. Carrying it
-// across as well would give a reconciled task two identical notes after
-// the first rebuild, and one more on every rebuild after that.
+// One class of decision row needs no replay from notes.mjs: the
+// provenance note a reconciliation writes (reconcile.mjs). That one has a
+// different committed source — `.hedgehog/reconciled/*.json` — and
+// replayReconciliations below re-writes it from that file instead.
 function clearDerivedGraph(db) {
-  const debt = db.prepare('SELECT task_id, note, logged_at FROM debt').all();
-  const decisions = db
-    .prepare('SELECT task_id, note, logged_at FROM decisions')
-    .all()
-    .filter((row) => !row.note.startsWith(RECONCILED_NOTE_PREFIX));
-  const friction = db.prepare('SELECT task_id, note, logged_at FROM friction').all();
-
   db.prepare('DELETE FROM intents').run();
-  // `friction.task_id` is ON DELETE SET NULL rather than CASCADE, so its
-  // rows outlive the delete above. Clear them too and let restoreNotes be
-  // the single writer, so a note is not duplicated against its own copy.
-  db.prepare('DELETE FROM friction').run();
-
-  return { debt, decisions, friction };
 }
 
-function restoreNotes(db, { debt, decisions, friction }) {
+// Replays `.hedgehog/notes/*.json` (notes.mjs) — the committed record
+// behind every `debt add` / `decision add` call — the same way
+// replayReconciliations below replays `.hedgehog/reconciled/*.json`. A
+// note whose task no longer exists in the new graph has nowhere to live
+// and is reported rather than silently dropped.
+function replayNotes(db, notesByTask) {
   const taskExists = db.prepare('SELECT 1 FROM tasks WHERE id = ?');
   const insertDebt = db.prepare(
     'INSERT INTO debt (task_id, note, logged_at) VALUES (?, ?, ?)',
@@ -100,38 +94,23 @@ function restoreNotes(db, { debt, decisions, friction }) {
   const insertDecision = db.prepare(
     'INSERT INTO decisions (task_id, note, logged_at) VALUES (?, ?, ?)',
   );
-  const insertFriction = db.prepare(
-    'INSERT INTO friction (task_id, note, logged_at) VALUES (?, ?, ?)',
-  );
 
   const orphaned = [];
-
-  for (const row of debt) {
-    if (taskExists.get(row.task_id) === undefined) {
-      orphaned.push({ kind: 'debt', taskId: row.task_id, note: row.note });
+  for (const [taskId, notes] of notesByTask) {
+    if (taskExists.get(taskId) === undefined) {
+      for (const entry of notes) {
+        orphaned.push({ kind: entry.kind, taskId, note: entry.note });
+      }
       continue;
     }
-    insertDebt.run(row.task_id, row.note, row.logged_at);
-  }
-
-  for (const row of decisions) {
-    if (taskExists.get(row.task_id) === undefined) {
-      orphaned.push({ kind: 'decision', taskId: row.task_id, note: row.note });
-      continue;
+    for (const entry of notes) {
+      if (entry.kind === 'debt') {
+        insertDebt.run(taskId, entry.note, entry.logged_at);
+      } else {
+        insertDecision.run(taskId, entry.note, entry.logged_at);
+      }
     }
-    insertDecision.run(row.task_id, row.note, row.logged_at);
   }
-
-  for (const row of friction) {
-    // friction.task_id is nullable — an unattached note always survives.
-    if (row.task_id !== null && taskExists.get(row.task_id) === undefined) {
-      insertFriction.run(null, row.note, row.logged_at);
-      orphaned.push({ kind: 'friction', taskId: row.task_id, note: row.note });
-      continue;
-    }
-    insertFriction.run(row.task_id, row.note, row.logged_at);
-  }
-
   return orphaned;
 }
 
@@ -392,17 +371,19 @@ export async function rebuildDb(
     intentsDir = INTENTS_DIR,
     overridesDir = OVERRIDES_DIR,
     reconciledDir = RECONCILED_DIR,
+    notesDir = NOTES_DIR,
   } = {},
 ) {
   applySchema(db);
 
-  const notes = clearDerivedGraph(db);
+  clearDerivedGraph(db);
 
   const intentsReplayed = await replayIntents(db, intentsDir);
 
   const core = await loadCore(corePath);
   const overrides = await loadOverrides(overridesDir);
   const reconciliations = await loadReconciliations(reconciledDir);
+  const notesByTask = await loadNotes(notesDir);
 
   planTasks(db, core, overrides);
 
@@ -412,7 +393,7 @@ export async function rebuildDb(
   const tasksReconciled = replayReconciliations(db, reconciliations);
   const orphanedReconciled = orphanedReconciliations(db, reconciliations);
 
-  const orphanedNotes = restoreNotes(db, notes);
+  const orphanedNotes = replayNotes(db, notesByTask);
 
   const drift = detectDrift(db, core, { overrides });
 

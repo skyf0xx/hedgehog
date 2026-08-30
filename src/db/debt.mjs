@@ -10,30 +10,37 @@
 // arrives. `debt add` records the note against the declaring task, and
 // next.mjs renders it into the packet of every task that depends on it.
 //
-// Unlike friction.mjs, nothing is written to a committed markdown log.
-// Debt is in-build traffic between two tasks, and a file under
-// `.hedgehog/` written mid-task sits outside every task's scope globs —
-// it would trip verify's scope gate on the very task that declared it.
-// Debt has no committed source `hedgehog db rebuild` could replay it
-// from, so rebuild.mjs carries it across a rebuild by task id instead
-// (a note whose task no longer exists there is reported, not dropped).
+// A note recorded here has a committed source behind it —
+// `.hedgehog/notes/<task-id>.json` (notes.mjs) — the same way
+// `.hedgehog/reconciled/*.json` backs a reconciliation. Debt is in-build
+// traffic between two tasks, and a file under `.hedgehog/` written
+// mid-task sits outside every task's scope globs — it would trip verify's
+// scope gate on the very task that declared it — so `hedgehog debt add`
+// writes it directly rather than through the declaring task's own commit.
+// `hedgehog db rebuild` replays it from there (rebuild.mjs), the same way
+// it replays overrides and reconciliations.
 
 import { applySchema } from './schema.mjs';
+import { appendNote } from './notes.mjs';
 
 const insertDebt = (db) =>
   db.prepare(`
-    INSERT INTO debt (task_id, note)
-    VALUES (?, ?)
+    INSERT INTO debt (task_id, note, logged_at)
+    VALUES (?, ?, ?)
   `);
 
 function taskExists(db, taskId) {
   return db.prepare('SELECT 1 FROM tasks WHERE id = ?').get(taskId) !== undefined;
 }
 
-// Writes one debt row against `taskId`. The task must exist — debt
-// addressed to nobody reaches nobody, and the schema's foreign key would
-// reject it anyway, less legibly.
-export function addDebt(db, { taskId, note }) {
+// Writes one debt row against `taskId`, and its committed record. The
+// task must exist — debt addressed to nobody reaches nobody, and the
+// schema's foreign key would reject it anyway, less legibly.
+//
+// Committed file before DB row, deliberately — reconcile.mjs's same
+// ordering, for the same reason: if the write fails, nothing has been
+// recorded on a fact that would not survive the next rebuild.
+export async function addDebt(db, { taskId, note }, notesDir = undefined) {
   // Idempotent, and the migration path for a build graph created before
   // the `debt` table existed: dbInit only applies the schema to a DB it
   // just created, so an in-flight project's DB would otherwise have no
@@ -44,7 +51,10 @@ export function addDebt(db, { taskId, note }) {
   if (!note) throw new Error('debt requires a note');
   if (!taskExists(db, taskId)) throw new Error(`no such task: ${taskId}`);
 
-  const result = insertDebt(db).run(taskId, note);
+  const loggedAt = new Date().toISOString();
+  await appendNote(taskId, { kind: 'debt', note, loggedAt }, notesDir);
+
+  const result = insertDebt(db).run(taskId, note, loggedAt);
   return { id: Number(result.lastInsertRowid), taskId, note };
 }
 

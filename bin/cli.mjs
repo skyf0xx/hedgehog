@@ -3293,7 +3293,7 @@ async function debtCommand(args) {
     const db = openDb();
     let entry;
     try {
-      entry = addDebt(db, { taskId, note });
+      entry = await addDebt(db, { taskId, note });
     } catch (err) {
       console.error(
         `${red('Failed to declare debt:')} ${err.message}\n\nRun ${bold('hedgehog status')} to see valid task ids.\n`,
@@ -3364,7 +3364,7 @@ async function decisionCommand(args) {
     const db = openDb();
     let entry;
     try {
-      entry = addDecision(db, { taskId, note });
+      entry = await addDecision(db, { taskId, note });
     } catch (err) {
       console.error(
         `${red('Failed to declare decision:')} ${err.message}\n\nRun ${bold('hedgehog status')} to see valid task ids.\n`,
