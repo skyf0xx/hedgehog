@@ -9,10 +9,12 @@
 // a ghost `TASK-SCHEMA` whose scope overlaps it. The graph that results
 // is one no set of committed intents describes.
 //
-// Operator-recorded notes are the deliberate exception: `debt` and
-// `friction` have no committed source to replay from, so they are carried
-// across the clear by task id and only reported as orphaned when the
-// recompiled graph has no such task.
+// Operator-recorded notes are the deliberate exception: `debt` has a
+// committed source (`.hedgehog/notes/*.json`, notes.mjs) replayed after
+// the clear; `friction` keeps its own separate committed log
+// (`.hedgehog/friction/log.md`) and is left untouched by the clear. Both
+// are only reported as orphaned when the recompiled graph has no such
+// task.
 
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
