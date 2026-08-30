@@ -79,10 +79,10 @@ What each exit means for you:
   without disturbing anything already built. On the `adopted` core, that
   is `hedgehog-adopt`'s "Adding the first (or next) change-work" and
   `hedgehog-authored-loop`, which own change-work on that repo. A core
-  with neither has no intent for `planner` to
-  add, so it goes to the **Correction Protocol's post-build entry** in
-  the core's own loop skill instead, which re-runs whichever phases the
-  change reaches and rebuilds the artifact.
+  with neither a module axis nor the `adopted` core's own routing has no
+  intent for `planner` to add, so it goes to the **Correction Protocol's
+  post-build entry** in the core's own loop skill instead, which re-runs
+  whichever phases the change reaches and rebuilds the artifact.
 - **Re-plan** — the locked planning artifact no longer holds. Route to
   `planner`'s re-entry pass, or, where that artifact's failure means the
   request is a different project rather than an extension of this one,
