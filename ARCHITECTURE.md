@@ -159,3 +159,86 @@ Stop Condition and linear-chain-only shape — a separate package from
 `authored` rather than a second mode of it, since the two diverge in
 intake, lock artifact, and Stop Condition semantics and share only that
 build loop.
+
+## The `core.yaml` contract
+
+This section is the named owner of what every field in `.hedgehog/core.yaml`
+means — the contract between the parser (`src/db/core.mjs`, plus every
+consumer that reads a compiled task's layer-derived fields) and the prose
+that reads the same file (`hedgehog-daily`, `tweaker`, `reviewer`, and the
+two writers, `hedgehog-core-design` in the `authored` core and
+`hedgehog-adopt` in the `adopted` core). A change to any field's meaning,
+default, or allowed values updates this table in the same commit.
+
+Two fields are named loosely elsewhere and are clarified here once: a
+layer's identifier field is `id`, never `name` — the parser has no `name`
+key at any level. Cardinality (one task per intent vs. one task for the
+whole build) is expressed by the boolean `once`, not by a field called
+`per` — the parser has no `per` key either.
+
+### Top-level fields
+
+| field | source path | reader | default / absent behavior | allowed values | positive / negative example | skill reading | fallback | writer |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `id` | `src/db/core.mjs:224` (parse), `:654` (validate) | `parseCoreYaml`, `validateCore` | **Required.** Absent throws `core definition missing top-level id`. | any non-empty scalar | positive: `id: full-stack-app`. negative: file with no `id:` line throws at `validateCore`. | Not read by name by any skill/agent prose — code-only. | n/a (required) | Both writers emit it as the first line (`hedgehog-core-design` Step 5 example; `hedgehog-adopt` Step 5, "exact format `src/db/core.mjs` parses"). |
+| `pluralizes` | `src/db/core.mjs:233` (parse) | `parseCoreYaml`; consumed by `bin/cli.mjs:1650`/`:1679` (`intent add`'s singular-id advisory) | Optional. Absent → `true`. | `true` / `false` | positive: `pluralizes: false` (deepseek-harness — its tool generator uses the module id verbatim). negative: omitted on every core predating the field; reads as `true`, matching prior behavior. | Not mentioned in `hedgehog-daily`, `tweaker`, or `reviewer` — code-only (`bin/cli.mjs`, out of scope for this audit to edit). Neither writer skill emits it; both leave it at the default. | n/a — absence is itself the documented default, not a gap. | Neither writer names it explicitly; correct by the default (both writers' example cores have generators that pluralize normally). |
+| `pattern` | `src/db/core.mjs:187,240-248` (parse), `:630-647` (dispatch), `checkLayeredPattern`/`checkHexagonalPattern` | `parseCoreYaml`, `checkPatternConformance` | Optional. Absent → `null`, and `checkPatternConformance` skips all checking — identical to a core written before the field existed. | `hexagonal`, `layered`, `vertical-slice`, `none` — a typo throws at **parse** time (`VALID_PATTERNS`), not load-silently-as-unset. | positive: `pattern: vertical-slice` on a core where some layer's scope contains `{module}`. negative: `pattern: hexagonal` on a core whose head layer has a `depends_on` throws (`core.mjs:592`). | Not mentioned in `hedgehog-daily`, `tweaker`, or `reviewer` — none of the three shared consumer skills read or act on `pattern`. Code- and writer-only. | n/a — no shared skill depends on it. | Both writers: `hedgehog-core-design` Step 3/4/5 (derives from the blueprint, re-derives after adaptation, module axis forces `vertical-slice`) and `hedgehog-adopt` Step 1/3 (observes from workspace-manifest evidence only, `none` unless unambiguous, chain wins over declaration on conflict). |
+
+### Per-layer fields
+
+| field | source path | reader | default / absent behavior | allowed values | positive / negative example | skill reading | fallback | writer |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `id` (layer) | `src/db/core.mjs:272` | `parseCoreYaml`, `validateCore:660` | **Required.** Absent throws `layer missing id`. | any non-empty scalar, unique within the core | positive: `id: schema`. negative: a layer with no `id:` line throws. | `hedgehog-daily` SKILL.md:26 ("each layer's `id`, `scope` globs, `verify` command…") — matches code exactly. | n/a (required) | Both writers emit it per layer. |
+| `depends_on` | `src/db/core.mjs:273-274` | `parseCoreYaml`; `validateCore:717-724` (must resolve); `plan.mjs` (edge compilation); `checkLayeredPattern`/`checkHexagonalPattern` | Optional. Absent → `null` (no parent — legal only for the head layer, or any layer under `pattern: none`/unset). | must name another layer in the same core, or absent | positive: `depends_on: scaffold`. negative: `depends_on: nonexistent` throws `core.mjs:721`. | Not named directly in `hedgehog-daily`/`tweaker`/`reviewer` prose (they reason about "layers" and "the chain" without citing the field). | n/a | Both writers state it explicitly: `hedgehog-core-design` Step 5 ("`depends_on` is omitted only on the first layer"), `hedgehog-adopt` Step 3 (chain via `depends_on`). |
+| `scope` | `src/db/core.mjs:275` | `parseCoreYaml`; `validateCore:661-663` (required, non-empty); `plan.mjs#layerTaskFields`/`onceLayerTaskFields` (compiles to `scope_globs`); `conflict.mjs#scope` (scheduler); `verify.mjs` (pre-verification scope gate) | **Required, non-empty.** Absent or `[]` throws `layer "<id>" missing scope`. | inline list of git-pathspec `:(glob)` globs (`*`/`?` stay in one segment, `**` spans segments) | positive: `scope: ["apps/api/src/{module}/**"]`. negative: `scope: []` throws. | `hedgehog-daily` SKILL.md:25-27,63-65 ("Every file it touches is inside one layer's `scope` globs") and "Never widen a layer's `scope`" (:118) — matches: scope is the hard write boundary in both code and prose. `tweaker.md` does not cite it directly; it defers to `hedgehog-daily`. | Treated as always-present by every skill (correctly — the field is non-optional by `validateCore`). | Both writers: `hedgehog-core-design` Step 5 ("`scope` must be an inline list") and the module-axis `{module}` requirement (Step 4); `hedgehog-adopt` Step 3 (`["**"]` for the no-seam / tail-join case). |
+| `verify` | `src/db/core.mjs:276` | `parseCoreYaml`; `validateCore:664-666` (required); `plan.mjs` (compiles to `verify_command`); `verify.mjs` (the command actually run); `requires.mjs` (binaries it needs) | **Required, non-empty.** Absent throws `layer "<id>" missing verify`. | any shell command scalar (quoted scalars unescaped per YAML rules — see `core.mjs`'s header) | positive: `verify: "pnpm test {module}"`. negative: layer with no `verify:` line throws. | `hedgehog-daily` SKILL.md:25-27,71-72 ("Run that layer's own `verify` command from `core.yaml`") and Hard rules :120 ("Never commit a tweak whose layer `verify` command fails") — matches exactly. `tweaker.md`:227 same. | n/a (required) | Both writers: extensive rules in `hedgehog-core-design` Step 5 (must prove the layer's claim, must run the framework's real build, filter-token cross-check against `scope`); `hedgehog-adopt` Step 2 (only the repo's own confirmed commands, never invented). |
+| `commit` | `src/db/core.mjs:277` | `parseCoreYaml` (no `validateCore` check) | Optional by the parser (absent → `''`), but `plan.mjs`'s comment and `hedgehog-core-design` Step 5 both flag it as **required in practice** — an empty `commit_message` breaks the Correction Protocol and `hedgehog why`. | any scalar, conventionally a Conventional Commits subject with a `{module}` token on a module-axis core | positive: `commit: "feat({module}): schema"`. negative: omitted — loads fine, but compiles a task with `commit_message: ""`, which `validateCore` does **not** reject (a documented gap, not a bug — see Finding below). | Neither `hedgehog-daily` nor `tweaker` nor `reviewer` reads `commit` directly — `tweaker`/`hedgehog-daily` cite the *conventional-commits skill's* format for what they write, not this field. | No skill states a fallback for an absent `commit` — see Finding: silent-empty is possible and undocumented in the shared skills (only `hedgehog-core-design` Step 5 flags it). | Both writers set it on every layer; `hedgehog-core-design` Step 5 explicitly calls out that `validateCore` will not catch its absence. |
+| `exclusive` | `src/db/core.mjs:279-280` | `parseCoreYaml`; `conflict.mjs#conflicts:51` (scheduler: either side exclusive → never co-scheduled); `validateCore:776-785` (module-axis layers exempt from `{module}`-in-scope requirement when `exclusive: true`) | Optional. Absent → `false` (concurrency-safe by default). | `true` / `false` | positive: `exclusive: true` on a `join` layer. negative: n/a — no invalid value throws; a non-`"true"` string parses to `false` silently (see Finding). | `hedgehog-daily` SKILL.md:96-101 ("A layer with a wider `verify_radius`, or `exclusive: true`: the same real test bar and `reviewer` pass") — matches conflict.mjs's isolation-flag meaning. `reviewer.md:22-23` ("the layer is `exclusive: true` — a join or integration point") — matches. | Both skills correctly treat absent `exclusive` as "not a join point" / "ordinary concurrency" — no field-assumed-present issue found here. | `hedgehog-adopt` Step 3 mandates it on the tail join layer explicitly; `hedgehog-core-design` Step 4 discusses it alongside `once` for shared infra. |
+| `once` | `src/db/core.mjs:284` | `parseCoreYaml`; `plan.mjs` (`compileOnceTasks`, cardinality); `validateCore:739-761` (no `{module}` allowed, not all layers may be `once`) | Optional. Absent → `false` (per-intent, the default cardinality). | `true` / `false` | positive: `once: true` on a cluster-provisioning layer. negative: `once: true` layer whose scope contains `{module}` throws `core.mjs:748`. | Not named in `hedgehog-daily`/`tweaker`/`reviewer` — none of the three shared skills reason about cardinality; only the writers and `plan.mjs`/`drift.mjs` do. | n/a — no shared skill depends on it. | `hedgehog-core-design` Step 4 (extensive: when to use it, the two rules it forces, re-entrancy design); `hedgehog-adopt` never emits it — the adopted core is always linear/per-change, so `once` never applies there (confirmed: not mentioned in `hedgehog-adopt`'s SKILL.md). |
+| `verify_radius` | `src/db/core.mjs:286-289` (parse), `:676-692` (validate coverage), `conflict.mjs#verifyRadius:41-44` | `parseCoreYaml`; `validateCore` (must cover own `scope` when declared); `conflict.mjs#verifyRadius` (scheduler); `lintCore` (coverage/anchoring heuristics) | **Sentinel: `null` (not `undefined`, not `[]`) means "fall back to `scope`"** — `conflict.mjs:41-44`: `if (task.verify_radius == null) return scope(task)`. An **empty list is rejected outright** (`core.mjs:677-681`, distinct from the `requires` sentinel below). | inline list of globs, or omitted (→ `null`) | positive: `verify_radius: ["packages/db/**"]` on a schema layer whose verify typechecks the whole package. negative: `verify_radius: []` throws `core.mjs:678` ("declares an empty verify_radius — omit the field to fall back to scope"). | `hedgehog-daily` SKILL.md:26-27,94-96 ("A layer whose `verify_radius` equals its `scope`: run the layer's `verify` command… A layer with a wider `verify_radius`…") — this is the field the issue flagged as the one prose is most likely to get subtly wrong. The skill's wording treats "equals scope" and "wider" as the two cases, which matches `conflict.mjs`'s fallback, but never states the `null` sentinel by name or that an *absent* field is what triggers the equals-scope case — a reader who doesn't already know the sentinel could reasonably ask "what if it's declared as `[]` or partially narrower?" and get no answer from this skill alone. `reviewer.md:21-23` has the same gap: "a layer's `verify_radius` is wider than its own `scope`" without stating what "wider" is computed against when the field is absent. | Neither skill states the fallback explicitly (they describe the *consequence* of the fallback — "equals scope" — without naming the sentinel that produces it). This is a borderline finding: functionally correct, but a reader auditing `core.yaml` by hand from the skill text alone, with no access to `conflict.mjs`, cannot derive that "absent" and "declared equal to scope" produce identical scheduler behavior with certainty. | `hedgehog-core-design` Step 4b/Step 5 states the sentinel precisely: "leave `verify_radius` undeclared — it defaults to `scope` when unset (`conflict.mjs`'s `verifyRadius()`)." `hedgehog-adopt` never emits a non-default radius (its layers are scope-radius-equal by construction). |
+| `requires` | `src/db/core.mjs:294-295` (parse), `:698-707` (validate), `requires.mjs` (resolution) | `parseCoreYaml`; `validateCore` (must be a list of non-empty strings when present); `requires.mjs#coreMissingRequirements` (`hedgehog status`), `verify.mjs` (`hedgehog verify` refuses to run if unresolved) | **Sentinel: `[]` (not `null`) means "no binaries" — same as absent.** `core.mjs:290-295`: absent → `[]` directly (no separate null state, unlike `verify_radius`). | inline list of non-empty binary-name strings, or omitted (→ `[]`) | positive: `requires: ["terraform", "kubectl"]`. negative: `requires: [""]` throws `core.mjs:704` ("empty entry in requires"). | Not mentioned in `hedgehog-daily`, `tweaker`, or `reviewer` — none of the three shared skills read or route on `requires`. `hedgehog status`'s own output (`requires.mjs#formatMissingRequirements`) is the only place a missing binary surfaces, and that's code output, not skill prose. | n/a — no shared skill depends on it, so there is no risk of a skill assuming it present. | `hedgehog-core-design` Step 5's last bullet: "Declare the binaries `verify` needs, in `requires`… only for tools that come from outside the workspace." `hedgehog-adopt` never emits it (not mentioned in its SKILL.md — every `verify` command it proposes is already an existing repo script, so an external-binary declaration was never designed into that skill). |
+
+### Findings — code/prose disagreements and gaps
+
+1. **The issue's own field list names fields the parser doesn't have.** Issue
+   #343's "What to check" §1 lists per-layer fields as `name`, `scope`,
+   `verify`, `exclusive`, `per`, `verify_radius`, `requires`. The parser has
+   no `name` key (the field is `id`) and no `per` key at any level
+   (cardinality is the boolean `once`). Read literally, an implementer
+   grepping `core.yaml` for `name:` or `per:` would find nothing. Recorded
+   here rather than filed as a bug against the issue itself — the intent
+   ("per-layer identity and cardinality") was clear from context.
+2. **`verify_radius`'s `null`-means-scope sentinel is never named by field or
+   value in `hedgehog-daily` or `reviewer`.** Both skills correctly describe
+   the *behavior* the sentinel produces ("radius equals scope" / "radius is
+   wider than scope") but neither states that omitting the field is what
+   causes the "equals scope" case, nor that a declared-but-empty list is
+   rejected rather than silently treated the same as absent. Someone editing
+   `core.yaml` from the skill prose alone, without reading `core.mjs`, could
+   plausibly write `verify_radius: []` expecting it to mean "no radius" —
+   the parser rejects that at `validateCore` with a clear message, so the
+   failure is loud, not silent, but the skill text doesn't warn against it
+   ahead of time. This is a prose-completeness gap, not a behavior bug —
+   flagged for #342 (skill content), not fixed here per this issue's own
+   "falling out of the table" scope split.
+3. **`commit`'s "required in practice" status is undocumented outside
+   `hedgehog-core-design`.** `validateCore` never checks `commit` is
+   non-empty; only `hedgehog-core-design` Step 5 and a code comment in
+   `plan.mjs` state that an empty commit message breaks the Correction
+   Protocol and `hedgehog why`. `hedgehog-adopt` does not carry the same
+   explicit warning (though its own worked examples always populate the
+   field). Flagged for #342 — a prose fix, not a schema change.
+4. **`exclusive`'s non-`"true"` values parse to `false` with no validation.**
+   `core.mjs:280` is `parseScalar(value) === 'true'` — there is no rejection
+   of `exclusive: yes` or `exclusive: True` the way `pattern` rejects an
+   unrecognized value at parse time. A typo silently produces "not
+   exclusive" rather than a load error. This is closer to a schema
+   observation than a prose one; noted here as a finding but left
+   unfixed — see "Out of scope" below.
+
+None of these four rise to a behavior bug that ships broken output: the
+worst case in each is a message that assumes background knowledge, not a
+check that passes when it should fail. No new GitHub issue was filed for
+any of them; #342 (skill-content audit) is where 2 and 3 belong, and 4 is
+noted for a future schema-hardening pass rather than filed, since this
+issue's scope is conformance auditing, not schema changes.

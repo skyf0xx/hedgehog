@@ -114,9 +114,14 @@ for (const core of cores) {
 // compared so a fixture cannot quietly stop representing the core it
 // speaks for; when it isn't (CI clones this repo alone), the comparison
 // is skipped, since the fixture is what makes these checks work without
-// the sibling repos in the first place.
+// the sibling repos in the first place. Counted explicitly (siblingsCompared
+// vs. siblingsSkipped) rather than left to a silent `continue`, so the
+// final report can say "N compared, M skipped" instead of the two states
+// being indistinguishable from "checked and clean" (#343).
 const coreOwned = new Set();
 const coreAgents = new Set();
+let siblingsCompared = 0;
+let siblingsSkipped = 0;
 for (const core of cores) {
   const fixturePath = join(ROOT, `repro/fixtures/cores/${core.name}.manifest.yaml`);
   const fixture = await readFile(fixturePath, 'utf8');
@@ -137,7 +142,11 @@ for (const core of cores) {
   // The core's own repo, as a sibling checkout of this one.
   const siblingPath = resolve(ROOT, `../hedgehog-core-${core.name}/hedgehog-core.yaml`);
   const sibling = await readFile(siblingPath, 'utf8').catch(() => null);
-  if (sibling === null) continue;
+  if (sibling === null) {
+    siblingsSkipped++;
+    continue;
+  }
+  siblingsCompared++;
   if (normalize(sibling) !== normalize(fixture)) {
     fail(
       `repro/fixtures/cores/${core.name}.manifest.yaml: differs from ${siblingPath} — ` +
@@ -153,7 +162,12 @@ for (const core of cores) {
 //    core release and this repo's own release can drift apart with no
 //    error anywhere (see #235). Network-dependent, so it only runs when
 //    npm is reachable — CI always has it; an offline local run degrades
-//    to skipping this one check rather than failing on connectivity. ────
+//    to skipping this one check rather than failing on connectivity.
+//    registryChecksRun/registryChecksSkipped make that degradation an
+//    explicit, reported count rather than a silent `continue` (#343) —
+//    "not checked" must never look like "checked and clean". ────────────
+let registryChecksRun = 0;
+let registryChecksSkipped = 0;
 {
   const skipReason = process.env.HEDGEHOG_SKIP_REGISTRY_VERSION_CHECK;
   if (!skipReason) {
@@ -166,9 +180,13 @@ for (const core of cores) {
           timeout: 15000,
         }).trim();
       } catch {
+        registryChecksSkipped++;
         continue; // offline or registry unreachable — not this check's failure to report
       }
-      if (!latest) continue;
+      if (!latest) {
+        registryChecksSkipped++;
+        continue;
+      }
       // `npm view <pkg>@<range> version` prints every version the range
       // satisfies, not just the highest — ascending order, so the last
       // line is the one `npm pack`/`npm install` would actually resolve.
@@ -184,6 +202,7 @@ for (const core of cores) {
       } catch {
         resolved = '';
       }
+      registryChecksRun++;
       if (resolved !== latest) {
         fail(
           `src/registry/cores.json: core "${core.name}" is pinned to "${core.version}", ` +
@@ -194,6 +213,8 @@ for (const core of cores) {
         );
       }
     }
+  } else {
+    registryChecksSkipped += cores.filter((c) => c.package && c.version).length;
   }
 }
 
@@ -206,7 +227,8 @@ for (const core of cores) {
 //    package at its pinned version and fails if the fixture claims an
 //    agent or skill the package doesn't actually carry, so a payload move
 //    in a core repo breaks `npm run check` here rather than a user's
-//    install (#304). Network-dependent, same skip as 2c. ─────────────────
+//    install (#304). Network-dependent, same skip as 2c, counted into the
+//    same registryChecksRun/registryChecksSkipped totals. ────────────────
 {
   const skipReason = process.env.HEDGEHOG_SKIP_REGISTRY_VERSION_CHECK;
   if (!skipReason) {
@@ -220,8 +242,10 @@ for (const core of cores) {
       try {
         published = await fetchCore(core);
       } catch {
+        registryChecksSkipped++;
         continue; // offline or registry unreachable — not this check's failure to report
       }
+      registryChecksRun++;
       const publishedNames = new Set([...published.manifest.agents, ...published.manifest.skills]);
       const fixtureNames = [...fixture.agents, ...fixture.skills];
       const missing = fixtureNames.filter((name) => !publishedNames.has(name));
@@ -233,6 +257,8 @@ for (const core of cores) {
         );
       }
     }
+  } else {
+    registryChecksSkipped += cores.filter((c) => c.package && c.version).length;
   }
 }
 
@@ -277,13 +303,31 @@ for (const { label, text } of allEntries) {
 //    project, but a shipped core is the worked example every authored
 //    core is written against, so a warning on one is a release blocker
 //    here — and a shipped core tripping it is also the evidence that the
-//    heuristic cries wolf. ────────────────────────────────────────────
-for (const core of ['full-stack-app', 'landing-page', 'pwa-app']) {
+//    heuristic cries wolf.
+//
+//    Every core that ships a static `.core.yaml` fixture belongs in this
+//    list — `full-stack-app`, `landing-page`, `pwa-app`, and
+//    `deepseek-harness` all pre-build a workspace with a fixed layer
+//    sequence, so each has one. `adopted` and `authored` do not: neither
+//    ships a pre-built workspace at all (ARCHITECTURE.md, "Keeping a
+//    shipped core's workspace current") — `hedgehog-core-design` derives
+//    `authored`'s layers per project and `hedgehog-adopt` derives
+//    `adopted`'s from whatever repo it's adopting, so there is no single
+//    correct `core.yaml` for either to fix as a fixture; conformance for
+//    those two is instead carried by the writer skills' own worked
+//    examples and the "Verify the file loads" step each one runs against
+//    a real generated file. If either core ever grows a fixed starter
+//    workspace the way the other four have, add its `.core.yaml` fixture
+//    here in the same change. ───────────────────────────────────────────
+const CORE_YAML_FIXTURES = ['full-stack-app', 'landing-page', 'pwa-app', 'deepseek-harness'];
+let coreYamlFixturesLoaded = 0;
+for (const core of CORE_YAML_FIXTURES) {
   const path = join(ROOT, `repro/fixtures/cores/${core}.core.yaml`);
   try {
     const loaded = await loadCore(path);
     if (loaded.id !== core) fail(`${path}: id "${loaded.id}" != core name "${core}"`);
     for (const warning of lintCore(loaded)) fail(`${path}: ${warning}`);
+    coreYamlFixturesLoaded++;
   } catch (err) {
     fail(`${path}: failed to load — ${err.message}`);
   }
@@ -413,12 +457,53 @@ try {
 }
 
 // ── Report ───────────────────────────────────────────────────────────
+// Per #343's acceptance criteria: every run states core identity, the
+// checker's own revision, how many .core.yaml fixtures were loaded, how
+// many real-core checks (sibling checkout + registry) were skipped versus
+// actually run, and the failure count — so "not checked" and "checked and
+// clean" are never the same line of output, and a later run is something
+// this one's output can be compared against.
+let checkerRevision = 'unknown';
+try {
+  const pkgJson = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8'));
+  checkerRevision = pkgJson.version;
+} catch {
+  // package.json read/parse already failed loudly above if malformed —
+  // this is just cosmetic fallback for the summary line.
+}
+try {
+  const sha = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    timeout: 5000,
+  }).trim();
+  if (sha) checkerRevision += `+${sha}`;
+} catch {
+  // No git available (e.g. a tarball run outside a checkout) — version
+  // alone is still a meaningful revision marker.
+}
+
+// No separate warning count: this script treats every lintCore() warning
+// on a shipped core.yaml fixture as a release-blocking failure (§5's own
+// comment explains why — a shipped core is the worked example every
+// authored core is written against), so "warnings" and "errors" are the
+// same bucket here by design, not two counts that happen to collapse.
+const summary =
+  `core=hedgehog checker=${checkerRevision} ` +
+  `core.yaml fixtures loaded=${coreYamlFixturesLoaded}/${CORE_YAML_FIXTURES.length} ` +
+  `sibling manifests compared=${siblingsCompared} skipped=${siblingsSkipped} ` +
+  `registry checks run=${registryChecksRun} skipped=${registryChecksSkipped} ` +
+  `warnings(elevated to errors)=n/a errors=${failures.length}`;
+
 if (failures.length > 0) {
   console.error(`\n${failures.length} check(s) failed:\n`);
   for (const f of failures) console.error(`  ✗ ${f}`);
-  console.error('');
+  console.error(`\n${summary}`);
+  console.error('verdict: FAIL\n');
   process.exit(1);
 }
 console.log(
   `ok — ${agents.length} agents, ${skills.length} skills, ${cores.length} cores, tarball, CLI`,
 );
+console.log(summary);
+console.log('verdict: PASS');
