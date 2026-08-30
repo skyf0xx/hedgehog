@@ -98,7 +98,10 @@ skills, and CLAUDE.md section. `src/registry/cores.json` names them;
   (what to work on and lease it), `verify`/`gate` (close a layer, check a
   phase transition), `friction`, `debt`, `decision` (inherited context for
   dependent tasks — a limitation or a design choice, respectively),
-  `drift`, `boundary`, `why`, `overrides`, `conflict`, `commitLock`,
+  `drift`, `boundary`, `why`, `overrides`, `reconcile` (absorbs work that
+  landed outside the loop, on the user's per-task confirmation, recorded
+  in committed `.hedgehog/reconciled/*.json` so `db rebuild` replays it),
+  `conflict`, `commitLock`,
   `core`, `rebuild`, `graph-server` (serves `src/templates/graph.html`'s
   visualization), and `community` (the star prompt raised at the first
   completed intent). Schema changes are versioned: `schema.mjs`'s

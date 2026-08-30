@@ -62,6 +62,16 @@ import {
 } from '../src/db/community.mjs';
 import { rebuildDb } from '../src/db/rebuild.mjs';
 import { loadOverrides, addOverride, orphanedOverrides, OVERRIDES_DIR } from '../src/db/overrides.mjs';
+import {
+  gatherEvidence,
+  formatEvidence,
+  evidenceForTask,
+  confirmReconciliation,
+  loadReconciliations,
+  orphanedReconciliations,
+  formatReconciliations,
+  RECONCILED_DIR,
+} from '../src/db/reconcile.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
 import { wrapSection } from '../src/hosts/claude-md-merge.mjs';
@@ -545,6 +555,12 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog override add <task-id> --scope <glob> [--scope <glob>...] --reason "<why>"
                                                    record a committed, additive-only scope exception for one task
   npx @skyf0xx/hedgehog override list             list recorded scope overrides
+  npx @skyf0xx/hedgehog reconcile                 propose which open tasks hand-written commits may have
+                                                   already satisfied; reads only, changes nothing
+  npx @skyf0xx/hedgehog reconcile confirm <task-id> --reason "<why>"
+                                                   close one task on your judgment — no scope gate and no
+                                                   verify command run; records it under .hedgehog/reconciled/
+  npx @skyf0xx/hedgehog reconcile list            list recorded reconciliations
   npx @skyf0xx/hedgehog intent add [flags]        add an intent (rules/requirements/dependencies)
   npx @skyf0xx/hedgehog intent add --file <path>  add an intent from a JSON file
   npx @skyf0xx/hedgehog next                      print the task packet for one ready task
@@ -1186,6 +1202,21 @@ async function dbRebuildCommand() {
   console.log(
     `${green('rebuilt')}  ${dim(`${result.intentsReplayed} intent(s) replayed, ${result.tasksMarkedComplete} task(s) marked complete`)}\n`,
   );
+  // Reported separately from the count above, not folded into it: a task
+  // closed from a committed reconciliation had no verify run behind it,
+  // and a rebuild is exactly where that distinction would otherwise
+  // vanish into a single "marked complete" number.
+  if (result.tasksReconciled > 0) {
+    console.log(
+      `${dim(`${result.tasksReconciled} task(s) replayed from ${RECONCILED_DIR}/ — closed by reconciliation, not verification`)}\n`,
+    );
+  }
+  if (result.orphanedReconciled?.length > 0) {
+    console.log(
+      `${yellow(bold('Reconciliations without a task.'))} ${result.orphanedReconciled.join(', ')} —\n` +
+        `no task with this id exists in the rebuilt graph, so each closes nothing.\n`,
+    );
+  }
   warnOrphanedNotes(result);
   warnRebuildDrift(result, corePath);
 }
@@ -3134,6 +3165,107 @@ async function overrideCommand(args) {
   process.exitCode = 1;
 }
 
+// `hedgehog reconcile` / `hedgehog reconcile confirm <task-id> --reason
+// "<why>"` / `hedgehog reconcile list` — absorbs work that landed outside
+// the loop into the build graph (see src/db/reconcile.mjs).
+//
+// The bare form only reads: it prints which commits since the newest
+// graph-written commit touched files inside each open task's scope, and
+// changes nothing. `confirm` takes exactly one task id — there is no
+// bulk form, because a single "yes to all" is the unexamined assertion
+// this command exists to avoid. Nothing else in the CLI calls into this;
+// `status`, `next`, and `claim` never reconcile on their own.
+async function reconcileCommand(args) {
+  await ensureDb();
+
+  if (!(await exists(DB_PATH))) {
+    console.error(`${red('No build graph found.')} Run ${bold('hedgehog db init')} first.\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const sub = args[0];
+
+  if (sub === 'list') {
+    const reconciliations = await loadReconciliations();
+    const db = openDb({ readOnly: true });
+    let orphaned = [];
+    try {
+      orphaned = orphanedReconciliations(db, reconciliations);
+    } finally {
+      db.close();
+    }
+    console.log(`${formatReconciliations(reconciliations, orphaned)}\n`);
+    return;
+  }
+
+  if (sub === 'confirm') {
+    const taskId = args[1];
+    const reasonIdx = args.indexOf('--reason');
+    const reason = reasonIdx !== -1 ? args[reasonIdx + 1] : undefined;
+
+    if (!taskId || taskId.startsWith('--') || !reason) {
+      console.error(
+        `${red('Usage:')} hedgehog reconcile confirm <task-id> --reason "<why this work satisfies it>"\n`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    printDbTarget();
+    const db = openDb();
+    let result;
+    try {
+      const evidence = evidenceForTask(db, taskId);
+      result = await confirmReconciliation(db, { taskId, reason, evidence });
+    } catch (err) {
+      console.error(`${red('Failed to reconcile:')} ${err.message}\n`);
+      process.exitCode = 1;
+      return;
+    } finally {
+      db.close();
+    }
+
+    const file = `${RECONCILED_DIR}/${result.record.task.toLowerCase()}.json`;
+    console.log(`  ${green('complete')}  ${bold(result.record.task)} ${dim('(reconciled, not verified)')}`);
+    console.log(`  ${green('recorded')}  ${file}`);
+    if (result.unlocked.length > 0) {
+      console.log(`  ${dim(`unlocked: ${result.unlocked.join(', ')}`)}`);
+    }
+    console.log(
+      `\n  ${bold('Commit that file.')} ${dim('The build graph is derived and gitignored — an')}\n` +
+        `  ${dim('uncommitted reconciliation is reverted by the next `hedgehog db rebuild`.')}\n`,
+    );
+    return;
+  }
+
+  if (sub !== undefined) {
+    console.error(
+      `${red('Unknown reconcile subcommand:')} ${sub}\n\n` +
+        `Usage: hedgehog reconcile\n` +
+        `   or: hedgehog reconcile confirm <task-id> --reason "<why>"\n` +
+        `   or: hedgehog reconcile list\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  // Bare `hedgehog reconcile` — read only.
+  const reconciliations = await loadReconciliations();
+  const db = openDb({ readOnly: true });
+  let evidence;
+  try {
+    evidence = gatherEvidence(db, { reconciliations });
+  } catch (err) {
+    console.error(`${red('Failed to read evidence:')} ${err.message}\n`);
+    process.exitCode = 1;
+    return;
+  } finally {
+    db.close();
+  }
+  console.log(`${formatEvidence(evidence)}\n`);
+}
+
 // `hedgehog debt add <task-id> "<note>"` / `hedgehog debt list [<task-id>]`
 // — declared debt between tasks. A note recorded against a task is
 // rendered into the INHERITED DEBT section of the packet of every task
@@ -3592,6 +3724,11 @@ async function main() {
 
   if (cmd === 'override') {
     await overrideCommand(args.slice(1));
+    return;
+  }
+
+  if (cmd === 'reconcile') {
+    await reconcileCommand(args.slice(1));
     return;
   }
 
