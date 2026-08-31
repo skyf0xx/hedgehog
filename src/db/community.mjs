@@ -44,11 +44,11 @@ export const REPO_URL = 'https://github.com/skyf0xx/hedgehog';
 // the user go find it.
 export const SHOWCASE_REPO_URL = 'https://github.com/skyf0xx/hedgehog-showcase';
 
-// Placeholder until #365 (the Cloudflare Worker relay) ships and hands
-// over the real endpoint. Requests here fail closed (see
-// postShowcase below) so a stale or unreachable placeholder is silently
-// a no-op rather than a build-blocking error.
-const SHOWCASE_RELAY_URL = 'https://showcase-relay.hedgehog.build/submit';
+// The Cloudflare Worker relay from skyf0xx/hedgehog-showcase (#365). A
+// request here fails silently on any error (see postShowcase below), so
+// a future redeploy to a new URL degrades to a silent no-op rather than
+// a build-blocking error.
+const SHOWCASE_RELAY_URL = 'https://hedgehog-showcase-relay.hedgehog-showcase.workers.dev/';
 
 // How long "later" (and an unanswered "shown") defers for, shared by
 // both prompts — one cooldown constant, not one per prompt.
