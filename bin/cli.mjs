@@ -64,7 +64,12 @@ import {
   shouldPromptForStar,
   recordStarAnswer,
   formatStarPrompt,
+  shouldPromptForShowcase,
+  recordShowcaseAnswer,
+  formatShowcasePrompt,
+  postShowcase,
   REPO_URL,
+  SHOWCASE_REPO_URL,
 } from '../src/db/community.mjs';
 import { rebuildDb } from '../src/db/rebuild.mjs';
 import {
@@ -628,6 +633,9 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog decision list [<task-id>]     list declared decisions, oldest first
   npx @skyf0xx/hedgehog db migrate                bring the graph's schema up to the latest version
   npx @skyf0xx/hedgehog community star --answer <a>   record the star prompt's answer
+  npx @skyf0xx/hedgehog community showcase --repo <url> [--description <text>]
+                                                   share what you built to the public showcase
+  npx @skyf0xx/hedgehog community showcase --answer later|dismissed   defer or decline showcasing
   npx @skyf0xx/hedgehog --help
 
 Available cores: ${cores.join(', ')} (${bold('cores list')} for what each one is for)
@@ -2233,8 +2241,19 @@ async function verifyCommand(args) {
 
   // Fires once per project — see community.mjs. Deliberately last: after
   // the gate's own output, not before it.
-  if (await shouldPromptForStar(DEST_ROOT, { intentComplete: result.intentComplete })) {
+  const starJustShown = await shouldPromptForStar(DEST_ROOT, { intentComplete: result.intentComplete });
+  if (starJustShown) {
     console.log(formatStarPrompt());
+    console.log('');
+  }
+
+  // Independent second ask, gated on the star question already having a
+  // pre-existing answer or deferral — never on the same verify call that
+  // just showed the star prompt for the first time. See
+  // shouldPromptForShowcase for why `starJustShown` has to come from
+  // here rather than being re-derived from state.
+  if (await shouldPromptForShowcase(DEST_ROOT, { intentComplete: result.intentComplete, starJustShown })) {
+    console.log(formatShowcasePrompt());
     console.log('');
   }
 }
@@ -3836,20 +3855,34 @@ async function decisionCommand(args) {
   process.exitCode = 1;
 }
 
-// `hedgehog community star --answer starred|later|dismissed` — records
-// the star prompt's answer. No build graph or core needed: this is
-// project state about a question asked, not about the build.
+const COMMUNITY_USAGE = [
+  'hedgehog community star --answer starred|later|dismissed',
+  '   or: hedgehog community showcase --repo <url> [--description <text>]',
+  '   or: hedgehog community showcase --answer later|dismissed',
+].join('\n');
+
+// `hedgehog community star --answer starred|later|dismissed` and
+// `hedgehog community showcase ...` — record each prompt's answer. No
+// build graph or core needed: this is project state about questions
+// asked, not about the build.
 async function communityCommand(args) {
   const sub = args[0];
 
-  if (sub !== 'star') {
-    console.error(
-      `${red('Unknown community subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog community star --answer starred|later|dismissed\n`,
-    );
-    process.exitCode = 1;
+  if (sub === 'star') {
+    await communityStarCommand(args.slice(1));
     return;
   }
 
+  if (sub === 'showcase') {
+    await communityShowcaseCommand(args.slice(1));
+    return;
+  }
+
+  console.error(`${red('Unknown community subcommand:')} ${sub ?? '(none)'}\n\nUsage: ${COMMUNITY_USAGE}\n`);
+  process.exitCode = 1;
+}
+
+async function communityStarCommand(args) {
   const answerIdx = args.indexOf('--answer');
   const answer = answerIdx !== -1 ? args[answerIdx + 1] : undefined;
   const ANSWERS = ['starred', 'later', 'dismissed'];
@@ -3866,6 +3899,61 @@ async function communityCommand(args) {
   if (answer === 'starred') {
     console.log(`  ${green('thank you')}  ${dim(REPO_URL)}`);
   } else if (answer === 'later') {
+    console.log(`  ${dim('deferred')}  ${dim('asked again after about a week of building')}`);
+  } else {
+    console.log(`  ${dim('dismissed')}  ${dim('not asked again in this project')}`);
+  }
+}
+
+// `hedgehog community showcase --repo <url> [--description <text>]`
+// records and submits a showcase entry; `hedgehog community showcase
+// --answer later|dismissed` records a deferral or decline with nothing
+// to submit. `--repo` and `--answer` are mutually exclusive ways of
+// answering the same prompt, mirroring the star command's single
+// `--answer` flag but split in two because only this branch has a
+// network call and a second, optional flag (`--description`).
+async function communityShowcaseCommand(args) {
+  const repoIdx = args.indexOf('--repo');
+  const repoUrl = repoIdx !== -1 ? args[repoIdx + 1] : undefined;
+  const descIdx = args.indexOf('--description');
+  const description = descIdx !== -1 ? args[descIdx + 1] : undefined;
+  const answerIdx = args.indexOf('--answer');
+  const answer = answerIdx !== -1 ? args[answerIdx + 1] : undefined;
+
+  if (repoUrl) {
+    // Courtesy check only — well-formed and http(s). The relay (#365) is
+    // the real validation authority; this just catches an obvious typo
+    // before spending a network round trip on it.
+    let parsed;
+    try {
+      parsed = new URL(repoUrl);
+    } catch {
+      parsed = null;
+    }
+    if (!parsed || !['http:', 'https:'].includes(parsed.protocol)) {
+      console.error(`${red('Usage:')} hedgehog community showcase --repo <http(s) url> [--description <text>]\n`);
+      process.exitCode = 1;
+      return;
+    }
+
+    const core = (await installedCore(DEST_ROOT))?.name;
+    await postShowcase({ repoUrl, core, description });
+    await recordShowcaseAnswer(DEST_ROOT, 'shared', { repoUrl, core, description });
+
+    console.log(`  ${green('shared')}  ${dim(SHOWCASE_REPO_URL)}`);
+    return;
+  }
+
+  const ANSWERS = ['later', 'dismissed'];
+  if (!ANSWERS.includes(answer)) {
+    console.error(`${red('Usage:')} ${COMMUNITY_USAGE}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  await recordShowcaseAnswer(DEST_ROOT, answer);
+
+  if (answer === 'later') {
     console.log(`  ${dim('deferred')}  ${dim('asked again after about a week of building')}`);
   } else {
     console.log(`  ${dim('dismissed')}  ${dim('not asked again in this project')}`);
