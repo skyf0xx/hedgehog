@@ -1,6 +1,6 @@
 {
   "name": "@skyf0xx/hedgehog",
-  "version": "6.2.1",
+  "version": "6.2.2",
   "description": "Install the Hedgehog build discipline (agents + skills) into a repo, for Claude Code, Cursor, or Gemini CLI.",
   "type": "module",
   "repository": {
