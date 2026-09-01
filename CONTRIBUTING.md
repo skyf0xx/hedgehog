@@ -88,6 +88,24 @@ for the full list and each core's `repository` link. To fix or improve a
 core, open a PR against that core's repo directly, then link the PR in
 an issue on this repo so it's discoverable from here too.
 
+## Testing policy
+
+A bug fix in `src/db/` or `bin/cli.mjs` ships with a reproduction under
+`repro/` that fails against the old behavior and passes against the fix —
+that reproduction is the evidence the bug is actually gone, not just
+believed gone. Name the file for the bug it reproduces (see the existing
+files in `repro/` for the convention) and keep it hermetic: it builds its
+own throwaway project under a temp directory rather than depending on
+another reproduction's state. `npm run repro` runs every reproduction in
+the directory and is part of `.github/workflows/check.yml`'s gate on every
+PR, alongside `npm run check` (payload integrity — frontmatter,
+cross-references, the core registry) and `eslint .` (linting).
+
+A change to `src/agents/` or `src/skills/` — content rather than
+behavior — doesn't need a reproduction; `npm run check` already validates
+its shape, and the content itself is reviewed for correctness the way
+prose is.
+
 ## Commit style
 
 This repo follows Conventional Commits — see the `conventional-commits`
