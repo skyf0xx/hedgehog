@@ -74,7 +74,7 @@ rmSync(MARKER, { force: true });
 console.log('');
 console.log('2. the replacement: execFileSync with stderr on a file descriptor');
 const fd = openSync(evilPath, 'w');
-let stdout = '';
+let stdout;
 try {
   stdout = execFileSync(
     process.execPath,

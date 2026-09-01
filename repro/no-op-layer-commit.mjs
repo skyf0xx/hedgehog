@@ -26,7 +26,7 @@
 //
 // Usage:  node repro/no-op-layer-commit.mjs        (add --keep to retain the temp dir)
 
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';

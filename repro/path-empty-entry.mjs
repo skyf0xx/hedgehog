@@ -20,7 +20,7 @@
 
 import { chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import { check, checkContains, cleanup, finish, hedgehog, makeProject, run, writeFileIn } from './papercuts-lib.mjs';
+import { check, cleanup, finish, hedgehog, makeProject, run, writeFileIn } from './papercuts-lib.mjs';
 import { findBinary } from '../src/db/requires.mjs';
 
 const PROBE = 'hh-papercut-probe';

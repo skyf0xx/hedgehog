@@ -8,7 +8,6 @@
 // source file, and the task that inherited the problem was never told —
 // its packet said nothing.
 
-import { execFileSync } from 'node:child_process';
 import { makeFixture, writeInScope, assertIncludes, report } from './packet-lib.mjs';
 
 const NOTE =

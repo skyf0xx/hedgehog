@@ -19,7 +19,7 @@
 // graph holds. Without it such a layer compiles once per intent and
 // every copy but the first is a replay of the same command.
 
-import { composeScope, loadOverrides } from './overrides.mjs';
+import { composeScope } from './overrides.mjs';
 
 export function fillModule(template, module) {
   return template.replaceAll('{module}', module);
@@ -535,7 +535,7 @@ export function planTasks(db, core, overrides = new Map(), { excludeIntentIds = 
   const compiledOnceTaskIds = [];
   // Once-tasks that a newly compiled intent hangs a prerequisite on.
   const onceTasksGainingPrereqs = [];
-  let reopenedOnceTaskIds = [];
+  let reopenedOnceTaskIds;
 
   db.exec('BEGIN IMMEDIATE');
   try {

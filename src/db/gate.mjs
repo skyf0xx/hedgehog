@@ -97,7 +97,7 @@ export async function commitGateStatus(projectRoot) {
     };
   }
 
-  let script = '';
+  let script;
   try {
     script = await readFile(hook, 'utf8');
   } catch {

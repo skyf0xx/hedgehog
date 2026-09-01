@@ -198,12 +198,12 @@ async function replayIntents(db, intentsDir) {
     try {
       parsed = JSON.parse(await readFile(path, 'utf8'));
     } catch (err) {
-      throw new Error(`could not read intent file ${path}: ${err.message}`);
+      throw new Error(`could not read intent file ${path}: ${err.message}`, { cause: err });
     }
     try {
       records.push({ file, intent: normalizeIntent(parsed) });
     } catch (err) {
-      throw new Error(`invalid intent file ${path}: ${err.message}`);
+      throw new Error(`invalid intent file ${path}: ${err.message}`, { cause: err });
     }
   }
 

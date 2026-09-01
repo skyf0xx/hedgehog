@@ -79,7 +79,7 @@ export async function loadNotes(notesDir = NOTES_DIR) {
     try {
       parsed = JSON.parse(await readFile(path, 'utf8'));
     } catch (err) {
-      throw new Error(`could not read notes file ${path}: ${err.message}`);
+      throw new Error(`could not read notes file ${path}: ${err.message}`, { cause: err });
     }
     const { task, notes } = validateNotesFile(parsed, path);
     byTask.set(task, notes);

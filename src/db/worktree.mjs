@@ -376,7 +376,7 @@ export async function loadAbandoned(abandonedDir = ABANDONED_DIR) {
     try {
       parsed = JSON.parse(await readFile(path, 'utf8'));
     } catch (err) {
-      throw new Error(`could not read abandonment file ${path}: ${err.message}`);
+      throw new Error(`could not read abandonment file ${path}: ${err.message}`, { cause: err });
     }
     const record = validateAbandoned(parsed, path);
     byIntent.set(record.intent, record);

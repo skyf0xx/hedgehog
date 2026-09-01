@@ -11,7 +11,7 @@
 // engine change compiles the same graph, so regenerating it to make a
 // failure go away is how that proof gets thrown away.
 
-import { readFileSync, writeFileSync, cpSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeProject, addIntent, cli, dumpGraph, cleanup, check, report, REPO_ROOT } from './_lib.mjs';

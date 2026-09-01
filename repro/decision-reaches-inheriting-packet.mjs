@@ -10,7 +10,6 @@
 // different, isolated agent session had no way to learn the reasoning
 // behind a related task's choice beyond reading its diff and guessing.
 
-import { execFileSync } from 'node:child_process';
 import { makeFixture, writeInScope, assertIncludes, report } from './packet-lib.mjs';
 
 const NOTE =
