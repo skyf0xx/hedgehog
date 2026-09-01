@@ -122,7 +122,7 @@ export async function loadOverrides(overridesDir = OVERRIDES_DIR) {
     try {
       parsed = JSON.parse(await readFile(path, 'utf8'));
     } catch (err) {
-      throw new Error(`could not read override file ${path}: ${err.message}`);
+      throw new Error(`could not read override file ${path}: ${err.message}`, { cause: err });
     }
     const record = validateOverride(parsed, path);
     if (!byTask.has(record.task)) byTask.set(record.task, []);

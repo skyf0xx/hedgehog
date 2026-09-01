@@ -78,17 +78,13 @@ import {
   createWorktree,
   hedgehogWorktrees,
   branchName,
-  worktreePath,
   intentReadyToMerge,
-  intentTaskStatuses,
   mergeBranch,
   removeWorktree,
   intentFileCommitted,
   onHedgehogBranch,
-  loadAbandoned,
   writeAbandonedFile,
   applyAbandonment,
-  replayAbandonments,
   ABANDONED_DIR,
 } from '../src/db/worktree.mjs';
 import { loadOverrides, addOverride, orphanedOverrides, OVERRIDES_DIR } from '../src/db/overrides.mjs';
@@ -126,7 +122,6 @@ const BLOCKED_REASON_LABELS = {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, '..');
 const DEST_ROOT = process.cwd();
-const DEFAULT_CORE = 'full-stack-app';
 
 // The version of the payload this CLI carries — what `init` and
 // `update` stamp into the project they write to.
@@ -3342,7 +3337,7 @@ async function reconcileCommand(args) {
   if (sub === 'list') {
     const reconciliations = await loadReconciliations();
     const db = openDb({ readOnly: true });
-    let orphaned = [];
+    let orphaned;
     try {
       orphaned = orphanedReconciliations(db, reconciliations);
     } finally {

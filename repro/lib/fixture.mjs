@@ -89,7 +89,7 @@ export function runCliCapturingBoth(project, args, { env = {} } = {}) {
   const errPath = join(mkdtempSync(join(tmpdir(), 'hedgehog-repro-err-')), 'stderr.txt');
   const errFd = openSync(errPath, 'w');
   let status = 0;
-  let stdout = '';
+  let stdout;
   try {
     stdout = execFileSync(process.execPath, [CLI, ...args], {
       cwd: project,

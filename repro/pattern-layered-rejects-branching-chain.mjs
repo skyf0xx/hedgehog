@@ -88,7 +88,7 @@ try {
     expected: 'throws',
     actual: 'validated without error',
   });
-} catch (err) {
+} catch (_err) {
   check('a chain disconnected from the head throws', true, {});
 }
 

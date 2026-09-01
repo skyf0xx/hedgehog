@@ -190,7 +190,7 @@ let registryChecksSkipped = 0;
       // `npm view <pkg>@<range> version` prints every version the range
       // satisfies, not just the highest — ascending order, so the last
       // line is the one `npm pack`/`npm install` would actually resolve.
-      let resolved = '';
+      let resolved;
       try {
         const raw = execFileSync(
           'npm',

@@ -562,6 +562,7 @@ export function verifyTask(db, taskId, owner) {
         `the cause (a rejecting git hook, commit signing, or git identity), then ` +
         `re-run \`hedgehog verify ${task.id} --owner ${owner}\`, or hand it back ` +
         `with \`hedgehog release ${task.id} --owner ${owner}\`.\n\n${err.message}`,
+      { cause: err },
     );
   }
 

@@ -122,14 +122,14 @@ async function packAndExtract(entry) {
     tarball = join(tmp, JSON.parse(stdout)[0].filename);
   } catch (err) {
     await rm(tmp, { recursive: true, force: true });
-    throw new Error(unresolvableMessage(entry, spec, err));
+    throw new Error(unresolvableMessage(entry, spec, err), { cause: err });
   }
 
   try {
     await execFileAsync('tar', ['-xzf', tarball, '-C', tmp]);
   } catch (err) {
     await rm(tmp, { recursive: true, force: true });
-    throw new Error(`Could not extract ${entry.package} from ${tarball}: ${err.message}`);
+    throw new Error(`Could not extract ${entry.package} from ${tarball}: ${err.message}`, { cause: err });
   }
 
   const root = join(tmp, TARBALL_ROOT);

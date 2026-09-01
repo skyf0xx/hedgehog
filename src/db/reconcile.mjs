@@ -148,7 +148,7 @@ export async function loadReconciliations(reconciledDir = RECONCILED_DIR) {
     try {
       parsed = JSON.parse(await readFile(path, 'utf8'));
     } catch (err) {
-      throw new Error(`could not read reconciliation file ${path}: ${err.message}`);
+      throw new Error(`could not read reconciliation file ${path}: ${err.message}`, { cause: err });
     }
     const record = validateReconciled(parsed, path);
     byTask.set(record.task, record);

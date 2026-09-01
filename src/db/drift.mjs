@@ -32,7 +32,6 @@ import {
   CORE_MODULE,
   loadIntentDependencies,
 } from './plan.mjs';
-import { loadOverrides } from './overrides.mjs';
 
 // Statuses a field rewrite is safe on: nothing has been built, leased,
 // committed, or failed against these rows yet, so moving their ALLOWED

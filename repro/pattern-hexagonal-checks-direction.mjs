@@ -68,7 +68,7 @@ try {
     expected: 'throws',
     actual: 'validated without error',
   });
-} catch (err) {
+} catch (_err) {
   check('a head layer with a depends_on throws', true, {});
 }
 
@@ -87,7 +87,7 @@ try {
     expected: 'throws',
     actual: 'validated without error',
   });
-} catch (err) {
+} catch (_err) {
   check('a non-head layer with no depends_on throws', true, {});
 }
 
@@ -107,7 +107,7 @@ try {
     expected: 'throws',
     actual: 'validated without error',
   });
-} catch (err) {
+} catch (_err) {
   check('a cycle that never reaches the head throws', true, {});
 }
 
