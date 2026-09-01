@@ -12,6 +12,7 @@ English | [简体中文](README.zh-CN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/skyf0xx/hedgehog/codeql.yml?branch=master&label=CodeQL)](https://github.com/skyf0xx/hedgehog/actions/workflows/codeql.yml)
 [![Check](https://img.shields.io/github/actions/workflow/status/skyf0xx/hedgehog/check.yml?branch=master&label=Check)](https://github.com/skyf0xx/hedgehog/actions/workflows/check.yml)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14399/badge)](https://www.bestpractices.dev/projects/14399)
 
 AI can write code in seconds.
 
