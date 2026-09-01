@@ -14,7 +14,8 @@
     "hedgehog": "bin/cli.mjs"
   },
   "scripts": {
-    "check": "node scripts/check.mjs",
+    "lint": "eslint .",
+    "check": "npm run lint && node scripts/check.mjs",
     "repro": "node --experimental-sqlite repro/run-all.mjs",
     "release": "node scripts/bump-package-version.mjs",
     "release:plugin": "node scripts/bump-plugin-version.mjs"
@@ -43,5 +44,9 @@
     "scaffold",
     "hedgehog"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.9.1"
+  }
 }
