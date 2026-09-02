@@ -63,6 +63,32 @@ layers:
     commit: "chore(infra): deploy"
 `;
 
+// A linear-chain core: no module axis, no `{module}` anywhere in any
+// layer's templates — the `authored`/`adopted` shape. Every intent walks
+// the same three-layer chain, and because none of `scaffold`/`logic`/
+// `smoke`'s `commit` strings interpolate anything, every intent's task
+// for a given layer carries the exact same commit_message as every other
+// intent's task for that layer — the condition markCompletedTasks's
+// ambiguous-group handling exists for.
+export const LINEAR_CORE = `
+id: linear-fixture
+layers:
+  - id: scaffold
+    scope: ["src/**"]
+    verify: "true"
+    commit: "chore: scaffold"
+  - id: logic
+    depends_on: scaffold
+    scope: ["src/logic/**"]
+    verify: "true"
+    commit: "feat: logic"
+  - id: smoke
+    depends_on: logic
+    scope: ["test/**"]
+    verify: "true"
+    commit: "test: smoke"
+`;
+
 export function makeProject(coreYaml, { git = false } = {}) {
   const dir = mkdtempSync(TMP_PREFIX);
   mkdirSync(join(dir, '.hedgehog'), { recursive: true });
