@@ -431,6 +431,26 @@ function resetIntentTasksToPlanned(db, intentId) {
     .all(intentId);
 }
 
+// Deletes every `intent_dependencies` row naming `intentId` on either
+// side. An abandoned intent is reset to `planned` with no compiled tasks
+// on trunk, so a `depends_on` edge pointing at it (something else declared
+// as depending on it) or away from it (its own declared dependency) is
+// both stale the moment abandonment lands: `eligibleIntents` (this file)
+// reads that table directly to decide worktree eligibility, and a row
+// surviving abandonment lets an unrelated intent read as "its dependency
+// is satisfied" against an intent that no longer has any real status to
+// satisfy anything with, or lets this intent re-read as eligible against a
+// dependency it no longer declares. Re-adding the same id later
+// (`hedgehog intent add --file` with a JSON that still declares the
+// dependency) recreates the row from that file, same as any first-time
+// add — this only clears what abandonment made stale, not what a future
+// add might legitimately restate.
+function clearIntentDependencies(db, intentId) {
+  db.prepare(
+    'DELETE FROM intent_dependencies WHERE intent_id = ? OR depends_on_intent_id = ?',
+  ).run(intentId, intentId);
+}
+
 // Resets every task of `intentId` to `planned` on whichever DB `db` is
 // open against (trunk, by the CLI's own contract — see abandonCommand),
 // clears any lease, and reopens the intent itself to `planned` so a later
@@ -439,6 +459,11 @@ function resetIntentTasksToPlanned(db, intentId) {
 // only ever compiled inside its own worktree — this is simply a no-op on
 // tasks that don't exist yet). Mirrors reconcile.mjs#applyReconciliation's
 // shape: the committed file is written first, this is applied second.
+//
+// Also clears every `intent_dependencies` row naming this intent, on
+// either side (clearIntentDependencies, above) — an abandoned intent's own
+// declared dependency and any other intent's dependency on it are both
+// stale the instant it resets to `planned` with no shipped work.
 //
 // Refuses an intent already `complete` (merged, real shipped work) —
 // same reasoning as reconcile.mjs#confirmReconciliation refusing an
@@ -458,6 +483,7 @@ export function applyAbandonment(db, intentId) {
     );
   }
   const resetTasks = resetIntentTasksToPlanned(db, intentId);
+  clearIntentDependencies(db, intentId);
 
   if (intent) {
     db.prepare("UPDATE intents SET status = 'planned' WHERE id = ?").run(intentId);
@@ -501,6 +527,7 @@ export function replayAbandonments(db, abandonments) {
     }
     setPlanned.run(intentId);
     resetIntentTasksToPlanned(db, intentId);
+    clearIntentDependencies(db, intentId);
     replayed.push({ intentId, reason: record.reason });
   }
   return { replayed, orphaned };
