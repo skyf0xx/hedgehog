@@ -21,7 +21,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { dbInit, DB_PATH, dbAbsPath, openDb, openDbAt } from '../src/db/init.mjs';
 import { loadCore, lintCore, isModuleAxis } from '../src/db/core.mjs';
 import { planTasks, CORE_INTENT_ID } from '../src/db/plan.mjs';
-import { addIntent, INTENTS_DIR } from '../src/db/intent.mjs';
+import { addIntent, INTENTS_DIR, intentFilePath } from '../src/db/intent.mjs';
 import {
   nextTask,
   formatNext,
@@ -595,9 +595,13 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog abandon <intent-id> --reason "<why>"
                                                    drop an intent that will never finish: records why,
                                                    resets its tasks to planned on trunk, removes its
-                                                   worktree and branch
+                                                   worktree and branch — the id stays taken; to change
+                                                   an abandoned intent, edit its .hedgehog/intents/<id>.json
+                                                   by hand and run 'hedgehog plan', not 'intent add' again
   npx @skyf0xx/hedgehog intent add [flags]        add an intent (rules/requirements/dependencies)
-  npx @skyf0xx/hedgehog intent add --file <path>  add an intent from a JSON file
+  npx @skyf0xx/hedgehog intent add --file <path>  add an intent from a JSON file — fails on an id already
+                                                   in the build graph, including one reset by 'hedgehog
+                                                   abandon' (still 'planned', not removed); see 'abandon' above
   npx @skyf0xx/hedgehog next                      print the task packet for one ready task
   npx @skyf0xx/hedgehog show <task-id>            print the task packet for any task, at any status
   npx @skyf0xx/hedgehog claim --owner <owner> [--count <n>]   atomically claim up to n ready tasks
@@ -1555,7 +1559,11 @@ async function planCommand(args = []) {
   }
 
   for (const { intentId, branch, path } of worktreesCreated) {
-    console.log(`  ${green('worktree')}  ${bold(intentId)} ${dim(`${branch} → ${path}`)}`);
+    console.log(
+      `  ${green('worktree')}  ${bold(intentId)} ${dim(`${branch} → ${path}`)}\n` +
+        `             ${dim(`compiling here, not onto trunk, because every intent ${intentId} depends_on is already complete —`)}\n` +
+        `             ${dim(`see \`hedgehog merge ${intentId}\`/\`hedgehog abandon ${intentId}\` to close it out later`)}`,
+    );
   }
 
   // Compiles the new worktree's own graph from inside it — a plain
@@ -1728,8 +1736,15 @@ async function intentCommand(args) {
   try {
     intent = await addIntent(db, record);
   } catch (err) {
+    const idTaken = /UNIQUE constraint failed: intents\.id/.test(err.message);
     console.error(
-      `${red('Failed to add intent:')} ${err.message}\n\nUsage: hedgehog intent add --id <id> --goal <goal> --outcome <outcome> [--rule <r>]... [--depends-on <id>]...\n   or: hedgehog intent add --file <path.json>\n`,
+      `${red('Failed to add intent:')} ${err.message}\n\n` +
+        (idTaken
+          ? `${bold(record.id)} already exists in the build graph — this includes an intent \`hedgehog abandon\`\n` +
+            `reset to 'planned' rather than removed. To change it, edit ${intentFilePath(record.id)}\n` +
+            `by hand and run \`hedgehog plan\` to recompile; don't run \`intent add\` again for this id.\n\n`
+          : '') +
+        `Usage: hedgehog intent add --id <id> --goal <goal> --outcome <outcome> [--rule <r>]... [--depends-on <id>]...\n   or: hedgehog intent add --file <path.json>\n`,
     );
     process.exitCode = 1;
     return;
@@ -3705,7 +3720,10 @@ async function abandonCommand(args) {
   console.log(
     `\n${bold('Abandoned.')} ${dim(`${id} is reset to planned on trunk. Commit ${ABANDONED_DIR}/${id.toLowerCase()}.json —`)}\n` +
       `${dim('the build graph is derived and gitignored, and an uncommitted abandonment')}\n` +
-      `${dim('is reverted by the next `hedgehog db rebuild`.')}\n`,
+      `${dim('is reverted by the next `hedgehog db rebuild`.')}\n\n` +
+      `${dim(`${bold(id)} still exists in the build graph at 'planned' — do not run \`hedgehog intent add\` for`)}\n` +
+      `${dim(`this id again (it will fail: the id is already taken). To change the intent, edit`)}\n` +
+      `${dim(`${intentFilePath(id)} by hand and run \`hedgehog plan\` to recompile it.`)}\n`,
   );
 }
 

@@ -125,6 +125,24 @@ try {
   // use.
   const secondAbandon = cli(dir, ['abandon', 'beta', '--reason', 'again']);
   check('a second abandon of the same intent refuses', 1, secondAbandon.status);
+
+  // The intent row survives abandonment (reset to planned, not deleted),
+  // so `intent add` on the same id hits the intents.id PRIMARY KEY and
+  // must fail with a hint pointing at the actual recovery path — edit the
+  // committed intent file and replan, not `intent add` again.
+  const reAdd = cli(dir, ['intent', 'add', '--id', 'beta', '--goal', 'g2', '--outcome', 'o2']);
+  check('intent add on an abandoned id fails', true, reAdd.status !== 0);
+  const reAddOutput = `${reAdd.stdout}${reAdd.stderr}`;
+  check(
+    'the failure explains the id is already in the build graph',
+    true,
+    reAddOutput.includes('already exists in the build graph'),
+  );
+  check(
+    'the failure points at editing the intent file instead',
+    true,
+    reAddOutput.includes('hedgehog plan') && reAddOutput.includes('beta.json'),
+  );
 } finally {
   if (worktreePath) cleanup(worktreePath);
   cleanup(dir);

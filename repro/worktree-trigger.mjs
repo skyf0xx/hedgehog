@@ -130,6 +130,11 @@ try {
   const secondPlan = cli(dir, ['plan', '--no-open']);
   check('second plan exits 0', 0, secondPlan.status);
   check('second plan reports the new worktree', true, secondPlan.stdout.includes('BETA'));
+  check(
+    'second plan states why beta is worktreed instead of compiled onto trunk',
+    true,
+    secondPlan.stdout.includes('compiling here, not onto trunk'),
+  );
 
   const worktreesAfterSecond = execFileSync('git', ['worktree', 'list', '--porcelain'], {
     cwd: dir,
