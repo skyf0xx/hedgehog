@@ -29,22 +29,31 @@ with a real cost, taken on stated conditions — not the safe default.
 ## The three exits
 
 Decide by the conditions, in order. The first one that holds is the exit.
+Re-plan is checked first, and its check is a read to make, not a
+suspicion to already hold — do not reach Change-work or Tweak without
+having made it.
 
 ### Re-plan
 
-The locked planning artifact that governs this project no longer
-describes what is being asked for. The core's own loop skill names which
-artifact governs — the brief and layer sequence for a shipped core,
-`.hedgehog/core-design.md` for an authored one, `.hedgehog/adoption.md`
-for an adopted one.
+The core's own loop skill names which artifact governs this project —
+the brief and layer sequence for a shipped core, `.hedgehog/core-design.md`
+for an authored one, `.hedgehog/adoption.md` for an adopted one. Read
+that artifact, then check:
 
-Route to `planner`'s re-entry pass, which adds intents for new work
-without re-running planning from scratch and without disturbing anything
-already built.
+- Does anything the request needs contradict a statement locked there —
+  an interface, a stack choice, a scope boundary?
 
-Where the artifact's failure means the request is a different project
-rather than an extension of this one, say so plainly instead of routing.
-That artifact is never rewritten to accommodate new scope.
+If it holds, this is Re-plan — regardless of how many layers the request
+reaches or whether every file it touches already exists. Route to
+`planner`'s re-entry pass, which adds intents for new work without
+re-running planning from scratch and without disturbing anything already
+built.
+
+Where the contradiction means the request is a different project rather
+than an extension of this one, say so plainly instead of routing. That
+artifact is never rewritten to accommodate new scope.
+
+If it does not hold, move on to Change-work.
 
 ### Change-work
 
