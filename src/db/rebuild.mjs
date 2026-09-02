@@ -218,26 +218,32 @@ async function replayIntents(db, intentsDir) {
   return count;
 }
 
-// Every commit subject in history mapped to its position, newest first —
-// one `git log` call rather than one per task. Membership alone answers
-// "did this task ever run"; position also answers "did it run *after*
-// the thing it depends on", which is what a `once: true` task needs,
-// since its commit subject is a constant that one historical occurrence
-// would otherwise satisfy forever. `--topo-order` so the position is a
+// Every commit subject in history mapped to EVERY position it occurs at,
+// newest first — one `git log` call rather than one per task. Membership
+// alone answers "did this task ever run"; position also answers "did it
+// run *after* the thing it depends on", which is what a `once: true`
+// task needs, since its commit subject is a constant that one historical
+// occurrence would otherwise satisfy forever. Keeping every occurrence
+// (not just the newest) is what lets markCompletedTasks tell two tasks
+// that share a constant commit_message apart on a linear-chain core: one
+// real commit per intent that actually ran the layer, each position
+// claimable by at most one task. `--topo-order` so position is a
 // property of the history's shape rather than of commit timestamps.
 function loadCommitSubjects() {
   const output = execSync('git log --topo-order --format=%H%x00%s', { encoding: 'utf8' });
-  const newestPosition = new Map();
+  const positions = new Map();
   let position = 0;
   for (const line of output.split('\n')) {
     if (!line) continue;
     const [, subject] = line.split('\0');
     if (subject === undefined) continue;
-    // Newest first, so the first occurrence seen is the most recent one.
-    if (!newestPosition.has(subject)) newestPosition.set(subject, position);
+    // Newest first, so pushing in read order keeps each subject's array
+    // newest-to-oldest.
+    if (!positions.has(subject)) positions.set(subject, []);
+    positions.get(subject).push(position);
     position++;
   }
-  return newestPosition;
+  return positions;
 }
 
 // A task is complete iff some commit's subject exactly matches its
@@ -246,25 +252,65 @@ function loadCommitSubjects() {
 // there's no verify_command to re-run and no working tree diff to check,
 // only the historical fact that the commit already happened.
 //
-// A `once: true` task carries two extra conditions: every prerequisite
-// must be complete, and its own commit must be *newer* than all of them.
-// Its prerequisite set is the only one that grows after the task has
-// already run — `planner`'s Re-entry pass adds a new intent whose work a
-// tail once-layer then depends on (plan.mjs reopens it for exactly that
-// reason). Its commit subject carries no {module}, so it is a constant:
-// the single `chore(infra): deploy` from the first run would otherwise
-// make the layer look done forever, re-closing it here on the next fresh
-// clone and quietly undoing the reopen. Requiring it to sit above its
-// prerequisites in history is what encodes "the deploy ran *after* that
-// module landed". Walked to a fixpoint, since a once-layer may sit
-// behind another one.
+// A task's `commit_message` is unique to it exactly when the layer's
+// `commit` template interpolates `{module}` — the module-axis case,
+// where each intent's copy of the layer produces a distinct string. A
+// `once: true` layer has no module to substitute (core.mjs's
+// validateCore rejects one that names {module}), so its single task's
+// commit subject is a constant by construction — and, since a core
+// compiles at most one once-task per once-layer, that task is the only
+// one carrying its subject. A linear-chain core (authored, adopted) has
+// no module axis at all: every layer's `commit` is a fixed string in
+// core.yaml with no `{module}` token, so every intent that walks the
+// chain compiles a per-layer task carrying that same constant — one task
+// per intent, all sharing one subject.
 //
-// This condition is deliberately not applied to per-module tasks. A task
-// that completed without touching any file leaves no commit at all
-// (verifyTask writes none), and cascading that gap through the whole
-// chain would reset already-built modules. Scoping it to once-layers
-// keeps the change to cores that use the feature, and errs toward
-// re-running an idempotent infrastructure step rather than skipping it.
+// A commit_message shared by more than one task (grouped below into
+// `ambiguousTasks`) means membership in commitSubjects can't tell those
+// tasks apart: every commit ever made with that subject is a candidate
+// match for every one of them. Two conditions resolve it:
+//
+//   1. Ordering — a task's own matching commit must sit *above* (be
+//      newer than) every one of its own prerequisites' matching
+//      commits, the same way a once-task has always required its commit
+//      to postdate the module it deploys. Without this, the first
+//      intent's commit for a layer would satisfy every later intent's
+//      task of that same layer forever, re-closing the layer on a fresh
+//      clone regardless of what that later intent's own chain has
+//      actually done.
+//   2. Consumption — a group of N tasks sharing a subject can credit at
+//      most as many of them complete as there are actual commits with
+//      that subject in history, each commit backing at most one task.
+//      Ordering alone doesn't catch a head-of-chain task: with no
+//      prerequisite of its own, "ran after its prerequisites" is
+//      vacuously true regardless of which commit it points at, which is
+//      exactly the shape of the bug — a fresh intent's first layer,
+//      sharing a constant commit_message with an already-built intent's
+//      completed first layer, has nothing to check position against.
+//      Consumption is what a head-of-chain task actually needs: once
+//      every real commit for that subject is claimed by other tasks,
+//      none is left for it to point at.
+//
+// Both are walked together, per group, in a single deterministic pass
+// ordered by task id: earlier-sorted tasks get first claim on the
+// oldest still-unclaimed matching commit that satisfies the ordering
+// condition against whatever their own prerequisites already claimed.
+// A task that finds no claimable commit is left incomplete — the safe
+// direction, matching every other cross-cutting-layer default in this
+// engine (re-running an idempotent step beats silently skipping one).
+// The whole thing is walked to a fixpoint, since one ambiguous task's
+// claim can be the prerequisite another ambiguous task needs before it
+// can claim its own (a once-layer behind another once-layer, or one
+// linear-chain layer behind the one before it in the same intent).
+//
+// A task with a commit_message unique to it (the ordinary module-axis
+// case) skips all of this: it is marked complete directly from
+// commitSubjects membership, with no ordering or consumption check.
+// That's necessary, not just cheaper — a task that completed without
+// touching any file leaves no commit at all (verifyTask writes none),
+// and applying either check there would cascade that gap through the
+// whole chain and reset already-built modules that have no ambiguity to
+// resolve in the first place.
 function markCompletedTasks(db, commitSubjects) {
   const tasks = db.prepare('SELECT id, module, commit_message FROM tasks').all();
   const prerequisites = new Map(tasks.map((t) => [t.id, []]));
@@ -272,39 +318,64 @@ function markCompletedTasks(db, commitSubjects) {
     prerequisites.get(d.task_id)?.push(d.depends_on_task_id);
   }
 
-  // Position of each task's most recent matching commit; undefined means
-  // the task never committed.
-  const positionOf = new Map(
-    tasks.map((t) => [t.id, commitSubjects.get(t.commit_message)]),
-  );
-
-  const complete = new Set();
-  const onceTasks = [];
+  const messageCounts = new Map();
   for (const task of tasks) {
-    if (task.module === CORE_MODULE) {
-      onceTasks.push(task);
+    messageCounts.set(task.commit_message, (messageCounts.get(task.commit_message) ?? 0) + 1);
+  }
+  const isAmbiguous = (task) => messageCounts.get(task.commit_message) > 1;
+
+  // Position of each unambiguous task's one matching commit; undefined
+  // means the task never committed. An ambiguous task's position is
+  // resolved separately below, since "the" matching commit for its
+  // subject isn't decided until a claim succeeds.
+  const positionOf = new Map();
+  const complete = new Set();
+  const ambiguousTasks = [];
+  for (const task of tasks) {
+    if (task.module === CORE_MODULE || isAmbiguous(task)) {
+      ambiguousTasks.push(task);
       continue;
     }
-    if (positionOf.get(task.id) !== undefined) complete.add(task.id);
+    const position = (commitSubjects.get(task.commit_message) ?? [])[0];
+    positionOf.set(task.id, position);
+    if (position !== undefined) complete.add(task.id);
   }
+  // Deterministic claim order within a shared subject: sorted by task id.
+  ambiguousTasks.sort((a, b) => a.id.localeCompare(b.id));
 
-  // Lower position is newer, so a once-task ran after a prerequisite when
-  // its own position is strictly smaller.
-  const ranAfterPrerequisites = (task) => {
-    const own = positionOf.get(task.id);
-    return prerequisites.get(task.id).every((id) => {
+  // Every commit position still unclaimed, per subject — shrinks as
+  // ambiguous tasks below claim one each.
+  const available = new Map(
+    [...commitSubjects].map(([subject, positions]) => [subject, [...positions]]),
+  );
+
+  // A task ran after a prerequisite when its own claimed position is
+  // strictly smaller (newer) than the prerequisite's.
+  const ranAfterPrerequisites = (task, position) =>
+    prerequisites.get(task.id).every((id) => {
       const prereq = positionOf.get(id);
-      return prereq === undefined || own < prereq;
+      return prereq === undefined || position < prereq;
     });
-  };
 
   let changed = true;
   while (changed) {
     changed = false;
-    for (const task of onceTasks) {
-      if (complete.has(task.id) || positionOf.get(task.id) === undefined) continue;
+    for (const task of ambiguousTasks) {
+      if (complete.has(task.id) || positionOf.has(task.id)) continue;
       if (!prerequisites.get(task.id).every((id) => complete.has(id))) continue;
-      if (!ranAfterPrerequisites(task)) continue;
+
+      const slots = available.get(task.commit_message) ?? [];
+      // Oldest-first, so a task claims the least-recent commit that
+      // still satisfies its ordering condition — leaving newer slots
+      // free for whichever task in the group depends on this one.
+      const slotIndex = [...slots]
+        .map((position, i) => [position, i])
+        .sort((a, b) => b[0] - a[0])
+        .find(([position]) => ranAfterPrerequisites(task, position))?.[1];
+      if (slotIndex === undefined) continue;
+
+      const [position] = slots.splice(slotIndex, 1);
+      positionOf.set(task.id, position);
       complete.add(task.id);
       changed = true;
     }
@@ -313,13 +384,14 @@ function markCompletedTasks(db, commitSubjects) {
   const setComplete = db.prepare("UPDATE tasks SET status = 'complete' WHERE id = ?");
   for (const id of complete) setComplete.run(id);
 
-  // A once-task can be marked complete by the loop above and then fail
-  // one of the extra conditions on a later pass of the fixpoint walk.
-  // Reconcile it back rather than leaving the stale status untouched.
+  // A task on the ambiguous path can be marked complete by the loop
+  // above and then fail to claim a slot on a later pass of the fixpoint
+  // walk. Reconcile it back rather than leaving the stale status
+  // untouched.
   const reopen = db.prepare(
     "UPDATE tasks SET status = 'planned' WHERE id = ? AND status = 'complete'",
   );
-  for (const task of onceTasks) {
+  for (const task of ambiguousTasks) {
     if (!complete.has(task.id)) reopen.run(task.id);
   }
 
