@@ -36,12 +36,14 @@ Run the matching command:
   signature-element design and a review loop. A page that needs better
   positioning or copy is this core's central case.
 - Copywriting: `npx @skyf0xx/hedgehog init --copywriting` — a
-  mechanical gate core: marketing copy, product UI strings, or docs
-  prose drafted and iterated against `checkCopy()`, a real script
-  checking AI-tell and prose-quality contracts, not an agent's own
-  self-review. Fits a request to write or fix copy on its own, not
-  bundled into a page or app build — a landing page's own copy still
-  goes through `landing-page`'s copy skill.
+  mechanical gate core: marketing copy, product UI strings, docs prose,
+  articles, essays, and other standalone writing drafted and iterated
+  against `checkCopy()`, a real script checking AI-tell and
+  prose-quality contracts, not an agent's own self-review. Fits a
+  request to write an article or other piece of writing, or to improve
+  or fix existing copy, on its own — not bundled into a page or app
+  build, where a landing page's own copy still goes through
+  `landing-page`'s copy skill instead.
 - DeepSeek Harness plugin: `npx @skyf0xx/hedgehog init --deepseek-harness`
   — for building a tool, hook, or extension for DSH's Cordis-based agent
   framework, or otherwise extending an existing DSH installation via its

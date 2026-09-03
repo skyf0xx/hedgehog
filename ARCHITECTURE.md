@@ -143,9 +143,9 @@ Method: nothing here is a default reached for out of habit.
 
 Package and source: [`skyf0xx/hedgehog-core-copywriting`](https://github.com/skyf0xx/hedgehog-core-copywriting).
 
-For drafting and iterating copy — marketing copy, product UI strings,
-docs prose — against a mechanical gate instead of an agent's own
-self-review.
+For drafting and iterating prose — marketing copy, product UI strings,
+docs prose, articles, essays, and other standalone writing — against a
+mechanical gate instead of an agent's own self-review.
 
 | Layer | Choice | Why |
 | --- | --- | --- |
