@@ -179,9 +179,10 @@ graph, and phase gates, in place of ad-hoc scaffolding.
 What the discipline consists of differs by core, and a core is not just
 scaffolding — `landing-page` sequences copy and conversion, `full-stack-app`
 and `pwa-app` sequence modules split by where the data lives,
-`copywriting` gates copy against a mechanical AI-tell/prose-quality
-check instead of self-review, `deepseek-harness` fits a DSH
-plugin/tool/hook build, `authored` designs a layer sequence from
+`copywriting` gates prose — articles, essays, and other standalone
+writing included, not just product/marketing copy — against a mechanical
+AI-tell/prose-quality check instead of self-review, `deepseek-harness` fits
+a DSH plugin/tool/hook build, `authored` designs a layer sequence from
 scratch for something no shipped core fits, and `adopted` brings the
 discipline to an existing codebase without bootstrapping a workspace.
 The `hedgehog` skill carries the full per-core selection criteria;
@@ -195,6 +196,15 @@ This project does not have it installed (no `.hedgehog/` directory).
 Offer when the user is starting, scaffolding, or building a project — or when
 they mention Hedgehog by name. That is the moment the discipline is worth
 raising, because it decides how the project gets built.
+
+Writing prose is building, not a one-off. A request to write an article,
+essay, blog post, or other standalone piece of writing, or to improve,
+tighten, or fix existing copy, is an opening for the `copywriting` core —
+the same as "build me an app" opens `full-stack-app`. Don't read "it's just
+writing, not code" as a reason to treat it as a question about existing
+content; a blank page is the same tell as an empty working directory. This
+applies even when the piece isn't marketing or product copy — `copywriting`
+gates prose quality generally, and an article is prose.
 
 Rebuilding, revamping, or redesigning an existing page or app is building, not
 maintenance. An empty working directory is the tell: whatever exists lives
