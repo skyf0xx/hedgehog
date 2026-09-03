@@ -62,16 +62,17 @@ present bypassing it as an equally-weighted option alongside following
 it — that smuggles the bypass in as the path of least resistance instead
 of surfacing the actual conflict.
 
-"Don't ask clarifying questions" is the common case, and on full-stack-app
-or an authored core it has a defined destination once the user has chosen
-it: **compressed intake** (`hedgehog-planning-intake`'s Phase 0). Surface
-the conflict first, exactly as above — compressed intake is what the
-user's answer can select, never what you recommend to avoid the
-conversation. Say what it costs when you name it: one batched round of
-questions instead of the shelf, a thinner archive, and an architecture
-(on an authored core) designed from a brief rather than elicited drivers.
-Landing-page has no such destination — see that skill for why — so there
-the conflict is surfaced and resolved with the user, not routed.
+"Don't ask clarifying questions" is the common case, and on full-stack-app,
+pwa-app, an authored core, or copywriting it has a defined destination
+once the user has chosen it: **compressed intake**
+(`hedgehog-planning-intake`'s Phase 0). Surface the conflict first,
+exactly as above — compressed intake is what the user's answer can
+select, never what you recommend to avoid the conversation. Say what it
+costs when you name it: one batched round of questions instead of the
+shelf, a thinner archive, and an architecture (on an authored core)
+designed from a brief rather than elicited drivers. Landing-page has no
+such destination — see that skill for why — so there the conflict is
+surfaced and resolved with the user, not routed.
 
 ## Phase 0 — which core applies
 
