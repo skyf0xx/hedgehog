@@ -1,9 +1,10 @@
 // Core package registry. One entry per Hedgehog core — full-stack-app,
-// pwa-app, landing-page, deepseek-harness, and authored — naming the npm
-// package that ships its agents, skills, and (for the first four) scaffold,
-// plus the CLI flag `hedgehog init` accepts for it and the prose `planner`
-// reads aloud in Phase 0 to choose one. A fixed table, one entry per core,
-// discovered by name or flag rather than convention.
+// pwa-app, landing-page, copywriting, deepseek-harness, and authored —
+// naming the npm package that ships its agents, skills, and (for the
+// first five) scaffold, plus the CLI flag `hedgehog init` accepts for it
+// and the prose `planner` reads aloud in Phase 0 to choose one. A fixed
+// table, one entry per core, discovered by name or flag rather than
+// convention.
 //
 // `authored` carries no flag — it is never selected off a fixed list at
 // install time. hedgehog-core-design chooses it during planning (from-scratch

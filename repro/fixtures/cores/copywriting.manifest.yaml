@@ -1,0 +1,8 @@
+name: copywriting
+flag: --copywriting
+language: typescript
+engine: "^6.0.0"
+workspace: workspace/
+template: CLAUDE.core.md
+agents: [copy-writer]
+skills: [hedgehog-copywriting-loop, tells-detector, prose-quality]

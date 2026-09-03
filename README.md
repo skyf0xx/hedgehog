@@ -192,6 +192,18 @@ Bundle
 Join
 ```
 
+### Copywriting
+
+Copy is drafted and revised against a mechanical gate instead of prompting alone:
+
+``` text
+Brief
+  ↓
+Draft ⇄ zod validation()
+  ↓ pass
+Ship
+```
+
 ### Anything else
 
 A CLI, a library, a browser extension, a data pipeline, etc. gets its build order.

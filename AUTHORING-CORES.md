@@ -95,6 +95,56 @@ reports the agent as not found — expected right after `init`/`update`
 installed it this same session — see root CLAUDE.md's 'Delegating on
 this host' note rather than treating it as fatal."*
 
+## Testing a core before it's published
+
+`fetchCore` (`src/registry/fetch.mjs`) normally resolves a core package
+from the public npm registry via `npm pack <package>@<version>`. Set
+`HEDGEHOG_CORE_SOURCE` to a local directory and it resolves
+`<dir>/<package-basename>` instead — a local checkout, unpublished —
+which is how a core is exercised end to end before `npm publish` ever
+runs.
+
+This still requires a `src/registry/cores.json` entry, since that's the
+only thing `init`'s core menu and `plan()` read to find the package name,
+version, and flag in the first place — `fetchCore` needs an `entry` to
+call `packSpec` on. Add one **temporarily, uncommitted**:
+
+1. In this repo, add a normal-looking entry to `cores.json` — `name`,
+   `flag`, `package` (must match the local checkout's own
+   `package.json` `name`), any `version` string (unchecked against the
+   registry while `HEDGEHOG_CORE_SOURCE` is set), `repository`, and
+   `selects_when`.
+2. Run a real install against it, with the env var pointed at the
+   parent directory of the core's local checkout (not the checkout
+   itself):
+
+   ```sh
+   HEDGEHOG_CORE_SOURCE=/path/to/parent/dir \
+     node bin/cli.mjs init --copywriting
+   ```
+
+   in a scratch project directory — never the `hedgehog` repo itself,
+   which isn't a valid install target. `npm pack` runs against the
+   local checkout's actual committed state, uncommitted edits included,
+   so iterate by editing the core repo and re-running `init` (or
+   `update`) with no publish step in between.
+3. Undo step 1 before committing anything else in this repo:
+
+   ```sh
+   git checkout -- src/registry/cores.json
+   ```
+
+   (or `git diff src/registry/cores.json` first, if other legitimate
+   changes to the file are staged alongside the temporary entry, and
+   revert only the added lines by hand). `npm run check`'s registry
+   check (`npm view <package> version` against the real registry) fails
+   loudly on an entry for a package that was never published — the
+   temporary entry must not survive to a commit or a CI run.
+
+`HEDGEHOG_CORE_SOURCE` also works for `update`, so the same pattern
+tests a version bump to an already-registered core before it's
+published, not just a brand-new core's first install.
+
 ## Registering the core
 
 Adding the package to the CLI's `init` menu is one entry in

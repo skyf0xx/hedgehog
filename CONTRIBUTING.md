@@ -54,11 +54,12 @@ follow:
 ## Stack changes
 
 Each core locks its own stack, in its own repo — `full-stack-app`'s,
-`pwa-app`'s, `landing-page`'s, and `deepseek-harness`'s tables live in
-`ARCHITECTURE.md` here, but the workspace, agents, and skills that
-implement them live in that core's own npm package
+`pwa-app`'s, `landing-page`'s, `copywriting`'s, and `deepseek-harness`'s
+tables live in `ARCHITECTURE.md` here, but the workspace, agents, and
+skills that implement them live in that core's own npm package
 (`hedgehog-core-full-stack-app`, `hedgehog-core-pwa-app`,
-`hedgehog-core-landing-page`, `hedgehog-core-deepseek-harness`).
+`hedgehog-core-landing-page`, `hedgehog-core-copywriting`,
+`hedgehog-core-deepseek-harness`).
 A stack is locked because it's what makes that core's build order
 mechanically enforced (Nx boundaries, phase gates, lefthook) rather than
 a convention the AI is asked to follow. Proposing a stack swap for an
