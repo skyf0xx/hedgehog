@@ -1,0 +1,20 @@
+# Shipped core definition for copywriting. A linear chain of two layers:
+# brief intake, then a draft-check-revise loop gated by checkCopy()
+# rather than an agent's own self-report — the mechanism this core
+# exists to provide (see hedgehog-copywriting-loop for the loop itself).
+# `scripts/check-copy/` referenced below is this package's
+# `workspace/scripts/check-copy/`, copied to the project root at
+# install time — paths here are relative to the installed project, not
+# the package.
+id: copywriting
+pattern: layered
+layers:
+  - id: brief
+    scope: [".hedgehog/copy/00-brief.md"]
+    verify: "test -s .hedgehog/copy/00-brief.md"
+    commit: "chore(planning): copy brief"
+  - id: draft
+    depends_on: brief
+    scope: [".hedgehog/copy/**", "scripts/check-copy/**"]
+    verify: "node scripts/check-copy/index.mjs .hedgehog/copy/final.md"
+    commit: "feat(copy): draft"

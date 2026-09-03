@@ -306,20 +306,26 @@ for (const { label, text } of allEntries) {
 //    heuristic cries wolf.
 //
 //    Every core that ships a static `.core.yaml` fixture belongs in this
-//    list — `full-stack-app`, `landing-page`, `pwa-app`, and
-//    `deepseek-harness` all pre-build a workspace with a fixed layer
-//    sequence, so each has one. `adopted` and `authored` do not: neither
-//    ships a pre-built workspace at all (ARCHITECTURE.md, "Keeping a
-//    shipped core's workspace current") — `hedgehog-core-design` derives
-//    `authored`'s layers per project and `hedgehog-adopt` derives
-//    `adopted`'s from whatever repo it's adopting, so there is no single
-//    correct `core.yaml` for either to fix as a fixture; conformance for
-//    those two is instead carried by the writer skills' own worked
-//    examples and the "Verify the file loads" step each one runs against
-//    a real generated file. If either core ever grows a fixed starter
-//    workspace the way the other four have, add its `.core.yaml` fixture
-//    here in the same change. ───────────────────────────────────────────
-const CORE_YAML_FIXTURES = ['full-stack-app', 'landing-page', 'pwa-app', 'deepseek-harness'];
+//    list — `full-stack-app`, `landing-page`, `pwa-app`,
+//    `deepseek-harness`, and `copywriting` all pre-build a workspace
+//    with a fixed layer sequence, so each has one. `adopted` and
+//    `authored` do not: neither ships a pre-built workspace at all
+//    (ARCHITECTURE.md, "Keeping a shipped core's workspace current") —
+//    `hedgehog-core-design` derives `authored`'s layers per project and
+//    `hedgehog-adopt` derives `adopted`'s from whatever repo it's
+//    adopting, so there is no single correct `core.yaml` for either to
+//    fix as a fixture; conformance for those two is instead carried by
+//    the writer skills' own worked examples and the "Verify the file
+//    loads" step each one runs against a real generated file. If either
+//    core ever grows a fixed starter workspace the way the other five
+//    have, add its `.core.yaml` fixture here in the same change. ───────
+const CORE_YAML_FIXTURES = [
+  'full-stack-app',
+  'landing-page',
+  'pwa-app',
+  'deepseek-harness',
+  'copywriting',
+];
 let coreYamlFixturesLoaded = 0;
 for (const core of CORE_YAML_FIXTURES) {
   const path = join(ROOT, `repro/fixtures/cores/${core}.core.yaml`);
