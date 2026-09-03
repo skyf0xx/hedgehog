@@ -60,6 +60,17 @@ favorite_techniques = []
 #   description = "Start from the compliance constraint and brainstorm what becomes possible only because of it — turn the rule into a generative frame rather than a limit."
 additional_techniques = []
 
+# Format for the Ideate-for-me / headless default artifact. "html" (default)
+# auto-generates the imaginative HTML keepsake with no asking. "markdown-only"
+# skips it and produces the intent doc (brainstorm-intent.md) instead — for a
+# project whose deliverables are markdown/prose only, where an HTML file is
+# unwanted work rather than a bonus. Facilitator and Creative Partner modes
+# are unaffected either way: every artifact there is already opt-in.
+#
+# Example (set in team/user override TOML, e.g. a copywriting-core project):
+#   keepsake_format = "markdown-only"
+keepsake_format = "html"
+
 # Session output location. The running log and any final artifacts land inside
 # `{output_dir}/{output_folder_name}/`. `{topic_slug}` is filled from the session
 # topic so each topic gets its own folder — a user can brainstorm several topics
