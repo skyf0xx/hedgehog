@@ -112,6 +112,10 @@ without raising this tradeoff to the user again.
      skills — remove. Control returns to Hedgehog's `planner` after each
      skill, not to BMAD's own routing.
    - Keep `bmad-advanced-elicitation` invocations — it IS vendored.
+   - **Re-apply every entry under `ATTRIBUTION.md`'s "Local changes
+     (not upstream)" section** to the freshly-fetched files — a raw
+     re-fetch overwrites them silently otherwise, and a hand-patch that
+     isn't re-applied is worse than one that was never made.
    - Verify when done:
      ```bash
      cd vendor-skills/BMAD && grep -rn "_bmad/\|resolve_config\.py\|party-mode\|party_mode\|bmad-help\|common next\|scan for misroute" --include="*.md" .

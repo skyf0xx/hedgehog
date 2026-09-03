@@ -66,8 +66,21 @@ meaning this directory (`vendor-skills/BMAD/`) — used to address the shared
 scripts (`{bmad-root}/scripts/memlog.py`, etc.) without reaching outside
 this vendored tree.
 
+## Local changes (not upstream)
+
+- `core-skills/bmad-brainstorming/customize.toml` and
+  `core-skills/bmad-brainstorming/references/{mode-autonomous,finalize}.md`
+  carry a `keepsake_format` workflow key (`"html"` default,
+  `"markdown-only"` opt-out) not present upstream: Ideate-for-me and
+  headless mode otherwise auto-generate an HTML keepsake with no way to
+  opt out in advance, which is unwanted work on a project whose
+  deliverables are markdown/prose only (skyf0xx/hedgehog#386). A
+  re-vendor pass must re-apply this key to the freshly-fetched files
+  rather than letting it silently disappear.
+
 ## Re-vendoring
 
 Pinned deliberately. Re-vendoring against a newer BMAD-METHOD commit is a
 manual act: repeat the fetch against the new ref, re-apply the strip step
-above, and update this file's pinned commit and date.
+above, re-apply "Local changes" above, and update this file's pinned
+commit and date.
