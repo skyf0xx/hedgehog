@@ -41,6 +41,12 @@ export const CORE_CACHE_ROOT = join(homedir(), '.hedgehog', 'cores');
 // exercised end to end before it is published.
 const SOURCE_ENV = 'HEDGEHOG_CORE_SOURCE';
 
+// Skip cache (both reads and writes) when set; every invocation gets a fresh
+// npm pack with no persistence to ~/.hedgehog/cores/. Useful when the
+// caller's use of the fetched core is ephemeral or when accurate npm
+// download stats are needed.
+const NO_CACHE_ENV = 'HEDGEHOG_CORE_NO_CACHE';
+
 const exists = (p) =>
   access(p, constants.F_OK).then(
     () => true,
@@ -81,6 +87,13 @@ export async function fetchCore(entry) {
   } catch (err) {
     await rm(staged.tmp, { recursive: true, force: true });
     throw err;
+  }
+
+  // When NO_CACHE_ENV is set, skip cache entirely and return the staged
+  // extraction directly, leaving staged.tmp in place (since staged.root
+  // lives inside it).
+  if (process.env[NO_CACHE_ENV]) {
+    return { ...read, root: staged.root, version };
   }
 
   // Another install may have cached this exact version between the pack
