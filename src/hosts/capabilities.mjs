@@ -13,6 +13,7 @@ export const AGENT_CAPABILITY = {
   // Build and scaffold: read, write, and run commands.
   'backend-eng': 'full',
   bootstrap: 'full',
+  'copy-writer': 'full',
   'front-end-eng': 'full',
   'harness-eng': 'full',
   'landing-builder': 'full',

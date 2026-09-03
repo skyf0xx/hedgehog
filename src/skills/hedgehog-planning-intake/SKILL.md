@@ -1,6 +1,6 @@
 ---
 name: hedgehog-planning-intake
-description: Use on any core for first-run planning intake — Phase 0 runs the vendored BMAD-METHOD planning shelf, shared by every core, and Phase 1 (mining `04-prd.md` into intent records plus the Add-ons/sync-and-remote-entities decision) is full-stack-app's and pwa-app's shared procedure — identical mechanics, a different decision at step 5/8. Phase 0 also defines compressed intake, the path a user's explicit "just build it" choice takes on full-stack-app, pwa-app, and authored cores: one batched round of questions in place of the shelf, writing the same archive at the same path so Phase 1, `ux-planner`, and the Re-entry pass all keep their documented source. Also use for the Re-entry pass, which mines new scope into additional intents without re-running the shelf, on any core with a module axis to add an intent to (full-stack-app, pwa-app, authored) — landing-page has none, so its own new-scope path runs through `hedgehog-landing-loop`'s Correction Protocol instead. Invoked by the `planner` agent, which decides the path; don't run standalone. landing-page runs this skill's Phase 0 on first run, then mines the same archive through `hedgehog-landing-loop`'s own planning-intake section, that core's counterpart to this skill's Phase 1. An authored core runs this skill's Phase 0, then `hedgehog-core-design`, then this skill's Phase 1 mining against the designed layer sequence. A brownfield adoption (`hedgehog-adopt`) never runs this skill's shelf at all — the drivers BMAD elicits are already settled facts of a repo that already exists.
+description: Use on any core for first-run planning intake — Phase 0 runs the vendored BMAD-METHOD planning shelf, shared by every core, and Phase 1 (mining `04-prd.md` into intent records plus the Add-ons/sync-and-remote-entities decision) is full-stack-app's and pwa-app's shared procedure — identical mechanics, a different decision at step 5/8. Phase 0 also defines compressed intake, the path a user's explicit "just build it" choice takes on full-stack-app, pwa-app, and authored cores: one batched round of questions in place of the shelf, writing the same archive at the same path so Phase 1, `ux-planner`, and the Re-entry pass all keep their documented source. Also use for the Re-entry pass, which mines new scope into additional intents without re-running the shelf, on any core with a module axis to add an intent to (full-stack-app, pwa-app, authored) — landing-page has none, so its own new-scope path runs through `hedgehog-landing-loop`'s Correction Protocol instead. Invoked by the `planner` agent, which decides the path; don't run standalone. landing-page runs this skill's Phase 0 on first run, then mines the same archive through `hedgehog-landing-loop`'s own planning-intake section, that core's counterpart to this skill's Phase 1. copywriting runs this skill's Phase 0 the same way, then mines the same archive through `hedgehog-copywriting-loop`'s own planning-intake section into a what/audience/register brief — no module axis, so its own new-scope path runs through that loop's Correction Protocol rather than the Re-entry pass below. An authored core runs this skill's Phase 0, then `hedgehog-core-design`, then this skill's Phase 1 mining against the designed layer sequence. A brownfield adoption (`hedgehog-adopt`) never runs this skill's shelf at all — the drivers BMAD elicits are already settled facts of a repo that already exists.
 ---
 
 # Hedgehog Planning Intake
@@ -11,12 +11,15 @@ every core) and mining its output. On full-stack-app and pwa-app that
 mining is this skill's own Phase 1, into intent records written via
 `hedgehog intent
 add`; on landing-page it's `hedgehog-landing-loop`'s planning-intake
-section, into a subject/audience/job statement. This is the mechanics
+section, into a subject/audience/job statement; on copywriting it's
+`hedgehog-copywriting-loop`'s planning-intake section, into a
+what/audience/register brief. This is the mechanics
 `planner` calls once its Phase 0 core-selection check has picked a core —
 the interpretive judgment (which Feature becomes which intent, Confirm &
 Lock either way) belongs to `planner`; this skill (Phase 0, and Phase 1 on
-full-stack-app and pwa-app) and `hedgehog-landing-loop` (landing-page's
-own mining) are the fixed procedures that judgment runs inside.
+full-stack-app and pwa-app), `hedgehog-landing-loop` (landing-page's own
+mining), and `hedgehog-copywriting-loop` (copywriting's own mining) are
+the fixed procedures that judgment runs inside.
 
 That shelf run is a **first run**, once per project. When new scope
 enters play later on a core with a module axis (full-stack-app, pwa-app,

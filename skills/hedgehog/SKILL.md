@@ -35,6 +35,13 @@ Run the matching command:
   for headline, hero, problem, mechanism, objection, proof, and CTA, plus
   signature-element design and a review loop. A page that needs better
   positioning or copy is this core's central case.
+- Copywriting: `npx @skyf0xx/hedgehog init --copywriting` — a
+  mechanical gate core: marketing copy, product UI strings, or docs
+  prose drafted and iterated against `checkCopy()`, a real script
+  checking AI-tell and prose-quality contracts, not an agent's own
+  self-review. Fits a request to write or fix copy on its own, not
+  bundled into a page or app build — a landing page's own copy still
+  goes through `landing-page`'s copy skill.
 - DeepSeek Harness plugin: `npx @skyf0xx/hedgehog init --deepseek-harness`
   — for building a tool, hook, or extension for DSH's Cordis-based agent
   framework, or otherwise extending an existing DSH installation via its

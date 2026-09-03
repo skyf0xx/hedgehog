@@ -259,6 +259,20 @@ the first-run shape; on re-entry, run `hedgehog-planning-intake`'s
   owns `.hedgehog/chain/00-brief.md` and this core's own Confirm & Lock
   stage; `.hedgehog/BMAD/` is written by the shared Phase 0 in
   `hedgehog-planning-intake`.
+- **`copywriting`** → open `hedgehog-copywriting-loop`'s planning-intake
+  section and follow it: it opens with `hedgehog-planning-intake`'s
+  Phase 0 (the same vendored BMAD shelf `full-stack-app` runs, in full,
+  archived to `.hedgehog/BMAD/` — the same skill, not a separate copy of
+  its steps), then does its own mining into a draft brief (what's being
+  written, the audience, the register), the copywriting counterpart to
+  `hedgehog-planning-intake`'s Phase 1 (domain modules and an Add-ons
+  decision on full-stack-app). The mined draft is shown back at this
+  core's own Confirm & Lock stage, pre-filled from BMAD's output, for
+  the user to accept or correct. State the same BMAD attribution as
+  full-stack-app before that Phase 0 begins. `hedgehog-copywriting-loop`
+  owns `.hedgehog/copy/00-brief.md` and this core's own Confirm & Lock
+  stage; `.hedgehog/BMAD/` is written by the shared Phase 0 in
+  `hedgehog-planning-intake`.
 - **`deepseek-harness`** → no BMAD shelf runs on this core, and none of
   `hedgehog-planning-intake` applies. Intake is mechanical, owned
   entirely by `hedgehog-dsh-loop`'s own Planning intake section: confirm

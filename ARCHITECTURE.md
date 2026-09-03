@@ -20,7 +20,7 @@ Tool grants are defense in depth. The enforcement is `hedgehog verify`, which ch
 
 ## Core resolution
 
-`src/agents/` and `src/skills/` above are shared by every core. Each core's own build agents, skills, and (for `full-stack-app`, `pwa-app`, `landing-page`, and `deepseek-harness`) pre-built workspace ship in that core's own npm package rather than in this repo.
+`src/agents/` and `src/skills/` above are shared by every core. Each core's own build agents, skills, and (for `full-stack-app`, `pwa-app`, `landing-page`, `copywriting`, and `deepseek-harness`) pre-built workspace ship in that core's own npm package rather than in this repo.
 
 `src/registry/cores.json` is the fixed table naming every core: its npm package, the version range `init` resolves, its install flag, its GitHub repository, and the `selects_when` prose `planner` reads aloud in Phase 0 to choose one. `init` resolves the requested core against that table (`src/registry/index.mjs`), then fetches the package with `npm pack` and extracts it (`src/registry/fetch.mjs`), caching the extraction at `~/.hedgehog/cores/<name>/<version>/` so a repeat install on the same version needs no network. The extracted package carries a `hedgehog-core.yaml` manifest at its root (`src/registry/manifest.mjs`) naming which agents, skills, vendored shelves, workspace, and CLAUDE.md section it contributes; the installer writes those into the consuming project alongside the shared agents and skills above. `installed.mjs` records which core and version a project installed, so `update` refreshes that core from the same package rather than re-resolving the registry.
 
@@ -28,11 +28,12 @@ Tool grants are defense in depth. The enforcement is `hedgehog verify`, which ch
 
 ### Keeping a shipped core's workspace current
 
-A core that ships a pre-built `workspace/` (`full-stack-app`, `pwa-app`, `landing-page`, `deepseek-harness`) owns the staleness of its own dependencies the same way it owns everything else about that workspace — this repo has no visibility into any core's dependency tree. Each such core's repo runs its own scheduled dependency-update workflow, shaped to what that workspace actually needs to stay coherent, gated on that workspace's real build/test/lint targets (not a stub), opening a PR for human review rather than merging or publishing on its own:
+A core that ships a pre-built `workspace/` (`full-stack-app`, `pwa-app`, `landing-page`, `copywriting`, `deepseek-harness`) owns the staleness of its own dependencies the same way it owns everything else about that workspace — this repo has no visibility into any core's dependency tree. Each such core's repo runs its own scheduled dependency-update workflow, shaped to what that workspace actually needs to stay coherent, gated on that workspace's real build/test/lint targets (not a stub), opening a PR for human review rather than merging or publishing on its own:
 
 - `full-stack-app` runs `nx migrate latest` on a schedule, because Nx requires `nx` and every `@nx/*` plugin to be the exact same version — an ordinary per-package dependency bot would land them one PR at a time and break the workspace on every partial state. That gate also regenerates one throwaway domain module through all seven layer generators and typechecks/builds the result, since a migration can silently break generator output in a way that only surfaces the next time a consuming project scaffolds a module.
 - `pwa-app` runs the same `nx migrate latest` shape for the same coupled-version reason, gated on `typecheck`/`lint`/`test`/`build` plus a throwaway module scaffolded through all three generators (`feature`, `entity`, `integration`) and rebuilt, since a migration can just as easily break generator output here.
 - `landing-page` has no coupled version matrix (Astro, Tailwind, and the rest resolve independently), so its update workflow is an ordinary grouped dependency bump gated on `astro check`, `eslint`, and `astro build`.
+- `copywriting` has no coupled version matrix (the `retext` plugins, `write-good`, and `flesch`/`flesch-kincaid` resolve independently), so it's an ordinary Dependabot grouped minor/patch bump against `workspace/scripts/check-copy`'s own `package.json`, gated on that package's real test suite (`npm test`, confirming the gate still discriminates AI-tell text from clean text) on every pull request via `.github/workflows/check.yml` — not merged unattended.
 - `deepseek-harness` has no coupled version matrix, so its update workflow is an ordinary grouped dependency bump gated on scaffolding a throwaway plugin through `generate:tool` and running `verify-scaffold.mjs` against it.
 - `authored` ships no pre-built workspace — its stack is chosen per-project at design time, not pinned in the package — so it has no workspace dependencies to keep current.
 - `adopted` ships no pre-built workspace either — it wraps whatever stack the adopted repo already had — so it too has no workspace dependencies to keep current.
@@ -137,6 +138,33 @@ Method: nothing here is a default reached for out of habit.
 | Section boundary treatment | CSS `clip-path` irregular edges + `mix-blend-mode` overlap + negative-margin overlap | Breaks the hard horizontal seam between sections without any new dependency. |
 | Texture/grain | CSS `mask-image` + noise pattern | Materiality layer, no SVG filter needed. |
 | 3D | React Three Fiber | Only when the subject is genuinely spatial; skipped by default. |
+
+## `copywriting` core
+
+Package and source: [`skyf0xx/hedgehog-core-copywriting`](https://github.com/skyf0xx/hedgehog-core-copywriting).
+
+For drafting and iterating copy — marketing copy, product UI strings,
+docs prose — against a mechanical gate instead of an agent's own
+self-review.
+
+| Layer | Choice | Why |
+| --- | --- | --- |
+| Grammar/pattern checks | `retext` + `retext-passive`, `retext-intensify`, `retext-repeated-words`, `retext-readability` | Sentence tokenization and grammatical-pattern detection (passive voice, weasel words, repeated words) are known to be error-prone to reimplement from scratch; this is the same class of tool `proselint` and Vale use. |
+| Wordy-phrase/cliché checks | `write-good` | Direct dependency for the phrase-level heuristics `retext`'s pattern-based plugins don't cover. |
+| Readability scoring | `flesch` + `flesch-kincaid` | Real document-level Flesch Reading Ease and Flesch-Kincaid Grade formulas, computed from actual sentence/word/syllable counts, not a per-sentence proxy. |
+| Output contract | `zod` | Validates the structured violation report every rule reports through — the shape the loop skill parses as a real pass/fail gate. |
+| AI-tell vocabulary/phrasing | Custom regex (`scripts/check-copy/rules/tells.mjs`) | No library covers GPT-specific tells (banned vocabulary, negation formulas, hedge stacks, em-dash/rule-of-three density); sourced from Wikipedia's "Signs of AI writing" essay and cross-checked against `landing-page`'s own prose rules. |
+
+Two layers, no module axis: `brief` (planning intake mined into a
+what/audience/register statement) → `draft` (the loop skill drafts,
+runs `node scripts/check-copy/index.mjs`, revises against its JSON
+report, capped at 6 iterations). A pass is a script exit code, not a
+sentence — the same trust model `hedgehog verify` applies to every
+other core's build layers, extended to prose quality specifically.
+Standalone from every other core for now; not wired into
+`landing-page`'s own copy skill, which keeps its existing prose
+self-check until this core's rule set has been exercised on more real
+drafts.
 
 ## `deepseek-harness` core
 
