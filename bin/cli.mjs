@@ -2250,8 +2250,12 @@ async function verifyCommand(args) {
   }
 
   // Fires once per project — see community.mjs. Deliberately last: after
-  // the gate's own output, not before it.
-  const starJustShown = await shouldPromptForStar(DEST_ROOT, { intentComplete: result.intentComplete });
+  // the gate's own output, not before it. Suppressed by HEDGEHOG_NO_COMMUNITY_PROMPT
+  // for ephemeral workflows (temp-dir installs with no persistent .hedgehog/ to track
+  // cooldown state) that would otherwise re-fire on every invocation.
+  const starJustShown = process.env.HEDGEHOG_NO_COMMUNITY_PROMPT
+    ? false
+    : await shouldPromptForStar(DEST_ROOT, { intentComplete: result.intentComplete });
   if (starJustShown) {
     console.log(formatStarPrompt());
     console.log('');
@@ -2262,7 +2266,8 @@ async function verifyCommand(args) {
   // just showed the star prompt for the first time. See
   // shouldPromptForShowcase for why `starJustShown` has to come from
   // here rather than being re-derived from state.
-  if (await shouldPromptForShowcase(DEST_ROOT, { intentComplete: result.intentComplete, starJustShown })) {
+  if (!process.env.HEDGEHOG_NO_COMMUNITY_PROMPT &&
+      (await shouldPromptForShowcase(DEST_ROOT, { intentComplete: result.intentComplete, starJustShown }))) {
     console.log(formatShowcasePrompt());
     console.log('');
   }
