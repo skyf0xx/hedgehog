@@ -21,7 +21,9 @@ You run on two paths, and Workflow step 2 decides which:
 
 - **First run** (the graph holds no intents): **Phase 0 — core
   selection**, the gate below, then **Phase 1 — planning intake** in the
-  shape the chosen core defines, then the `bootstrap` handoff.
+  shape the chosen core defines, then the `bootstrap` handoff — except
+  copywriting, which has no bootstrap skill and whose planning intake
+  runs `hedgehog plan` itself; see step 9.
 - **Re-entry** (the graph already holds intents): new scope entering play
   on a project that's already been built or is mid-build, on a core with
   a module axis to add an intent to (full-stack-app, authored). The core
@@ -88,7 +90,8 @@ memory of what a core is. Read every entry before choosing; the first
 plausible match is not the answer until the rest have been ruled out.
 A core whose `when` fits and whose `flag` is listed is chosen by name
 and handed to `bootstrap`, which installs that core's package and
-follows the bootstrap skill it ships.
+follows the bootstrap skill it ships — except copywriting, which ships
+no bootstrap skill; see step 9.
 
 **Before matching against `when` paragraphs, ask up to three
 clarifying questions if the description alone doesn't already settle
@@ -272,7 +275,12 @@ the first-run shape; on re-entry, run `hedgehog-planning-intake`'s
   full-stack-app before that Phase 0 begins. `hedgehog-copywriting-loop`
   owns `.hedgehog/copy/00-brief.md` and this core's own Confirm & Lock
   stage; `.hedgehog/BMAD/` is written by the shared Phase 0 in
-  `hedgehog-planning-intake`.
+  `hedgehog-planning-intake`. This core's own Confirm & Lock runs
+  `hedgehog plan` itself and does not hand off to `bootstrap` — its
+  workspace (`scripts/check-copy/` and `core.yaml`) is already fully
+  installed by `init --copywriting`, before planning intake ever starts,
+  and this core ships no bootstrap skill. Step 9 below does not apply to
+  it; the core's own loop skill picks up from here directly.
 - **`deepseek-harness`** → no BMAD shelf runs on this core, and none of
   `hedgehog-planning-intake` applies. Intake is mechanical, owned
   entirely by `hedgehog-dsh-loop`'s own Planning intake section: confirm
@@ -487,6 +495,10 @@ as full-stack-app's Auth/Queue/Mobile trio.
    run**, don't run `plan` yet — no core is installed until step 9's
    `bootstrap` handoff lands one, and `plan` requires `core.yaml` to
    exist. Leave the written intents `proposed` and continue to step 8.
+   **Copywriting is the one exception**: its own Confirm & Lock (see the
+   core-specific procedures above) already ran `hedgehog plan` as part
+   of step 6, since its `core.yaml` is on disk before planning intake
+   ever starts — nothing left to defer here.
 8. **Commit planning intake's output as one commit** — not on the
    adoption re-entry path, where `hedgehog-adopt` already committed its
    own work as `chore(planning): adopt change` (step 2). Elsewhere:
@@ -502,18 +514,22 @@ as full-stack-app's Auth/Queue/Mobile trio.
    only). Write these with the `no-history-in-output` skill: current
    state only, no narration of the intake conversation. This is planning
    intake's own unit of work, landed before `bootstrap` touches anything.
-9. **First run only, and not on the brownfield path — hand off to the
-   `bootstrap` agent** once the commit lands. It scaffolds the chosen
-   core's workspace (and, for full-stack-app, whichever add-ons are on;
-   for pwa-app, whichever of sync/remote entities is on) before any build
-   step starts. Once that workspace exists, `core.yaml` exists too — this
-   is the point at which the `hedgehog plan` step 7 deferred on a first
-   run can finally succeed. `bootstrap` runs it before closing (see
-   `bootstrap.md`'s "Closing Bootstrap"), so the intents planner wrote are
-   compiled into tasks before the core's loop skill picks anything up. On
-   re-entry on any other core the workspace already exists and step 7
-   already ran `plan`: hand straight to that core's loop skill instead,
-   which picks the new work up from `hedgehog next`.
+9. **First run only, not on the brownfield path, and not on
+   copywriting — hand off to the `bootstrap` agent** once the commit
+   lands. It scaffolds the chosen core's workspace (and, for
+   full-stack-app, whichever add-ons are on; for pwa-app, whichever of
+   sync/remote entities is on) before any build step starts. Once that
+   workspace exists, `core.yaml` exists too — this is the point at which
+   the `hedgehog plan` step 7 deferred on a first run can finally
+   succeed. `bootstrap` runs it before closing (see `bootstrap.md`'s
+   "Closing Bootstrap"), so the intents planner wrote are compiled into
+   tasks before the core's loop skill picks anything up. On re-entry on
+   any other core the workspace already exists and step 7 already ran
+   `plan`: hand straight to that core's loop skill instead, which picks
+   the new work up from `hedgehog next`. **On copywriting**, first run or
+   not, there is no `bootstrap` handoff at all — its own Confirm & Lock
+   already ran `plan` (see the core-specific procedures above); hand
+   straight to `hedgehog-copywriting-loop` instead.
 10. **Return a summary**: which core (naming it as authored or adopted,
     if it is), the intents added (or subject statement, for
     landing-page), any open questions.
