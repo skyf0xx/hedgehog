@@ -13,10 +13,11 @@
 //   npx @skyf0xx/hedgehog update                       refresh the installed agents + skills
 //   npx @skyf0xx/hedgehog --help
 
-import { cp, mkdir, access, readdir, stat, rm, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdir, access, readdir, stat, rm, readFile, writeFile, mkdtemp } from 'node:fs/promises';
 import { constants, existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { dbInit, DB_PATH, dbAbsPath, openDb, openDbAt } from '../src/db/init.mjs';
 import { loadCore, lintCore, isModuleAxis } from '../src/db/core.mjs';
@@ -121,6 +122,40 @@ const BLOCKED_REASON_LABELS = {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, '..');
+
+// The copywriting core never installs into the directory it was invoked
+// from — every draft it produces is ephemeral scratch, and only the
+// finished piece is meant to reach the user's real project (as a plain
+// file, copied out by hedgehog-copywriting-loop's own courtesy-export
+// step). Relying on every caller (an agent reading a skill's prose, a
+// human typing the command by hand) to remember to cd into a scratch
+// directory first is exactly the kind of instruction that gets skipped
+// under context pressure — so `init --copywriting` enforces it here
+// instead, unconditionally, before DEST_ROOT is ever read. This has to
+// run before any other module-level state is computed from `process.cwd()`
+// — a raw argv scan rather than the full async arg parser lower in this
+// file, since nothing below has run yet at this point in module load.
+const ORIGDIR = process.cwd();
+{
+  // Catches both the shorthand (`--copywriting`) and the generic named-core
+  // form (`--core copywriting`, `--core=copywriting`) — namedCore()/
+  // coreFlags() do the real resolution later, async, off the registry, but
+  // this has to run synchronously before that and before DEST_ROOT below,
+  // so it matches the raw argv directly rather than waiting for it.
+  const rest = process.argv.slice(2);
+  const coreIdx = rest.indexOf('--core');
+  const isCopywriting =
+    rest.includes('--copywriting') ||
+    rest[coreIdx + 1] === 'copywriting' ||
+    rest.includes('--core=copywriting');
+  if (isCopywriting) {
+    const scratch = await mkdtemp(join(tmpdir(), 'hedgehog-copywriting-'));
+    process.chdir(scratch);
+    // No ANSI helpers yet — `dim` etc. are defined further down, after
+    // DEST_ROOT, and this has to run before DEST_ROOT is computed.
+    console.log(`  (copywriting installs to a scratch directory, never here — using ${scratch})`);
+  }
+}
 const DEST_ROOT = process.cwd();
 
 // The version of the payload this CLI carries — what `init` and
@@ -865,9 +900,22 @@ async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, global
       `  0. ${bold(`npx @skyf0xx/hedgehog@latest update`)} ${dim(`(picks up ${globalInstall.latest} before intake begins)`)}`,
     );
   }
-  // A core that landed a workspace landed its root package.json with it,
-  // so there are dependencies to install before the first commit.
-  if (core?.manifest.workspace) {
+  // Copywriting never lands anywhere the caller can see directly (see the
+  // chdir into a scratch tempdir at module load, above) — the ordinary
+  // "commit here, describe what you want to build" steps assume a project
+  // the human is looking at, which this scratch directory isn't. Point at
+  // the loop skill instead; it owns pnpm install, the draft/checkCopy()
+  // cycle, and the courtesy export of the finished piece back to ORIGDIR.
+  if (core?.manifest.name === 'copywriting') {
+    console.log(
+      `  1. Read ${bold(`${HOSTS[host].skillsDir}/hedgehog-copywriting-loop/SKILL.md`)} and follow it`,
+    );
+    console.log(dim(`     for everything from here, staying inside ${bold(DEST_ROOT)}.`));
+    console.log(
+      dim(`     The finished piece lands back at ${bold(ORIGDIR)} on its own — nothing`),
+    );
+    console.log(dim('     else needs doing there.'));
+  } else if (core?.manifest.workspace) {
     // `pnpm install` before the first commit, not after it. The core's
     // commit gate is lefthook, and lefthook's hooks are written by its
     // own postinstall — so a commit made before the install is a commit
@@ -900,19 +948,23 @@ async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, global
   // the session that ran this install — no restart, no dependence on whether
   // the harness re-scans its agent directory, and no chance of a bare
   // `planner` resolving to an unrelated global agent of the same name.
-  const agents = HOSTS[host].agentsDir;
-  const skills = HOSTS[host].skillsDir;
-  console.log(
-    dim(
-      `     Read ${bold(`${agents}/planner.md`)} and follow it — it runs planning\n` +
-        `     intake (${skills}/hedgehog-planning-intake/SKILL.md), then hands\n` +
-        `     off to ${agents}/bootstrap.md.\n` +
-        `     Some hosts register agents/skills once, at session start: if a\n` +
-        `     later dispatch by name reports one of these as not found, read\n` +
-        `     its file directly instead — it becomes dispatchable by name after\n` +
-        `     a session restart or a fresh context.`,
-    ),
-  );
+  // Copywriting's own branch above already named its hand-off (the loop
+  // skill, not planner/bootstrap — this core has no bootstrap step).
+  if (core?.manifest.name !== 'copywriting') {
+    const agents = HOSTS[host].agentsDir;
+    const skills = HOSTS[host].skillsDir;
+    console.log(
+      dim(
+        `     Read ${bold(`${agents}/planner.md`)} and follow it — it runs planning\n` +
+          `     intake (${skills}/hedgehog-planning-intake/SKILL.md), then hands\n` +
+          `     off to ${agents}/bootstrap.md.\n` +
+          `     Some hosts register agents/skills once, at session start: if a\n` +
+          `     later dispatch by name reports one of these as not found, read\n` +
+          `     its file directly instead — it becomes dispatchable by name after\n` +
+          `     a session restart or a fresh context.`,
+      ),
+    );
+  }
   console.log();
   if (core) {
     console.log(dim(`Core: ${bold(core.manifest.name)} ${dim(`(${core.version})`)}.`));
