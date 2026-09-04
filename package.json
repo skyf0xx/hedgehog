@@ -17,8 +17,7 @@
     "lint": "eslint .",
     "check": "npm run lint && node scripts/check.mjs",
     "repro": "node --experimental-sqlite repro/run-all.mjs",
-    "release": "node scripts/bump-package-version.mjs",
-    "release:plugin": "node scripts/bump-plugin-version.mjs"
+    "release": "node scripts/bump-package-version.mjs"
   },
   "files": [
     "bin",

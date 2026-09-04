@@ -1,9 +1,13 @@
 #!/usr/bin/env node
-// Bumps the npm-package version — package.json (and package-lock.json,
-// via `npm version`) — together with src/hosts/gemini/gemini-extension.json,
-// the per-project template copy of that same version number a consuming
-// project's Gemini CLI install carries. CLAUDE.md's Releasing section
-// names this pair; `npm version patch` alone only ever wrote the first.
+// Bumps Hedgehog's one version number everywhere it's carried:
+// package.json (and package-lock.json, via `npm version`),
+// src/hosts/gemini/gemini-extension.json (the per-project template copy
+// a consuming project's Gemini CLI install carries), and the plugin
+// family — .claude-plugin/plugin.json, .claude-plugin/marketplace.json's
+// plugins[0].version, .cursor-plugin/plugin.json, and root
+// gemini-extension.json (the Claude Code/Cursor/Gemini CLI packagings of
+// the skills/ + hooks/ payload). CLAUDE.md's Releasing section names all
+// six files as one family sharing one version.
 //
 // Run with `npm run release` (patch) or `npm run release -- <bump>` for
 // any bump `npm version` accepts (minor, major, or an explicit x.y.z).
@@ -24,11 +28,29 @@ const output = execFileSync('npm', ['version', bump, '--no-git-tag-version'], {
 });
 const version = output.trim().replace(/^v/, '');
 
-const templatePath = join(ROOT, 'src/hosts/gemini/gemini-extension.json');
-const templateJson = JSON.parse(await readFile(templatePath, 'utf8'));
-templateJson.version = version;
-await writeFile(templatePath, `${JSON.stringify(templateJson, null, 2)}\n`);
+const FILES = [
+  {
+    path: 'src/hosts/gemini/gemini-extension.json',
+    get: (j) => j.version,
+    set: (j, v) => { j.version = v; },
+  },
+  { path: '.claude-plugin/plugin.json', get: (j) => j.version, set: (j, v) => { j.version = v; } },
+  {
+    path: '.claude-plugin/marketplace.json',
+    get: (j) => j.plugins?.[0]?.version,
+    set: (j, v) => { j.plugins[0].version = v; },
+  },
+  { path: '.cursor-plugin/plugin.json', get: (j) => j.version, set: (j, v) => { j.version = v; } },
+  { path: 'gemini-extension.json', get: (j) => j.version, set: (j, v) => { j.version = v; } },
+];
 
 console.log(`  package.json -> ${version}`);
-console.log(`  src/hosts/gemini/gemini-extension.json -> ${version}`);
+for (const f of FILES) {
+  const fullPath = join(ROOT, f.path);
+  const json = JSON.parse(await readFile(fullPath, 'utf8'));
+  f.set(json, version);
+  await writeFile(fullPath, `${JSON.stringify(json, null, 2)}\n`);
+  console.log(`  ${f.path} -> ${version}`);
+}
+
 console.log(`\nBumped to ${version}. Not committed — review and commit by hand.`);
