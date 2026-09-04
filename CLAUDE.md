@@ -159,60 +159,48 @@ skills, and CLAUDE.md section. `src/registry/cores.json` names them;
 
 ## Releasing
 
-Two independent version numbers ship from this repo, bumped by different
-triggers and never touched by the same automation:
+This repo ships one version number, carried in six files that always agree:
+`package.json` (and `package-lock.json`, via `npm version`),
+`src/hosts/gemini/gemini-extension.json` (per-project template content a
+consuming project's Gemini CLI install carries), `.claude-plugin/plugin.json`,
+`.claude-plugin/marketplace.json`'s `plugins[0].version`,
+`.cursor-plugin/plugin.json`, and root `gemini-extension.json` (the Claude
+Code plugin, its marketplace listing, the Cursor packaging, and the Gemini
+CLI extension — all three built from the same `skills/` + `hooks/` payload).
 
-- `package.json`'s `version` — the npm package (`bin/`, `src/`,
-  `vendor-skills/`) that `npx @skyf0xx/hedgehog init`/`update` install.
-  Bump with `npm run release` (defaults to a patch bump; pass `--
-  minor`, `-- major`, or `-- x.y.z` for anything else) for any change
-  under those directories — never hand-edit the version field. **Commit
-  the bump on the feature branch and let the PR merge it into `master` —
-  do not tag or push the tag yourself.**
-  `.github/workflows/publish.yml` watches every push to `master` that
-  changes `package.json`, diffs the version from before the push (however
-  many commits it carries) against after, and when it changed: tags
-  `v<version>`, runs `npm publish`, and creates the GitHub release, all on
-  the runner's own token. It also carries a `workflow_dispatch` trigger for
-  a manual run — there, with no push to read a prior state from, "before"
-  is whatever version is currently live on npm, so a manual run still only
-  acts when the committed version and the published version actually
-  differ. A tag pushed by hand ahead of the merge collides with that
-  workflow's own `git push origin "$TAG"` and fails the release (see git
-  history around 2026-08-14 for the incident this rule comes from). If a
-  tag was pushed by mistake, delete it (`git push origin --delete
-  v<version>`) before the PR merges so the workflow can create it fresh,
-  pointing at the actual merge commit. `npm run release`
-  (`scripts/bump-package-version.mjs`) is the only way to change this
-  version: it bumps `package.json`/`package-lock.json` and
-  `src/hosts/gemini/gemini-extension.json` together in one step.
-  `scripts/check.mjs` gates on the two agreeing, so a bump to only one
-  of them fails `npm run check`.
-- `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`'s
-  `version` fields (kept identical to each other) — the Claude Code
-  plugin (`claude plugin install hedgehog`), whose payload is `skills/`
-  (currently just `skills/hedgehog/SKILL.md`) and `hooks/`, not `src/`.
-  `.cursor-plugin/plugin.json` and root `gemini-extension.json` each
-  carry the same version for the Cursor and Gemini CLI packagings of
-  that same payload (root `gemini-extension.json` only — the unrelated
-  `src/hosts/gemini/gemini-extension.json` is per-project template
-  content versioned by `package.json`'s bump instead). `npm run
-  release:plugin` (`scripts/bump-plugin-version.mjs`) is the only way to
-  change this version: it bumps all four together — defaults to a patch
-  bump; pass `-- minor`, `-- major`, or `-- x.y.z` for anything else.
-  Run it in the same PR as the change, for any edit under `skills/`,
-  `hooks/`, `.claude-plugin/`, `.cursor-plugin/`, or root
-  `gemini-extension.json` itself — that's what
-  a `claude plugin marketplace` update check (or Gemini CLI's own
-  extension update check) reads to decide a user has a new version to
-  pull. The script asserts the four files agree before writing, so a
-  prior silent miss surfaces there instead of compounding; `scripts/
-  check.mjs` carries the same assertion as a standing gate, so drift
-  between releases fails `npm run check` too. No CI bumps or publishes
-  this one; it ships by the marketplace or extension registry re-reading
-  the repo at whatever commit `master` is on.
+`npm run release` (`scripts/bump-package-version.mjs`) is the only way to
+change it: it runs `npm version` (defaults to a patch bump; pass `--
+minor`, `-- major`, or `-- x.y.z` for anything else) and then writes the
+same version into the other five files in one step — never hand-edit any
+of these version fields. `scripts/check.mjs` gates on all six agreeing, so
+a bump that misses one fails `npm run check`. **Commit the bump on the
+feature branch and let the PR merge it into `master` — do not tag or push
+the tag yourself.**
 
-Each core package carries a third version, in its own repo and released
+`.github/workflows/publish.yml` watches every push to `master` that
+changes `package.json`, diffs the version from before the push (however
+many commits it carries) against after, and when it changed: tags
+`v<version>`, runs `npm publish`, and creates the GitHub release, all on
+the runner's own token. It also carries a `workflow_dispatch` trigger for
+a manual run — there, with no push to read a prior state from, "before"
+is whatever version is currently live on npm, so a manual run still only
+acts when the committed version and the published version actually
+differ. A tag pushed by hand ahead of the merge collides with that
+workflow's own `git push origin "$TAG"` and fails the release (see git
+history around 2026-08-14 for the incident this rule comes from). If a
+tag was pushed by mistake, delete it (`git push origin --delete
+v<version>`) before the PR merges so the workflow can create it fresh,
+pointing at the actual merge commit.
+
+The Claude Code plugin, Cursor packaging, and Gemini CLI extension ship by
+the marketplace or extension registry re-reading this repo at whatever
+commit `master` is on — no CI publishes them. Because the version is
+unified, any release also moves that number even when nothing under
+`skills/`, `hooks/`, `.claude-plugin/`, `.cursor-plugin/`, or root
+`gemini-extension.json` changed; that's the intended trade against the
+alternative of two numbers that can silently drift apart.
+
+Each core package carries a separate version, in its own repo and released
 from there — a change to a core's workspace, agents, or skills is a
 release of that package, not of this one. `src/registry/cores.json` names
 the version range `init` resolves for each, so widening a core's range is
@@ -235,12 +223,6 @@ to npm via OIDC trusted publishing, and creates the GitHub release, all
 in one job on the runner's own token, exactly as this repo's own
 bump-and-merge triggers its own release.
 
-The two versions move independently: a change scoped to `src/` or `bin/`
-only bumps `package.json`; a change scoped to `skills/hedgehog/SKILL.md`
-only bumps the plugin version; a change touching both (as most
-`src/skills/hedgehog-*` fixes end up also touching the top-level
-`skills/hedgehog` offer skill) bumps both, in the same PR.
-
 Adding or changing a core in `src/registry/cores.json` also touches a set
 of places that enumerate cores by hand rather than reading the registry,
 and each one drifts silently if skipped — no error surfaces, the text just
@@ -249,8 +231,7 @@ goes stale. Sweep all of them in the same PR as the registry change:
 `SECURITY.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `CONTRIBUTING.md`, and the
 code comments in `src/registry/` and `src/db/`. `hooks/session-start` is
 easy to miss because it isn't under `skills/`, but it ships as part of the
-plugin payload and needs the same plugin-version bump as everything else
-in this list.
+plugin payload and needs the same release as everything else in this list.
 
 ## The star prompt
 

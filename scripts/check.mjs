@@ -408,15 +408,19 @@ try {
   fail(`bin/cli.mjs --help exited non-zero: ${err.message}`);
 }
 
-// ── 8. Plugin-family version fields (CLAUDE.md's Releasing section) all
-//    agree — .claude-plugin/plugin.json, .claude-plugin/marketplace.json's
-//    plugins[0].version, .cursor-plugin/plugin.json, and root
-//    gemini-extension.json ship the same skills/ + hooks/ payload under
-//    four manifests, so a version bump to one and not the others is a
-//    silent miss, not a valid state. src/hosts/gemini/gemini-extension.json
-//    is unrelated per-project template content and sits outside this
-//    family on purpose. ───────────────────────────────────────────────
+// ── 8. Hedgehog's one version number agrees across every file that
+//    carries it (CLAUDE.md's Releasing section): package.json,
+//    src/hosts/gemini/gemini-extension.json (per-project template
+//    content), and the plugin family — .claude-plugin/plugin.json,
+//    .claude-plugin/marketplace.json's plugins[0].version,
+//    .cursor-plugin/plugin.json, and root gemini-extension.json. A
+//    version bump to one and not the rest is a silent miss, not a valid
+//    state. ──────────────────────────────────────────────────────────
 try {
+  const pkgJson = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8'));
+  const geminiTemplateJson = JSON.parse(
+    await readFile(join(ROOT, 'src/hosts/gemini/gemini-extension.json'), 'utf8'),
+  );
   const pluginJson = JSON.parse(await readFile(join(ROOT, '.claude-plugin/plugin.json'), 'utf8'));
   const marketplaceJson = JSON.parse(
     await readFile(join(ROOT, '.claude-plugin/marketplace.json'), 'utf8'),
@@ -424,6 +428,8 @@ try {
   const cursorJson = JSON.parse(await readFile(join(ROOT, '.cursor-plugin/plugin.json'), 'utf8'));
   const geminiJson = JSON.parse(await readFile(join(ROOT, 'gemini-extension.json'), 'utf8'));
   const versions = {
+    'package.json': pkgJson.version,
+    'src/hosts/gemini/gemini-extension.json': geminiTemplateJson.version,
     '.claude-plugin/plugin.json': pluginJson.version,
     '.claude-plugin/marketplace.json (plugins[0].version)': marketplaceJson.plugins?.[0]?.version,
     '.cursor-plugin/plugin.json': cursorJson.version,
@@ -432,34 +438,13 @@ try {
   const distinct = new Set(Object.values(versions));
   if (distinct.size > 1) {
     fail(
-      `plugin-family version drift: ${Object.entries(versions)
+      `version drift: ${Object.entries(versions)
         .map(([file, v]) => `${file}=${v}`)
-        .join(', ')} — bump every plugin-family file to the same version (CLAUDE.md's Releasing section)`,
+        .join(', ')} — bump every one of these files to the same version (CLAUDE.md's Releasing section)`,
     );
   }
 } catch (err) {
-  fail(`plugin-family version check failed: ${err.message}`);
-}
-
-// ── 9. package.json's version and src/hosts/gemini/gemini-extension.json's
-//    version agree. The latter is per-project template content a project's
-//    Gemini CLI install carries, versioned by the npm package's own bump
-//    (CLAUDE.md's Releasing section), so a bump to one and not the other
-//    is a silent miss, not a valid state. ───────────────────────────────
-try {
-  const pkgJson = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8'));
-  const geminiTemplateJson = JSON.parse(
-    await readFile(join(ROOT, 'src/hosts/gemini/gemini-extension.json'), 'utf8'),
-  );
-  if (pkgJson.version !== geminiTemplateJson.version) {
-    fail(
-      `package version drift: package.json=${pkgJson.version}, ` +
-        `src/hosts/gemini/gemini-extension.json=${geminiTemplateJson.version} — ` +
-        `bump both to the same version (CLAUDE.md's Releasing section)`,
-    );
-  }
-} catch (err) {
-  fail(`package version check failed: ${err.message}`);
+  fail(`version check failed: ${err.message}`);
 }
 
 // ── Report ───────────────────────────────────────────────────────────
