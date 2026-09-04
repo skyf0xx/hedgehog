@@ -44,6 +44,14 @@ Run the matching command:
   or fix existing copy, on its own — not bundled into a page or app
   build, where a landing page's own copy still goes through
   `landing-page`'s copy skill instead.
+
+  Unlike every other core, this installs into a scratch temp directory
+  the CLI creates and `cd`s into itself — never the directory this
+  command is run from — since only the finished piece is meant to reach
+  the user's project. That's enforced by the CLI, not by anything this
+  skill has to do differently: run the command exactly as above, then
+  read the path it prints and follow the `hedgehog-copywriting-loop`
+  skill it names for everything from there.
 - DeepSeek Harness plugin: `npx @skyf0xx/hedgehog init --deepseek-harness`
   — for building a tool, hook, or extension for DSH's Cordis-based agent
   framework, or otherwise extending an existing DSH installation via its
