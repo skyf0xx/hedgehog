@@ -82,6 +82,18 @@ Any skill may itself invoke `bmad-advanced-elicitation`
 (`vendor-skills/BMAD/core-skills/bmad-advanced-elicitation`) at its own pause
 points — that's expected, let it run.
 
+**Full-shelf carve-out on copywriting.** This core has no module axis —
+`hedgehog-copywriting-loop`'s mining step (its planning-intake section,
+step 2) draws only from `02-brief.md` and `03-prfaq.md`, never
+`04-prd.md` or `05-ux-spec/`. On a full run, stop the shelf after
+`bmad-prfaq` (step 4) — or after `bmad-deep-recon` (step 7) where the
+piece genuinely needs market/competitive/user-voice research — and skip
+`bmad-prd` and `bmad-ux` entirely. Neither has a module axis, a UI
+surface, or anything else to attach to on this core, so running them
+produces planning artifacts nothing downstream reads. `00-manifest.md`
+names `bmad-prd` and `bmad-ux` as not-run, the same as any other skipped
+step on this shelf.
+
 Write each skill's output to `.hedgehog/BMAD/`, per the fixed layout:
 
 ```
