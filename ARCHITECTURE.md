@@ -141,7 +141,7 @@ Method: nothing here is a default reached for out of habit.
 
 ## `copywriting` core
 
-Package and source: [`skyf0xx/hedgehog-core-copywriting`](https://github.com/skyf0xx/hedgehog-core-copywriting).
+Package: `@skyf0xx/hedgehog-core-copywriting`. Source: [`skyf0xx/hedgehog-core-copywriting-prose-engineering`](https://github.com/skyf0xx/hedgehog-core-copywriting-prose-engineering).
 
 For drafting and iterating prose — marketing copy, product UI strings,
 docs prose, articles, essays, and other standalone writing — against a
