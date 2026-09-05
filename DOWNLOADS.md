@@ -11,5 +11,5 @@ Total downloads across every published Hedgehog package, refreshed daily. Last u
 | [`@skyf0xx/hedgehog-core-pwa-app`](https://www.npmjs.com/package/@skyf0xx/hedgehog-core-pwa-app) | 1,675 |
 | [`@skyf0xx/hedgehog-core-landing-page`](https://www.npmjs.com/package/@skyf0xx/hedgehog-core-landing-page) | 1,647 |
 | [`@skyf0xx/hedgehog-core-adopted`](https://www.npmjs.com/package/@skyf0xx/hedgehog-core-adopted) | 872 |
-| [`@skyf0xx/hedgehog-core-copywriting`](https://www.npmjs.com/package/@skyf0xx/hedgehog-core-copywriting) | 0 |
+| [`@skyf0xx/hedgehog-core-copywriting-prose-engineering`](https://www.npmjs.com/package/@skyf0xx/hedgehog-core-copywriting-prose-engineering) | 0 |
 | **Total** | **26,525** |

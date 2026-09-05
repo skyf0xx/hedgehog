@@ -55,8 +55,8 @@
     {
       "name": "copywriting",
       "flag": "--copywriting",
-      "package": "@skyf0xx/hedgehog-core-copywriting",
-      "version": "^0.1.1",
+      "package": "@skyf0xx/hedgehog-core-copywriting-prose-engineering",
+      "version": "^0.2.0",
       "language": "typescript",
       "repository": "https://github.com/skyf0xx/hedgehog-core-copywriting-prose-engineering",
       "selects_when": "The description asks for a piece of writing or prose to be written or fixed as its own deliverable — marketing copy, a product announcement, UI microcopy strings, docs prose, an email, a pitch, an article, an essay, a blog post, or any other standalone written piece — with no page, app, or other artifact being built around it. Concrete signals: \"write an article about X\", \"write copy for X\", \"help me write a blog post\", \"make this sound less like AI\", \"fix this copy\", \"improve this writing\", \"draft a product announcement\", a request to run text through an AI-tell or humanizer check. Not just marketing/product framing — any standalone prose request qualifies, articles and essays included. The core drafts against `checkCopy()`, a real script running deterministic AI-tell and prose-quality checks (banned vocabulary, passive voice, readability score, sentence-length variance), not an agent's own self-review — a piece of writing ships because the script exited 0. This is the core most often confused with landing-page: landing-page's own copy skill still owns copy that's part of a full page build (headline, hero, section copy sequenced through that core's Chain Method); route here only when the writing is the entire ask, not one stage of a larger build."
