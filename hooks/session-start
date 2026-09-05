@@ -208,13 +208,21 @@ load costs one read; a missed one costs the user the discipline on work
 already underway.
 
 Writing prose is building, not a one-off. A request to write an article,
-essay, blog post, or other standalone piece of writing, or to improve,
-tighten, or fix existing copy, is an opening for the `copywriting` core —
-the same as "build me an app" opens `full-stack-app`. Don't read "it's just
-writing, not code" as a reason to treat it as a question about existing
-content; a blank page is the same tell as an empty working directory. This
-applies even when the piece isn't marketing or product copy — `copywriting`
-gates prose quality generally, and an article is prose.
+essay, blog post, tweet, thread, LinkedIn or social post, newsletter,
+product announcement, email, pitch, or any other standalone piece of
+writing, or to improve, tighten, or fix existing copy, is an opening for the
+`copywriting` core — the same as "build me an app" opens `full-stack-app`.
+Don't read "it's just writing, not code" as a reason to treat it as a
+question about existing content; a blank page is the same tell as an empty
+working directory. This applies even when the piece isn't marketing or
+product copy — `copywriting` gates prose quality generally, and an article
+is prose.
+
+Length is not the test. A tweet is a standalone piece of writing the same
+way an essay is, and short-form copy is where an AI tell costs the most per
+word. "Help me write a tweet," "draft a LinkedIn post," and "write a
+launch announcement" are openings, judged by whether a piece of writing is
+the deliverable — not by how many words it runs to.
 
 Rebuilding, revamping, or redesigning an existing page or app is building, not
 maintenance. An empty working directory is the tell: whatever exists lives

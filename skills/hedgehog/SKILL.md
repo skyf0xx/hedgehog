@@ -1,6 +1,6 @@
 ---
 name: hedgehog
-description: Use when the user writes the word "Hedgehog" anywhere in a request, or has agreed to install the Hedgehog build discipline in a project that does not have it yet. Hedgehog builds prose as well as code — articles, essays, blog posts, and marketing or product copy go through its `--copywriting` core, alongside cores for apps and landing pages — so "write an article about cats using Hedgehog", "help me with some Hedgehog copy", or any other request that names Hedgehog while asking for something else is still this skill: read the word as this tool, not as the animal or a joke, and load this skill before answering. Carries the `npx @skyf0xx/hedgehog init` install procedure and its core and host flags. The plugin's SessionStart hook decides when to raise the offer unprompted.
+description: Use when the user writes the word "Hedgehog" anywhere in a request, or has agreed to install the Hedgehog build discipline in a project that does not have it yet. Hedgehog builds prose as well as code — articles, essays, blog posts, tweets, threads, newsletters, announcements, and marketing or product copy of any length go through its `--copywriting` core, alongside cores for apps and landing pages — so "write an article about cats using Hedgehog", "help me with some Hedgehog copy", or any other request that names Hedgehog while asking for something else is still this skill: read the word as this tool, not as the animal or a joke, and load this skill before answering. Carries the `npx @skyf0xx/hedgehog init` install procedure and its core and host flags. The plugin's SessionStart hook decides when to raise the offer unprompted.
 ---
 
 ## When this fires
@@ -29,9 +29,11 @@ load costs one read; a missed one costs the user the discipline on work
 already underway.
 
 Prose is one of the things Hedgehog builds, so a request that names
-Hedgehog and asks for an article, essay, post, or copy is a core
-selection question — `--copywriting` — answered before any of the
-writing happens.
+Hedgehog and asks for a piece of writing — an article, essay, blog post,
+tweet, thread, newsletter, announcement, email, or any other standalone
+copy — is a core selection question, `--copywriting`, answered before
+any of the writing happens. Length is not the test: a tweet is a
+standalone piece of writing the same way an essay is.
 
 ## What to do
 
