@@ -90,3 +90,28 @@ Run the matching command:
 Add a host flag when the user is on Cursor or Gemini CLI rather than
 Claude Code: `--cursor`, `--gemini`, `--host=claude,cursor`, or
 `--all-hosts`.
+
+## Updating the plugin
+
+This is a Claude Code plugin, installed and updated through the `claude
+plugin` CLI — never by editing or pulling inside
+`~/.claude/plugins/marketplaces/hedgehog` by hand. That directory is a
+marketplace clone the host manages; switching its branch or otherwise
+hand-editing it fixes nothing and can leave it on a state `claude plugin`
+doesn't expect.
+
+To update to the latest published version, run both, in order:
+
+```
+claude plugin marketplace update hedgehog
+claude plugin update hedgehog@hedgehog
+```
+
+The first refreshes the marketplace's cached metadata (what's available);
+the second installs it into the plugin itself. Both are required — the
+second does nothing until the first has run. `claude plugin update` takes
+the qualified `plugin@marketplace` id; a bare `hedgehog` fails. Restart
+Claude Code (or start a new session) for the update to take effect.
+
+`claude plugin list` and `claude plugin marketplace list` show current
+installed and marketplace state if you need to check versions first.
