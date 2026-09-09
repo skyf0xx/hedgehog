@@ -1,6 +1,6 @@
 ---
 name: hedgehog-contributing
-description: Use when the user wants to contribute a fix or ROADMAP.md item back to the Hedgehog project itself (skyf0xx/hedgehog) rather than their own project. Triggers on "let's fix that in Hedgehog", "I want to contribute", "let's pick up a roadmap item", or when `tweaker` offers this at the end of a build and the user says yes. Covers forking/branching, making the change under Hedgehog's own repo rules, committing with Conventional Commits, and opening the PR.
+description: Use when the user wants to contribute a fix or roadmap item back to the Hedgehog project itself (skyf0xx/hedgehog) rather than their own project. Triggers on "let's fix that in Hedgehog", "I want to contribute", "let's pick up a roadmap item", or when `tweaker` offers this at the end of a build and the user says yes. Covers forking/branching, making the change under Hedgehog's own repo rules, committing with Conventional Commits, and opening the PR.
 ---
 
 # Contributing to Hedgehog
@@ -13,14 +13,15 @@ which is a different repo with different rules.
 
 ## When this runs
 
-- The user names a specific gap (a bug they hit, a `ROADMAP.md` item) and
+- The user names a specific gap (a bug they hit, a roadmap item) and
   wants to fix it in Hedgehog rather than work around it locally.
 - `tweaker` offered this at the end of a build and the user said yes.
 
-If the user hasn't picked a target yet, read `ROADMAP.md` at the Hedgehog
-repo root with them and let them choose an item — prefer the "Small items"
-tier for a first contribution, since each entry there is scoped to one file
-or one narrow addition.
+If the user hasn't picked a target yet, browse issues labeled
+[`roadmap`](https://github.com/skyf0xx/hedgehog/issues?q=is%3Aissue+is%3Aopen+label%3Aroadmap)
+with them and let them choose one — prefer an issue also labeled
+`good-first-issue` for a first contribution, since those are scoped to one
+file or one narrow addition.
 
 ## Before starting
 
@@ -63,7 +64,7 @@ paragraph.
    `feat/`, `fix/`, or `docs/` prefix matching the change, e.g.
    `feat/windsurf-host` or `fix/tweaker-job2-wording`.
 3. **Make the change**, scoped to what `CONTRIBUTING.md` and the target
-   `ROADMAP.md` item actually call for — resist scope creep onto adjacent
+   roadmap issue actually call for — resist scope creep onto adjacent
    files even if you notice something else worth fixing; that's a separate
    PR.
 4. **Verify the install path locally** before committing, per
@@ -90,8 +91,7 @@ paragraph.
    The body follows `pr-writing`'s shape (a short Summary, a Test plan
    listing what was actually run — for this repo, `node bin/cli.mjs init`
    in a scratch dir, confirming the change lands correctly). If the PR
-   closes or addresses a `ROADMAP.md` item or a filed issue, reference it
-   (`Addresses the "<item name>" item in ROADMAP.md`, or `Fixes #<n>`).
+   closes or addresses a roadmap issue, reference it (`Fixes #<n>`).
 7. **Check CI** with `gh pr checks <number> --repo skyf0xx/hedgehog` after
    opening. Fix a red check before asking for review.
 8. **Report the PR URL** `gh` returns and stop — don't merge, don't push
