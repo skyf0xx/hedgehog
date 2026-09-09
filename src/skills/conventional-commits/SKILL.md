@@ -54,19 +54,14 @@ Group by step first, module second. A hunk in the `orders` schema and a
 hunk in the `orders` repository are different commits even though both
 are "orders" — different steps.
 
-Common groupings:
-- A schema change + its Drizzle migration
-- A service + its unit test (tests land with the step they test, not a
-  trailing "add tests" commit)
-- A Correction Protocol fix to an upstream step, split from each
-  fast-forwarded dependent step
-- Config/tooling changes (lefthook, eslint boundaries, env schema)
-  isolated from any domain step
+Group together: a schema change with its Drizzle migration; a service
+with its unit test (tests land with the step they test, not a trailing
+"add tests" commit); config/tooling changes (lefthook, eslint boundaries,
+env schema) isolated from any domain step.
 
-Do NOT group:
-- Two different build steps, even for the same module
-- A Correction Protocol fix mixed with unrelated new work
-- Two unrelated modules' changes
+Keep separate: different build steps, even for the same module; a
+Correction Protocol fix from the unrelated new work it landed alongside;
+different modules' changes.
 
 ### 3. Order the commits for review
 
@@ -77,7 +72,6 @@ Do NOT group:
    Correction Protocol cleanup — the fix commit needs to make sense
    before the commits that changed because of it.
 3. **Mechanical before novel.** Config, generated files, renames first.
-4. **Tests alongside the step they test**, same commit.
 
 ### 4. Propose the plan, then execute
 
