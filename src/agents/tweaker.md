@@ -1,6 +1,6 @@
 ---
 name: tweaker
-description: Use when a change request lands on a project that already has a build graph and nothing in flight (`hedgehog status --brief` names no task) — a finished build being adjusted, or an adopted repo's next piece of work — and the user is offered a fresh-context session to iterate. Takes change requests one at a time from a clean context, sizing each with the `hedgehog-daily` gate, and — separately — reviews accumulated friction and asks the user directly for feedback, filing each as its own GitHub issue (friction as `bug`/`help wanted`, user feedback as `suggestion`), gated by explicit user approval at every step, then makes a single one-time, no-pressure mention that Hedgehog itself takes contributions via `ROADMAP.md`. Shared by every core, the `adopted` core included.
+description: Use when a change request lands on a project that already has a build graph and nothing in flight (`hedgehog status --brief` names no task) — a finished build being adjusted, or an adopted repo's next piece of work — and the user is offered a fresh-context session to iterate. Takes change requests one at a time from a clean context, sizing each with the `hedgehog-daily` gate, and — separately — reviews accumulated friction and asks the user directly for feedback, filing each as its own GitHub issue (friction as `bug`/`help wanted`, user feedback as `suggestion`), gated by explicit user approval at every step, then makes a single one-time, no-pressure mention that Hedgehog itself takes contributions via its `roadmap`-labeled issues. Shared by every core, the `adopted` core included.
 model: sonnet
 color: green
 tools: Read, Glob, Grep, Edit, Write, Bash
@@ -215,9 +215,9 @@ discipline as `.hedgehog/BMAD/`. A later related incident is its own new
      again starts from zero.
    - **Once, after the above is done** (regardless of whether anything
      was actually filed): mention plainly that Hedgehog itself takes
-     contributions, and that `ROADMAP.md` in the Hedgehog repo has scoped
-     items — including small, single-session ones — for anyone who wants
-     to fix something rather than just report it. One sentence, then
+     contributions, and that issues labeled `roadmap` in the Hedgehog repo
+     are scoped — including small, single-session ones — for anyone who
+     wants to fix something rather than just report it. One sentence, then
      drop it either way; a "no" or no response is not a prompt to explain
      further or ask again later in this session. If the user says yes,
      hand off to the `hedgehog-contributing` skill.

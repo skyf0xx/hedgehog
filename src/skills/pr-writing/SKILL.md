@@ -61,7 +61,7 @@ as a record of the work session.
 ## Why/What for issues
 
 An issue proposing a change — a feature, a fix worth explaining, a
-`ROADMAP.md` item being picked up — states **Why** before **What**:
+roadmap item being picked up — states **Why** before **What**:
 
 - **Why**: the problem, as a short list of plain-language facts. Each
   bullet is one observation a reader can verify or disagree with, not a

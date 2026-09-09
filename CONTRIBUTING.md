@@ -4,15 +4,20 @@ Hedgehog is a package of agents and skills. This repo's content — everything
 under `src/`, plus `README.md` — is the product a consuming project installs.
 Contributing means editing that discipline directly, not building around it.
 
-Looking for something to work on? See [ROADMAP.md](ROADMAP.md) — it's split
-into bigger, multi-session items and small, single-session items scoped to
-one file. The `hedgehog-contributing` skill
+Looking for something to work on? See the issues labeled
+[`roadmap`](https://github.com/skyf0xx/hedgehog/issues?q=is%3Aissue+is%3Aopen+label%3Aroadmap) —
+each one is a self-contained item, some bigger and multi-session, some
+small and scoped to one file. The `hedgehog-contributing` skill
 (`src/skills/hedgehog-contributing/SKILL.md`) walks through branching,
 committing, and opening a PR for either kind, and `tweaker` offers it
 directly at the end of a build.
 
 You're also welcome to pick up any open issue labeled
-[`help wanted`](https://github.com/skyf0xx/hedgehog/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22).
+[`help wanted`](https://github.com/skyf0xx/hedgehog/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22),
+roadmap or not. Proposing a new roadmap item is itself a contribution —
+open an issue labeled `roadmap` and `help wanted`, scoped the same way the
+existing ones are: a stated problem, where it lives in the repo, and what
+"done" looks like, not a vague direction.
 
 ## Before you start
 

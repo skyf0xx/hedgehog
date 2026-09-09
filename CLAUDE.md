@@ -50,7 +50,7 @@ names them; `init` fetches the one a project asks for.
     current, as-is snapshot rather than a log of edits or decisions, on
     first generation and every later revision.
   - `hedgehog-contributing` — forking, branching, and PR-opening
-    procedure for contributing a fix or `ROADMAP.md` item back to the
+    procedure for contributing a fix or roadmap issue back to the
     Hedgehog project itself, as opposed to a consuming project's own
     code.
   - `pr-writing` — writing style (brief, info-dense, Simplified Technical
@@ -228,7 +228,7 @@ of places that enumerate cores by hand rather than reading the registry,
 and each one drifts silently if skipped — no error surfaces, the text just
 goes stale. Sweep all of them in the same PR as the registry change:
 `skills/hedgehog/SKILL.md`, `hooks/session-start`'s gate text, `CLAUDE.md`,
-`SECURITY.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `CONTRIBUTING.md`, and the
+`SECURITY.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, and the
 code comments in `src/registry/` and `src/db/`. `hooks/session-start` is
 easy to miss because it isn't under `skills/`, but it ships as part of the
 plugin payload and needs the same release as everything else in this list.
