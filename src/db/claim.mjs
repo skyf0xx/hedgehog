@@ -8,6 +8,14 @@
 // — by setting status and the three lease columns in the same UPDATE:
 // a task entering `building` gets an owner, and a task leaving it (to
 // ready, planned, blocked) has all three cleared.
+//
+// Both `findClaimableTasks` (the fan-out's candidate set) and `claimTask`
+// (a targeted, named claim) additionally treat a dependency as satisfied
+// when it is complete anywhere reachable from a local git ref, not only
+// in this worktree's own DB — see crossBranch.mjs. This is a read-only
+// widening of "is this dependency done", never a write across worktrees:
+// no DB row in this file ever crosses from one worktree's
+// `.hedgehog/hedgehog.db` to another's (worktree.mjs's file header).
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readlinkSync, lstatSync } from 'node:fs';
@@ -17,6 +25,7 @@ import { inTransaction } from './init.mjs';
 import { conflicts } from './conflict.mjs';
 import { incompleteDependencies } from './next.mjs';
 import { ensureTaskColumns } from './schema.mjs';
+import { buildCrossBranchIndex, commitMessageExistsAnywhere } from './crossBranch.mjs';
 
 // ── Claim-time working-tree snapshot ──────────────────────────────────
 //
@@ -154,10 +163,94 @@ const CLAIMABLE_TASKS_SQL = `
   ORDER BY t.priority, t.exclusive DESC, t.id
 `;
 
+// The same shape as CLAIMABLE_TASKS_SQL's own NOT EXISTS clause, but
+// naming which dependency is unsatisfied *in this DB* rather than merely
+// excluding the candidate — this is the raw material
+// findUnsatisfiedDependencies (below) needs to then ask crossBranch.mjs
+// whether that specific dependency is satisfied elsewhere instead.
+const UNSATISFIED_DEPENDENCIES_SQL = `
+  SELECT d.task_id AS taskId, dep.id AS dependsOnId, dep.commit_message AS commitMessage
+  FROM dependencies d
+  JOIN tasks dep ON dep.id = d.depends_on_task_id
+  WHERE dep.status <> 'complete'
+`;
+
+// Candidate tasks CLAIMABLE_TASKS_SQL's own NOT EXISTS would exclude
+// (status planned/ready, unleased, but blocked on a dependency this DB
+// still shows incomplete) that become claimable once that dependency's
+// commit is credited from ANY local branch's history — see crossBranch.mjs
+// for why this is exactly `git log --all` widened from the current
+// branch's own `git log`, and for the documented ambiguous-commit-message
+// gap this can't resolve.
+//
+// This is a live, read-only re-derivation: nothing here writes
+// `tasks.status` in the current worktree's DB (that would be exactly the
+// "no DB row crosses worktrees" invariant this feature deliberately does
+// not touch — see worktree.mjs's file header). A future claim/verify pass
+// in this same worktree still needs its own copy of that fact; this only
+// answers "is it claimable right now".
+//
+// `index` is always caller-supplied (buildCrossBranchIndex shells out to
+// `git log`, and this file's own `inTransaction` contract — see
+// claimTasks/claimTask below — forbids running a subprocess while a sqlite
+// transaction is open; findClaimableTasks builds the index before ever
+// entering one).
+function crossBranchClaimableCandidates(db, index) {
+  const candidates = db
+    .prepare(
+      `SELECT t.* FROM tasks t
+       WHERE t.status IN ('planned', 'ready')
+         AND t.lease_owner IS NULL
+         AND EXISTS (
+           SELECT 1 FROM dependencies d
+           JOIN tasks dep ON dep.id = d.depends_on_task_id
+           WHERE d.task_id = t.id AND dep.status <> 'complete'
+         )
+       ORDER BY t.priority, t.exclusive DESC, t.id`,
+    )
+    .all();
+  if (candidates.length === 0) return [];
+
+  const unsatisfied = db.prepare(UNSATISFIED_DEPENDENCIES_SQL).all();
+  const unsatisfiedByTask = new Map();
+  for (const row of unsatisfied) {
+    if (!unsatisfiedByTask.has(row.taskId)) unsatisfiedByTask.set(row.taskId, []);
+    unsatisfiedByTask.get(row.taskId).push(row);
+  }
+
+  return candidates.filter((candidate) =>
+    unsatisfiedByTask
+      .get(candidate.id)
+      .every((dep) => commitMessageExistsAnywhere({ commit_message: dep.commitMessage }, index)),
+  );
+}
+
 // Exported for ready.mjs, which walks the identical candidate set to
 // simulate this same fan-out without claiming anything.
-export function findClaimableTasks(db) {
-  return db.prepare(CLAIMABLE_TASKS_SQL).all();
+//
+// Merges CLAIMABLE_TASKS_SQL's own current-DB-only candidates with the
+// cross-branch set above, then re-sorts to the same `priority, exclusive
+// DESC, id` order the fan-out and every caller depend on — the two source
+// queries are individually ordered but interleaving them requires a single
+// re-sort over the union.
+//
+// `index` is optional: a caller outside any sqlite transaction (ready.mjs,
+// status.mjs) can omit it and this builds one itself. A caller that runs
+// inside `inTransaction` (claimTasks/claimTask, below) MUST build the
+// index first and pass it in — building it here would shell out to `git
+// log` with a `BEGIN IMMEDIATE` already open, which this codebase
+// forbids (see init.mjs#inTransaction's own contract, restated in
+// claimTasks's comment).
+export function findClaimableTasks(db, index = buildCrossBranchIndex(db)) {
+  const local = db.prepare(CLAIMABLE_TASKS_SQL).all();
+  const crossBranch = crossBranchClaimableCandidates(db, index);
+  if (crossBranch.length === 0) return local;
+
+  return [...local, ...crossBranch].sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    if (a.exclusive !== b.exclusive) return b.exclusive - a.exclusive;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
 }
 
 // Tasks another call already holds a lease on — the conflict check's other
@@ -266,6 +359,11 @@ export function claimTasks(db, { owner, count = 1, leaseMinutes = 45 }) {
   // Taking it a moment early can only miss a path dirtied in between,
   // which leaves that path attributed — the strict direction.
   const claimSnapshot = snapshotWorkingTree();
+  // Same rule, same reason, for the cross-branch index: buildCrossBranchIndex
+  // shells out to `git log --all` (twice — see crossBranch.mjs), so it is
+  // built here, before BEGIN, and threaded into findClaimableTasks rather
+  // than left to build itself once inside the transaction below.
+  const crossBranchIndex = buildCrossBranchIndex(db);
 
   return inTransaction(db, () => {
     const justReaped = reapExpiredLeases(db);
@@ -275,7 +373,7 @@ export function claimTasks(db, { owner, count = 1, leaseMinutes = 45 }) {
       return { claimed: [], blocked };
     }
 
-    const candidates = findClaimableTasks(db);
+    const candidates = findClaimableTasks(db, crossBranchIndex);
     const inFlight = findInFlightTasks(db);
     const runClaim = claimOne(db);
     const claimed = [];
@@ -317,8 +415,13 @@ export function claimTasks(db, { owner, count = 1, leaseMinutes = 45 }) {
 export function claimTask(db, taskId, { owner, leaseMinutes = 45 }) {
   ensureTaskColumns(db);
   // Same rule as claimTasks: read before BEGIN, no subprocess inside a
-  // transaction.
+  // transaction. buildCrossBranchIndex shells out to `git log --all`, so
+  // it is built here unconditionally (cheap relative to a `git` process
+  // spawn either way) rather than only on the branch that turns out to
+  // need it, which would otherwise tempt building it lazily from inside
+  // the transaction below.
   const claimSnapshot = snapshotWorkingTree();
+  const crossBranchIndex = buildCrossBranchIndex(db);
 
   return inTransaction(db, () => {
     reapExpiredLeases(db);
@@ -330,7 +433,15 @@ export function claimTask(db, taskId, { owner, leaseMinutes = 45 }) {
       return { claimed: false, reason: 'not_claimable', task };
     }
 
-    const incomplete = incompleteDependencies(db, taskId);
+    // Same cross-branch widening findClaimableTasks's fan-out applies: a
+    // dependency this DB still shows incomplete may already be complete on
+    // trunk or a sibling worktree's branch. Checked here too so a targeted
+    // `hedgehog claim <task-id>` doesn't refuse a task the fan-out would
+    // have happily claimed.
+    const stillIncomplete = incompleteDependencies(db, taskId);
+    const incomplete = stillIncomplete.filter(
+      (dep) => !commitMessageExistsAnywhere(dep, crossBranchIndex),
+    );
     if (incomplete.length > 0) {
       return { claimed: false, reason: 'incomplete_dependencies', task, incomplete };
     }
