@@ -15,6 +15,16 @@
 // — which every loop skill forbids, because the graph is derived and
 // gitignored and the patch dies at the next rebuild.
 //
+// `commitsSince`'s scan window is `git log --all`, not just the current
+// branch's `HEAD` — a hand-written commit that satisfies an open task's
+// scope can just as well sit on trunk or a sibling worktree's branch as on
+// this checkout's own branch, and `gatherEvidence` has to be able to
+// propose reconciling that task from whichever worktree happens to run
+// `hedgehog reconcile`, not only from the one that made the commit. See
+// `commitsSince` below for why the *start* of that window
+// (`newestGraphCommit`) stays scoped to the current branch's own history
+// rather than widening the same way.
+//
 // Four properties, each load-bearing:
 //
 //   - **It proposes; it never asserts.** `gatherEvidence` reports which
@@ -179,6 +189,19 @@ export function orphanedReconciliations(db, reconciliations) {
 // Returns null when no commit matches any task's message (nothing has
 // been verified yet) — the caller then reads the whole history, which is
 // the honest window for a project whose loop has not closed a task.
+//
+// Scoped to the current branch's own `git log` (not `--all`), deliberately
+// unlike `commitsSince` below: this names the boundary of THIS worktree's
+// own graph-written history — the newest commit that credits some task as
+// far as this checkout's own branch has progressed — and that is a fact
+// about this branch specifically, not about the repository as a whole. A
+// sibling branch can be ahead or behind this one in ways that have nothing
+// to do with where this worktree's own evidence window should start; using
+// `--all` here would let a commit on an unrelated, unmerged branch move
+// this worktree's own "since" boundary out from under it. Only the
+// forward-scanning window (commitsSince) needs the wider net, to catch a
+// hand-written commit that landed elsewhere; the floor it scans from stays
+// anchored to what this branch itself has already credited.
 function newestGraphCommit(db) {
   const messages = new Set(
     db.prepare('SELECT commit_message FROM tasks').all().map((r) => r.commit_message),
@@ -196,13 +219,30 @@ function newestGraphCommit(db) {
 
 // Every commit after `sinceSha` (exclusive), newest first, with the paths
 // it touched. `sinceSha` null means the whole history.
+//
+// The window's floor (`sinceSha`, from `newestGraphCommit` above) is
+// deliberately still scoped to whatever the caller resolved it against —
+// it names a specific commit, and `<sha>..` is unambiguous regardless of
+// which branch's `git log` produced that sha. It is only the window's
+// *ceiling* that widens here: `--all` in place of the bare `HEAD` ref,
+// so the scan reaches every commit on every local branch newer than
+// `sinceSha`, not only the ones that happen to be reachable from this
+// worktree's own checked-out branch. A hand-written commit sitting on
+// trunk while this runs inside an intent's own worktree (or vice versa)
+// is exactly the case `--all` exists to reach — without it, `hedgehog
+// reconcile` run from worktree B can never see a commit that only landed
+// on worktree A's branch or on trunk, which is the same blind spot
+// `commitMessageExistsAnywhere` (crossBranch.mjs) exists to close for
+// `claim`/`ready`/`status`. A project that has never opened a worktree has
+// exactly one branch with any commits, so `--all` and `HEAD` name the
+// same set there and this is a no-op for it.
 function commitsSince(sinceSha) {
-  const range = sinceSha ? [`${sinceSha}..HEAD`] : ['HEAD'];
+  const range = sinceSha ? [`${sinceSha}..`, '--all'] : ['--all'];
   let output;
   try {
     output = git(['log', '--topo-order', '--name-only', '--format=%x01%H%x00%s', ...range]);
   } catch {
-    // An empty repository has no HEAD to log.
+    // An empty repository has no ref to log at all.
     return [];
   }
 

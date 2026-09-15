@@ -19,6 +19,7 @@ import { RECONCILED_DIR, RECONCILED_NOTE_PREFIX } from './reconcile.mjs';
 import { formatMissingRequirements } from './requires.mjs';
 import { readyTasks, heldBackReason } from './ready.mjs';
 import { worktreeStatus } from './worktree.mjs';
+import { findClaimableTasks } from './claim.mjs';
 
 // The task lifecycle in order, matching the tasks CHECK constraint in
 // schema.mjs exactly — every status the engine can write, and no others.
@@ -35,17 +36,16 @@ const TASK_STATUSES = [
 // `exclusive DESC` matches claim.mjs's CLAIMABLE_TASKS_SQL and next.mjs's
 // READY_TASK_SQL, so this list is in the order those two would actually
 // take the work — see claim.mjs for why exclusive sorts first.
-const READY_TASKS_SQL = `
-  SELECT t.* FROM tasks t
-  WHERE t.status IN ('planned', 'ready')
-    AND t.lease_owner IS NULL
-    AND NOT EXISTS (
-      SELECT 1 FROM dependencies d
-      JOIN tasks dep ON dep.id = d.depends_on_task_id
-      WHERE d.task_id = t.id AND dep.status <> 'complete'
-    )
-  ORDER BY t.priority, t.exclusive DESC, t.id;
-`;
+//
+// Reuses claim.mjs#findClaimableTasks rather than a duplicate SQL string —
+// this used to run its own local-DB-only query, which meant `hedgehog
+// status` and `hedgehog claim` could disagree about which tasks are ready
+// the moment a dependency's completing commit exists only cross-branch
+// (crossBranch.mjs): a task the fan-out would happily claim would still
+// show as blocked here. findClaimableTasks already returns exactly the
+// same candidate set `hedgehog claim`'s fan-out and `hedgehog ready` use,
+// merged and re-sorted, so this file no longer needs its own copy of the
+// query.
 
 const IN_FLIGHT_TASKS_SQL = `
   SELECT t.* FROM tasks t
@@ -88,7 +88,7 @@ function countTasksByStatus(db) {
 }
 
 function loadReadyTasks(db) {
-  return db.prepare(READY_TASKS_SQL).all();
+  return findClaimableTasks(db);
 }
 
 // Tasks that need a human/agent decision before the graph can move again
