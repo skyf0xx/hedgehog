@@ -11,6 +11,17 @@
 // re-derives trunk's graph from what merged. No DB row ever crosses from
 // one worktree's `.hedgehog/hedgehog.db` to another's, or to trunk's.
 //
+// That invariant is about DB rows, not about what a live command may read
+// from git itself: `hedgehog ready`/`claim`/`status` (claim.mjs) and
+// `hedgehog reconcile` (reconcile.mjs) additionally check whether a
+// dependency's commit exists anywhere reachable from a local ref
+// (crossBranch.mjs's `git log --all`), not only on this worktree's own
+// checked-out branch — so a task completed and committed on trunk or on a
+// sibling worktree's branch is reflected as complete here without any DB
+// row ever having moved. The two facts are independent: this widens what
+// a query is willing to read from git history, never what a write copies
+// between databases.
+//
 // Trigger: task ids are `<intent>-<layer>` (plan.mjs's taskId), so the
 // intent is the natural partition — every task at a layer belongs to
 // exactly one intent, and a layer-boundary trigger would instead fan the
@@ -113,7 +124,21 @@ export function onHedgehogBranch({ repoRoot = process.cwd() } = {}) {
 // `--depends-on` on `hedgehog intent add` never trips this path, full
 // stop. Ordered by priority, id so a repeat `hedgehog plan` run always
 // considers the same intents in the same order.
-export function eligibleIntents(db) {
+//
+// `abandonedIntentIds` excludes an intent with a committed
+// `.hedgehog/abandoned/<id>.json` record (issue #431): applyAbandonment
+// resets an abandoned intent to `status = 'planned'` by design —
+// abandonment is a separate committed fact, not a status value — but that
+// reset also clears its `intent_dependencies` rows (clearIntentDependencies
+// in this file), and a later `hedgehog intent add` re-declaring the same
+// `--depends-on` (or a rebuild replaying intent files back onto trunk)
+// repopulates that table. Once the now-again-declared dependency
+// completes, this function's own readiness rule alone would read the
+// abandoned intent as eligible again and hand it a fresh worktree — the
+// committed abandonment record is the one place that fact survives, so
+// checking it here is what stops the recompile-and-offer cycle from
+// repeating on every subsequent `hedgehog plan`.
+export function eligibleIntents(db, abandonedIntentIds = new Set()) {
   const intents = db
     .prepare(
       `SELECT * FROM intents WHERE status IN ('proposed','planned') AND id <> '_core'
@@ -131,6 +156,7 @@ export function eligibleIntents(db) {
   );
 
   return intents.filter((intent) => {
+    if (abandonedIntentIds.has(intent.id)) return false;
     const deps = dependsOnByIntent.get(intent.id);
     if (!deps || deps.length === 0) return false;
     return deps.every((depId) => statusById.get(depId) === 'complete');

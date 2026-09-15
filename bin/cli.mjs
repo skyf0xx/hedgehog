@@ -86,6 +86,7 @@ import {
   onHedgehogBranch,
   writeAbandonedFile,
   applyAbandonment,
+  loadAbandoned,
   ABANDONED_DIR,
 } from '../src/db/worktree.mjs';
 import { loadOverrides, addOverride, orphanedOverrides, OVERRIDES_DIR } from '../src/db/overrides.mjs';
@@ -1557,11 +1558,21 @@ async function planCommand(args = []) {
   // by the same rule that got it a worktree in the first place. Without
   // this guard, that recursive call would try to create a second,
   // colliding worktree for itself instead of just compiling normally.
+  // A committed `.hedgehog/abandoned/<id>.json` record outlives the
+  // `intent_dependencies` reset that comes with it (issue #431) — see
+  // worktree.mjs#eligibleIntents for why the abandonment record, not the
+  // (re-clearable) dependency table, has to be the thing checked there.
+  // Loaded unconditionally (not just under the onHedgehogBranch guard
+  // below) because it also feeds excludeIntentIds just below: an abandoned
+  // intent must never fall through to a plain trunk compile just because
+  // eligibleIntents excluded it from the worktree path.
+  const abandonedIntentIds = new Set((await loadAbandoned()).keys());
+
   let eligible = [];
   if (!onHedgehogBranch()) {
     const eligibilityDb = openDb({ readOnly: true });
     try {
-      eligible = eligibleIntents(eligibilityDb);
+      eligible = eligibleIntents(eligibilityDb, abandonedIntentIds);
     } finally {
       eligibilityDb.close();
     }
@@ -1572,8 +1583,12 @@ async function planCommand(args = []) {
   // it a worktree this run (hasWorktree true already, or the commit check
   // below defers it) — an eligible intent must never fall through to
   // compiling on trunk, or it would sit there just like any pre-feature
-  // intent and this feature would have done nothing for it.
-  const excludeIntentIds = new Set(eligible.map((i) => i.id));
+  // intent and this feature would have done nothing for it. Abandoned
+  // intents are unioned in for the same reason (issue #431): excluded from
+  // `eligible` itself now, they'd otherwise read as "not eligible, so
+  // compile normally" and get recompiled straight onto trunk instead of
+  // being left alone — the abandonment record makes that impossible.
+  const excludeIntentIds = new Set([...eligible.map((i) => i.id), ...abandonedIntentIds]);
 
   const worktreesCreated = [];
   for (const intent of eligible) {
