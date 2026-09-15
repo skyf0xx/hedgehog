@@ -62,7 +62,7 @@ import { withCommitLock, LOCK_PATH } from './commitLock.mjs';
 import { reapExpiredLeases, pathFingerprint } from './claim.mjs';
 import { ensureTaskColumns } from './schema.mjs';
 import { FRICTION_DIR } from './friction.mjs';
-import { OVERRIDES_DIR } from './overrides.mjs';
+import { OVERRIDES_DIR, composeScope } from './overrides.mjs';
 import { RECONCILED_DIR } from './reconcile.mjs';
 import { INTENTS_DIR } from './intent.mjs';
 import { COMMUNITY_PATH } from './community.mjs';
@@ -463,10 +463,23 @@ function claimForVerify(db, taskId, owner) {
 // `completedIntent` is the intent row (id/goal/outcome) when this task
 // was the last one of its intent, else null — the CLI prints it back as
 // an INTENT CHECK.
-export function verifyTask(db, taskId, owner) {
+//
+// `overrides` (a Map from loadOverrides(), same shape recompileTasks and
+// detectDrift already take from their own callers) composes live into
+// this task's scope for both gates below, rather than trusting
+// task.scope_globs alone — that DB column is only ever widened by a
+// `hedgehog plan --recompile` the caller may not have run yet, so an
+// override written after claim but before recompile would otherwise
+// flag its own newly-allowed paths as scope violations. verifyTask
+// itself stays synchronous (loadOverrides is async, reading a
+// directory); the CLI already awaits loadOverrides() for
+// planRecompileCommand, so it does the same here and passes the
+// resulting Map in — defaulting to an empty Map keeps every other/test
+// caller's behavior unchanged.
+export function verifyTask(db, taskId, owner, overrides = new Map()) {
   const task = claimForVerify(db, taskId, owner);
 
-  const scopeGlobs = JSON.parse(task.scope_globs);
+  const scopeGlobs = JSON.parse(composeScope({ scope_globs: task.scope_globs }, taskId, overrides).scope_globs);
   // Gate 1 runs inside the commit lock: the diff has to see a working
   // tree no other task's commit is landing into mid-read, and the
   // neighbor-scope split has to be computed against a snapshot, not a

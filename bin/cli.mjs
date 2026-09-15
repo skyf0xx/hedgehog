@@ -2255,7 +2255,8 @@ async function verifyCommand(args) {
       process.exitCode = 1;
       return;
     }
-    result = verifyTask(db, taskId, owner);
+    const overrides = await loadOverrides();
+    result = verifyTask(db, taskId, owner, overrides);
   } catch (err) {
     console.error(`${red('Verify failed:')} ${err.message}\n`);
     process.exitCode = 1;
@@ -3347,7 +3348,7 @@ async function overrideCommand(args) {
     console.log(`  ${green('added')}  ${OVERRIDES_DIR}/${record.task.toLowerCase()}.json`);
     for (const glob of record.scope_add) console.log(`    + ${glob}`);
     console.log(
-      `  ${dim(`run \`hedgehog plan --recompile\` to widen ${record.task} now, if it's already compiled`)}\n`,
+      `  ${dim(`\`hedgehog verify\` picks this up immediately; run \`hedgehog plan --recompile\` to also widen ${record.task}'s stored scope_globs (task listing, drift detection) now, if it's already compiled`)}\n`,
     );
     return;
   }
