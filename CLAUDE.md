@@ -63,6 +63,10 @@ names them; `init` fetches the one a project asks for.
     tracking issue plus sub-issues, which account files it, labels, and
     acceptance criteria. Defers to `pr-writing` for how an issue is
     worded.
+  - `code-comment-discipline` — governs commenting in every core's build
+    agents: no comment by default, one only for the non-obvious (a hidden
+    constraint, an invariant, a workaround, surprising behavior), and
+    never history or a restatement of what the code already says.
 - `src/registry/` — the core table and the fetcher that acts on it.
   `cores.json` names every core, the npm package that ships it, its
   version range, its install flag (absent on `authored` and `adopted`,
