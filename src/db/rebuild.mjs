@@ -311,7 +311,7 @@ function loadCommitSubjects() {
 // and applying either check there would cascade that gap through the
 // whole chain and reset already-built modules that have no ambiguity to
 // resolve in the first place.
-function markCompletedTasks(db, commitSubjects) {
+function markCompletedTasks(db, commitSubjects, reconciledTaskIds = new Set()) {
   const tasks = db.prepare('SELECT id, module, commit_message FROM tasks').all();
   const prerequisites = new Map(tasks.map((t) => [t.id, []]));
   for (const d of db.prepare('SELECT task_id, depends_on_task_id FROM dependencies').all()) {
@@ -329,7 +329,16 @@ function markCompletedTasks(db, commitSubjects) {
   // resolved separately below, since "the" matching commit for its
   // subject isn't decided until a claim succeeds.
   const positionOf = new Map();
-  const complete = new Set();
+  // Seeded with every reconciled task up front, before the ambiguous-task
+  // fixpoint walk below ever runs: a reconciled task was closed precisely
+  // because it has no commit of its own to match in commitSubjects (a
+  // hand-written commit predating the reconciliation, or none at all), so
+  // without this seed it can never enter `complete` from inside this
+  // function — leaving every task that depends on it, directly or
+  // transitively, stuck `planned` forever, since replayReconciliations
+  // (the only other path that would mark it complete) runs after this
+  // function returns.
+  const complete = new Set(reconciledTaskIds);
   const ambiguousTasks = [];
   for (const task of tasks) {
     if (task.module === CORE_MODULE || isAmbiguous(task)) {
@@ -552,7 +561,18 @@ export async function rebuildDb(
   planTasks(db, core, overrides, { excludeIntentIds: openWorktreeIntentIds });
 
   const commitSubjects = loadCommitSubjects();
-  const tasksMarkedComplete = markCompletedTasks(db, commitSubjects);
+  // Reconciled task ids are seeded into markCompletedTasks's own `complete`
+  // set before its ambiguous-task fixpoint walk runs, not after: a
+  // reconciled task's whole reason for being in .hedgehog/reconciled/ is
+  // that it has no commit of its own in commitSubjects to match, so
+  // without this it can never satisfy `every prerequisite is complete` for
+  // whatever depends on it — see markCompletedTasks's own comment on
+  // `reconciledTaskIds` for the full mechanics. replayReconciliations
+  // (below) still runs afterward to write the provenance note and cover
+  // any reconciled task markCompletedTasks doesn't touch (module = CORE_MODULE
+  // edge cases aside, every reconciled id ends up here either way).
+  const reconciledTaskIds = new Set(reconciliations.keys());
+  const tasksMarkedComplete = markCompletedTasks(db, commitSubjects, reconciledTaskIds);
 
   const tasksReconciled = replayReconciliations(db, reconciliations);
   const orphanedReconciled = orphanedReconciliations(db, reconciliations);
