@@ -1,24 +1,28 @@
 #!/usr/bin/env node
-// Reproduction: a layer that verifies with nothing touched closes
-// `complete` without writing a commit.
+// Reproduction: a layer whose scope has nothing touched before
+// verify_command even runs closes `complete` with no verify_command run
+// and no commit written.
 //
-// Why it matters: `.hedgehog/hedgehog.db` is gitignored and documented as
-// derived state, rebuildable by replaying the committed sources against
-// git history (`hedgehog db rebuild`). A task that reached `complete`
-// while HEAD stood still leaves no trace in that history, so the rebuild
-// silently reports it as never done — and the project's own "one layer,
-// one commit" rule is broken.
+// `.hedgehog/hedgehog.db` is gitignored and documented as derived state,
+// rebuildable by replaying the committed sources against git history
+// (`hedgehog db rebuild`). A task closed this way has no commit for
+// rebuild.mjs#markCompletedTasks to match, so its completion instead
+// survives through a committed record under `.hedgehog/noop/` (noop.mjs),
+// replayed by rebuild.mjs#replayNoopRecords the same way
+// `.hedgehog/reconciled/*.json` survives a hand-reconciled task.
 //
 // This script builds a throwaway Hedgehog project in a temp dir, drives
 // it through the real CLI (db init → intent add → plan → claim → verify),
 // and checks two paths:
 //
-//   Case A (the bug): a layer whose work was already satisfied upstream.
-//                     Nothing is written into its scope. Verify passes.
-//                     Expect: a commit carrying the layer's commit_message.
+//   Case A: a layer whose work was already satisfied upstream. Nothing is
+//           written into its scope. Verify passes with no verify_command
+//           run and no commit. Expect: HEAD unchanged, a committed
+//           .hedgehog/noop/ record, and the completion surviving a
+//           `hedgehog db rebuild`.
 //   Case B (control): the next layer, with a real file written into its
-//                     scope — the ordinary path, asserted so a fix for
-//                     Case A can't quietly break it.
+//                     scope — the ordinary path, asserted so this fix
+//                     can't quietly break it.
 //
 // No sqlite3 binary and no test framework are used: node:sqlite reads the
 // build graph back, assertions are plain, and the process exits nonzero
@@ -27,7 +31,7 @@
 // Usage:  node repro/no-op-layer-commit.mjs        (add --keep to retain the temp dir)
 
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -237,51 +241,28 @@ async function main() {
   });
 
   const movedA = headAfterA !== headBeforeA;
-  check('a commit was written for the no-op layer (HEAD moved)', {
-    expected: `HEAD to advance past ${headBeforeA.slice(0, 8)}`,
-    actual: movedA ? `HEAD advanced to ${headAfterA.slice(0, 8)}` : 'HEAD unchanged — no commit written',
-    pass: movedA,
+  check('no commit was written for the no-op layer (HEAD unchanged)', {
+    expected: `HEAD to stay at ${headBeforeA.slice(0, 8)}`,
+    actual: movedA ? `HEAD advanced to ${headAfterA.slice(0, 8)}` : 'HEAD unchanged',
+    pass: !movedA,
   });
 
-  if (movedA) {
-    const subject = subjectOf(root, headAfterA);
-    check("the commit carries the layer's commit_message", {
+  const noopRecordPath = join(root, '.hedgehog', 'noop', 'demo-foundation.json');
+  const noopRecordExists = existsSync(noopRecordPath);
+  check('a committed no-op record was written', {
+    expected: `${noopRecordPath} to exist`,
+    actual: noopRecordExists ? 'exists' : 'missing',
+    pass: noopRecordExists,
+  });
+
+  if (noopRecordExists) {
+    const record = JSON.parse(readFileSync(noopRecordPath, 'utf8'));
+    check("the no-op record carries the layer's commit_message", {
       expected: 'chore(infra): foundation for demo',
-      actual: subject,
-      pass: subject === 'chore(infra): foundation for demo',
-    });
-
-    // Checked word for word, not merely "non-empty": the note is
-    // interpolated into a shell command, so a backtick or a `$` in it
-    // would be silently eaten (or executed) rather than committed.
-    const body = bodyOf(root, headAfterA).trim();
-    const NOTE =
-      'Verified no-op: this layer had nothing left to change. Recorded as an ' +
-      'empty commit so one layer still means one commit, and so the completion ' +
-      'survives a "hedgehog db rebuild", which replays git history.';
-    check('the commit records, verbatim, that the layer was a verified no-op', {
-      expected: NOTE,
-      actual: body === '' ? '(empty body)' : body,
-      pass: body === NOTE,
-    });
-
-    const files = filesInCommit(root, headAfterA);
-    check('the no-op commit is empty (touches no files)', {
-      expected: '0 files',
-      actual: `${files.length} file(s)${files.length ? ': ' + files.join(', ') : ''}`,
-      pass: files.length === 0,
+      actual: record.commit_message,
+      pass: record.commit_message === 'chore(infra): foundation for demo',
     });
   }
-
-  // The whole point: git alone has to be enough to reconstruct completion.
-  const reconstructible = git(root, ['log', '--format=%s'])
-    .split('\n')
-    .includes('chore(infra): foundation for demo');
-  check('completion is reconstructible from git history alone', {
-    expected: "'chore(infra): foundation for demo' present in git log",
-    actual: reconstructible ? 'present' : 'absent — a db rebuild would show this task as never done',
-    pass: reconstructible,
-  });
 
   // ------------------------------------------------ Case B: the normal path
   console.log('\nCase B — control: layer writes a real file (must keep working)\n');
@@ -391,7 +372,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('REPRO PASSED — every layer that verified left a commit behind.\n');
+  console.log('REPRO PASSED — a genuine no-op layer completes with no commit, and still survives a rebuild.\n');
 }
 
 main().catch((err) => {

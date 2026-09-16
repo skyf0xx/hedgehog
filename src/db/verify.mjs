@@ -23,12 +23,18 @@
 //      verification at all — the task moves to `blocked` with
 //      blocked_reason `scope_violation`, no `verifications` row written,
 //      lease released. This is a scope violation, not a failing check.
-//   2. Only once every touched path matches scope does verify_command run.
-//      Exit 0: verifications row (passed) → artifacts recorded → git
-//      commit with commit_message → complete, lease released → direct
-//      dependents re-evaluated (a dependent is ready once every
-//      dependency is complete — same check as the readiness SELECT in
-//      next.mjs).
+//   2. Once every touched path matches scope, gate 1's own scan already
+//      knows whether this task's scope has anything touched at all. If
+//      not — a genuine no-op, the layer's work already satisfied upstream
+//      — verify_command never runs and no commit is made: the task closes
+//      `complete` directly, and a committed record under `.hedgehog/noop/`
+//      is what `hedgehog db rebuild` replays to recover it (noop.mjs),
+//      since there is no commit for rebuild to match against.
+//      Otherwise verify_command runs. Exit 0: verifications row (passed)
+//      → artifacts recorded → git commit with commit_message → complete,
+//      lease released → direct dependents re-evaluated (a dependent is
+//      ready once every dependency is complete — same check as the
+//      readiness SELECT in next.mjs).
 //      Nonzero: verifications row (failed, output retained) → blocked
 //      with blocked_reason `verification_failed`, lease released,
 //      dependents stay blocked.
@@ -57,46 +63,25 @@
 // verify_command that is a shell command by definition.
 
 import { execSync, execFileSync } from 'node:child_process';
-import { DB_PATH } from './init.mjs';
-import { withCommitLock, LOCK_PATH } from './commitLock.mjs';
+import { withCommitLock } from './commitLock.mjs';
 import { reapExpiredLeases, pathFingerprint } from './claim.mjs';
 import { ensureTaskColumns } from './schema.mjs';
-import { FRICTION_DIR } from './friction.mjs';
-import { OVERRIDES_DIR, composeScope } from './overrides.mjs';
-import { RECONCILED_DIR } from './reconcile.mjs';
-import { INTENTS_DIR } from './intent.mjs';
-import { COMMUNITY_PATH } from './community.mjs';
-import { NOTES_DIR } from './notes.mjs';
+import { composeScope } from './overrides.mjs';
+import { FASTPATH_DIR } from './fastpath.mjs';
+import { writeNoopFile } from './noop.mjs';
+import { isEngineStatePath as isEngineStatePathShared } from './engineState.mjs';
 
-// Build-graph state directories: written by their own command
-// (`friction add`, `override add`, `intent add`/`db rebuild`, `reconcile
-// confirm`, `debt add`/`decision add`), committed by that command's own
-// next step, never by a layer's verify_command. A
-// layer's own work never lands here, so a path under one of these is
-// never this task's doing regardless of when it changed relative to
-// claim time — unlike attributedToTask's fingerprint check, which only
-// excludes a path unchanged since claim and so still attributes a
-// friction note logged mid-layer (exactly what the loop skill instructs)
-// to whichever task happened to be building when it was logged.
-const BUILD_GRAPH_STATE_DIRS = [FRICTION_DIR, OVERRIDES_DIR, INTENTS_DIR, RECONCILED_DIR, NOTES_DIR];
-
-function isBuildGraphStatePath(path) {
-  return BUILD_GRAPH_STATE_DIRS.some((dir) => path === dir || path.startsWith(`${dir}/`));
-}
-
-// The build graph file, the commit lock, and the star-prompt state file
-// are engine state, written only by this CLI, never by an agent — all
-// are excluded from every task's scope check (and from artifacts/
-// commits), or verify's own writes would trip the very check they're
-// performing. Covers SQLite's journal/WAL/SHM sidecars too.
+// The build graph file, the commit lock, the star-prompt state file, and
+// every build-graph-state directory (friction, overrides, intents,
+// reconciled, notes, noop, fast-path) are engine state, written only by
+// their own command, never by a layer's verify_command — all excluded
+// from every task's scope check (and from artifacts/commits), or a
+// build-graph command's own writes would trip the very check it's
+// performing. `FASTPATH_DIR` isn't part of engineState.mjs's own list
+// (importing it there from fastpath.mjs would cycle back here — see that
+// module's header), so it's passed in as this call's own extra dir.
 function isEngineStatePath(path) {
-  return (
-    path === DB_PATH ||
-    path.startsWith(`${DB_PATH}-`) ||
-    path === LOCK_PATH ||
-    path === COMMUNITY_PATH ||
-    isBuildGraphStatePath(path)
-  );
+  return isEngineStatePathShared(path, [FASTPATH_DIR]);
 }
 
 // Runs git with an argv array and no shell, so every element of `args`
@@ -476,7 +461,7 @@ function claimForVerify(db, taskId, owner) {
 // planRecompileCommand, so it does the same here and passes the
 // resulting Map in — defaulting to an empty Map keeps every other/test
 // caller's behavior unchanged.
-export function verifyTask(db, taskId, owner, overrides = new Map()) {
+export async function verifyTask(db, taskId, owner, overrides = new Map()) {
   const task = claimForVerify(db, taskId, owner);
 
   const scopeGlobs = JSON.parse(composeScope({ scope_globs: task.scope_globs }, taskId, overrides).scope_globs);
@@ -490,7 +475,7 @@ export function verifyTask(db, taskId, owner, overrides = new Map()) {
   // in between) can itself touch files inside this task's own scope
   // (generated lockfiles, formatted output), and committing a stale
   // pre-verify_command snapshot would silently drop those.
-  const { offending } = withCommitLock(() => {
+  const { offending, inScope: inScopeBeforeVerify } = withCommitLock(() => {
     // Only what changed during this task's lease is this task's to answer
     // for; everything else in the shared working tree was already there
     // when the task was handed out. The commit set below is deliberately
@@ -515,6 +500,47 @@ export function verifyTask(db, taskId, owner, overrides = new Map()) {
       throw err;
     }
     return { outcome: 'scope_violation', offending };
+  }
+
+  // Genuine no-op: nothing this task's scope claims has changed even
+  // before verify_command runs — the layer's work was already satisfied
+  // by an earlier layer, or this intent never touches this module at all.
+  // verify_command has nothing to check here, so it never runs, and no
+  // commit is made. The completion still needs to survive `hedgehog db
+  // rebuild`, which recovers completion from a matching commit subject;
+  // with no commit to match, the committed record under NOOP_DIR is what
+  // rebuild replays instead (see noop.mjs, rebuild.mjs#replayNoopRecords).
+  if (inScopeBeforeVerify.length === 0) {
+    const verifiedAt = new Date().toISOString();
+    await writeNoopFile({ task: task.id, commit_message: task.commit_message, verified_at: verifiedAt });
+
+    let unlocked;
+    let completedIntent;
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      setTaskStatus(db, task.id, 'complete');
+      unlocked = unlockReadyDependents(db, task.id);
+      completedIntent = completeIntentIfDone(db, task.intent_id);
+      db.exec('COMMIT');
+    } catch (err) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // Rollback failing must not mask the original error.
+      }
+      throw err;
+    }
+
+    return {
+      outcome: 'complete',
+      exitCode: null,
+      output: null,
+      commitSha: null,
+      noop: true,
+      unlocked,
+      intentComplete: completedIntent !== null,
+      completedIntent: completedIntent ?? null,
+    };
   }
 
   const { exitCode, output } = runVerifyCommand(task.verify_command);

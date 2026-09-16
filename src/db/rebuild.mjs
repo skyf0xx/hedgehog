@@ -41,6 +41,8 @@ import {
   RECONCILED_DIR,
 } from './reconcile.mjs';
 import { loadNotes, NOTES_DIR } from './notes.mjs';
+import { loadNoopRecords, orphanedNoopRecords, NOOP_DIR } from './noop.mjs';
+import { loadFastpaths, orphanedFastpathTasks, fastpathNote, FASTPATH_DIR } from './fastpath.mjs';
 import {
   loadAbandoned,
   replayAbandonments,
@@ -494,6 +496,57 @@ function replayReconciliations(db, reconciliations) {
   return replayed;
 }
 
+// Replays `.hedgehog/fastpath/*.json` — the committed record of every
+// intent a user closed below the normal per-layer ceremony (fastpath.mjs).
+// Same shape and same reason as replayReconciliations: a fast-pathed task
+// has no commit_message of its own to match in commitSubjects (the fix it
+// covers landed as one real commit, not a per-layer one), so without this
+// replay a rebuild would silently revert every fast-pathed task back to
+// its pre-completion status.
+function replayFastpaths(db, fastpaths) {
+  const setComplete = db.prepare(
+    "UPDATE tasks SET status = 'complete', blocked_reason = NULL WHERE id = ?",
+  );
+  const insertNote = db.prepare('INSERT INTO decisions (task_id, note) VALUES (?, ?)');
+  const taskExists = db.prepare('SELECT 1 FROM tasks WHERE id = ?');
+
+  let replayed = 0;
+  for (const record of fastpaths.values()) {
+    const note = fastpathNote(record);
+    for (const taskId of record.tasks) {
+      if (taskExists.get(taskId) === undefined) continue;
+      setComplete.run(taskId);
+      insertNote.run(taskId, note);
+      replayed++;
+    }
+  }
+  return replayed;
+}
+
+// Replays `.hedgehog/noop/*.json` — the committed record of every task
+// verify.mjs closed `complete` with no commit, because its scope had
+// nothing left to touch before verify_command even ran (noop.mjs).
+//
+// Same shape and same reason as replayReconciliations above: a task
+// recorded here has no commit for markCompletedTasks to match by
+// construction, so without this replay a rebuild would leave it (and
+// everything depending on it) stuck `planned` forever, silently reverting
+// a completion that already happened.
+function replayNoopRecords(db, records) {
+  const setComplete = db.prepare(
+    "UPDATE tasks SET status = 'complete', blocked_reason = NULL WHERE id = ?",
+  );
+  const taskExists = db.prepare('SELECT 1 FROM tasks WHERE id = ?');
+
+  let replayed = 0;
+  for (const taskId of records.keys()) {
+    if (taskExists.get(taskId) === undefined) continue;
+    setComplete.run(taskId);
+    replayed++;
+  }
+  return replayed;
+}
+
 // Rebuilds `db` from scratch: schema, then every committed intent
 // replayed in dependency order, then planTasks to re-derive tasks +
 // dependencies, then git history to reconcile which tasks already
@@ -520,6 +573,8 @@ export async function rebuildDb(
     overridesDir = OVERRIDES_DIR,
     reconciledDir = RECONCILED_DIR,
     notesDir = NOTES_DIR,
+    noopDir = NOOP_DIR,
+    fastpathDir = FASTPATH_DIR,
     abandonedDir = ABANDONED_DIR,
     // `hedgehog merge <id>`'s own rebuild call (bin/cli.mjs#mergeCommand):
     // at the point it calls rebuildDb, `git merge --no-ff` has already
@@ -544,6 +599,8 @@ export async function rebuildDb(
   const overrides = await loadOverrides(overridesDir);
   const reconciliations = await loadReconciliations(reconciledDir);
   const notesByTask = await loadNotes(notesDir);
+  const noopRecords = await loadNoopRecords(noopDir);
+  const fastpaths = await loadFastpaths(fastpathDir);
   const abandonments = await loadAbandoned(abandonedDir);
 
   // Mirrors bin/cli.mjs#planCommand's own exclusion set: an intent still
@@ -588,11 +645,25 @@ export async function rebuildDb(
   // (below) still runs afterward to write the provenance note and cover
   // any reconciled task markCompletedTasks doesn't touch (module = CORE_MODULE
   // edge cases aside, every reconciled id ends up here either way).
-  const reconciledTaskIds = new Set(reconciliations.keys());
+  // A no-op-completed task and a fast-pathed task have no commit of their
+  // own either, for the same reason a reconciled task doesn't — all
+  // seeded into the same set, before the same fixpoint walk, so each
+  // satisfies its dependents' "every prerequisite complete" check exactly
+  // like a reconciled task does.
+  const fastpathTaskIds = [...fastpaths.values()].flatMap((record) => record.tasks);
+  const reconciledTaskIds = new Set([
+    ...reconciliations.keys(),
+    ...noopRecords.keys(),
+    ...fastpathTaskIds,
+  ]);
   const tasksMarkedComplete = markCompletedTasks(db, commitSubjects, reconciledTaskIds);
 
   const tasksReconciled = replayReconciliations(db, reconciliations);
   const orphanedReconciled = orphanedReconciliations(db, reconciliations);
+  const tasksNoop = replayNoopRecords(db, noopRecords);
+  const orphanedNoop = orphanedNoopRecords(db, noopRecords);
+  const tasksFastpathed = replayFastpaths(db, fastpaths);
+  const orphanedFastpath = orphanedFastpathTasks(db, fastpaths);
 
   // After every task-status recovery path above (history-matched commits,
   // then reconciliation) — either can close an intent's last open task,
@@ -625,6 +696,10 @@ export async function rebuildDb(
     intentsMarkedComplete,
     tasksReconciled,
     orphanedReconciled,
+    tasksNoop,
+    orphanedNoop,
+    tasksFastpathed,
+    orphanedFastpath,
     orphanedNotes,
     abandonmentsReplayed,
     orphanedAbandonments,

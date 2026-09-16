@@ -202,7 +202,7 @@ export function orphanedReconciliations(db, reconciliations) {
 // forward-scanning window (commitsSince) needs the wider net, to catch a
 // hand-written commit that landed elsewhere; the floor it scans from stays
 // anchored to what this branch itself has already credited.
-function newestGraphCommit(db) {
+export function newestGraphCommit(db) {
   const messages = new Set(
     db.prepare('SELECT commit_message FROM tasks').all().map((r) => r.commit_message),
   );
@@ -236,7 +236,7 @@ function newestGraphCommit(db) {
 // `claim`/`ready`/`status`. A project that has never opened a worktree has
 // exactly one branch with any commits, so `--all` and `HEAD` name the
 // same set there and this is a no-op for it.
-function commitsSince(sinceSha) {
+export function commitsSince(sinceSha) {
   const range = sinceSha ? [`${sinceSha}..`, '--all'] : ['--all'];
   let output;
   try {
