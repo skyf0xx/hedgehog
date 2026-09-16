@@ -110,20 +110,37 @@ function replayNotes(db, notesByTask) {
   const insertDecision = db.prepare(
     'INSERT INTO decisions (task_id, note, logged_at) VALUES (?, ?, ?)',
   );
+  const resolveDebtRow = db.prepare(
+    'UPDATE debt SET resolved_at = ?, resolved_reason = ? WHERE task_id = ? AND logged_at = ? AND resolved_at IS NULL',
+  );
 
   const orphaned = [];
+  // Two passes: every `debt`/`decision` entry inserted first, then every
+  // `debt-resolve` entry applied — a resolve entry can appear anywhere
+  // after its debt entry in the same file, but the row it references must
+  // already exist for the UPDATE to find it.
   for (const [taskId, notes] of notesByTask) {
     if (taskExists.get(taskId) === undefined) {
       for (const entry of notes) {
-        orphaned.push({ kind: entry.kind, taskId, note: entry.note });
+        if (entry.kind !== 'debt-resolve') orphaned.push({ kind: entry.kind, taskId, note: entry.note });
       }
       continue;
     }
     for (const entry of notes) {
       if (entry.kind === 'debt') {
         insertDebt.run(taskId, entry.note, entry.logged_at);
-      } else {
+      } else if (entry.kind === 'decision') {
         insertDecision.run(taskId, entry.note, entry.logged_at);
+      }
+    }
+  }
+  for (const [taskId, notes] of notesByTask) {
+    if (taskExists.get(taskId) === undefined) continue;
+    for (const entry of notes) {
+      if (entry.kind !== 'debt-resolve') continue;
+      const result = resolveDebtRow.run(entry.logged_at, entry.reason, taskId, entry.resolves);
+      if (result.changes === 0) {
+        orphaned.push({ kind: entry.kind, taskId, note: `resolve for ${entry.resolves}` });
       }
     }
   }

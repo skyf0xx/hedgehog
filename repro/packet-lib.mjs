@@ -111,6 +111,15 @@ export function assertIncludes(haystack, needle, what) {
   console.log(`  FAIL  ${what}`);
 }
 
+export function assertNotIncludes(haystack, needle, what) {
+  if (!haystack.includes(needle)) {
+    console.log(`  ok    ${what}`);
+    return;
+  }
+  failures.push({ what, expected: `NOT ${JSON.stringify(needle)}`, actual: haystack });
+  console.log(`  FAIL  ${what}`);
+}
+
 export function report(title) {
   if (failures.length === 0) {
     console.log(`\n${title}: PASS\n`);

@@ -58,18 +58,80 @@ export async function addDebt(db, { taskId, note }, notesDir = undefined) {
   return { id: Number(result.lastInsertRowid), taskId, note };
 }
 
-// Every debt row, oldest first, optionally narrowed to one task.
-export function listDebt(db, taskId) {
-  const where = taskId ? 'WHERE task_id = ?' : '';
-  const params = taskId ? [taskId] : [];
+// Every debt row, oldest first, optionally narrowed to one task. Resolved
+// rows are excluded by default — `debt list` is meant to answer "what's
+// still open", the same way `reconcile list` never re-surfaces a task once
+// it has closed — and included when `includeResolved` is set (`--all`).
+export function listDebt(db, taskId, { includeResolved = false } = {}) {
+  const conditions = [];
+  const params = [];
+  if (taskId) {
+    conditions.push('task_id = ?');
+    params.push(taskId);
+  }
+  if (!includeResolved) conditions.push('resolved_at IS NULL');
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
   try {
     return db
       .prepare(
-        `SELECT id, task_id AS taskId, note, logged_at AS loggedAt FROM debt ${where} ORDER BY id ASC`,
+        `SELECT id, task_id AS taskId, note, logged_at AS loggedAt,
+                resolved_at AS resolvedAt, resolved_reason AS resolvedReason
+         FROM debt ${where} ORDER BY id ASC`,
       )
       .all(...params);
   } catch {
     // No `debt` table yet (a build graph from before this table existed).
     return [];
   }
+}
+
+// Count of open (unresolved) debt across the whole graph — the one-line
+// figure `hedgehog next`/`hedgehog claim` surface so debt doesn't
+// accumulate silently with nothing prompting a look at it.
+export function openDebtCount(db) {
+  try {
+    const row = db.prepare('SELECT COUNT(*) AS n FROM debt WHERE resolved_at IS NULL').get();
+    return row.n;
+  } catch {
+    return 0;
+  }
+}
+
+// Resolves one debt row by id: marks it resolved in the DB and writes the
+// committed record behind it — same ordering as addDebt (file before row)
+// and the same reason: if the write fails, nothing has been resolved on a
+// fact that would not survive the next rebuild.
+//
+// The committed note is keyed by the debt row's own (task_id, note,
+// logged_at) rather than its DB `id`, because that id is a fresh
+// autoincrement every time rebuild.mjs#replayNotes re-inserts debt rows —
+// it is not stable across a rebuild, so a resolution referencing it would
+// point at nothing once replayed. The triple already committed for the
+// debt note itself is the one part of its identity that *is* stable.
+export async function resolveDebt(db, { debtId, reason }, notesDir = undefined) {
+  applySchema(db);
+
+  if (!debtId) throw new Error('debt resolve requires a debt id');
+  if (!reason) throw new Error('debt resolve requires a --reason');
+
+  const row = db
+    .prepare('SELECT id, task_id AS taskId, note, logged_at AS loggedAt, resolved_at AS resolvedAt FROM debt WHERE id = ?')
+    .get(debtId);
+  if (!row) throw new Error(`no such debt: #${debtId}`);
+  if (row.resolvedAt) throw new Error(`debt #${debtId} is already resolved`);
+
+  const resolvedAt = new Date().toISOString();
+  await appendNote(
+    row.taskId,
+    { kind: 'debt-resolve', resolves: row.loggedAt, reason, loggedAt: resolvedAt },
+    notesDir,
+  );
+
+  db.prepare('UPDATE debt SET resolved_at = ?, resolved_reason = ? WHERE id = ?').run(
+    resolvedAt,
+    reason,
+    debtId,
+  );
+
+  return { id: row.id, taskId: row.taskId, note: row.note, resolvedAt, resolvedReason: reason };
 }
