@@ -59,7 +59,7 @@ import {
 } from '../src/db/requires.mjs';
 import { whyPath, formatWhy } from '../src/db/why.mjs';
 import { addFriction, listFriction } from '../src/db/friction.mjs';
-import { addDebt, listDebt } from '../src/db/debt.mjs';
+import { addDebt, listDebt, resolveDebt } from '../src/db/debt.mjs';
 import { addDecision, listDecisions } from '../src/db/decision.mjs';
 import {
   shouldPromptForStar,
@@ -663,7 +663,8 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog friction add "<note>"     log a friction note [--task <task-id>]
   npx @skyf0xx/hedgehog friction list             list logged friction, oldest first
   npx @skyf0xx/hedgehog debt add <task-id> "<note>"   declare debt that lands in dependent tasks' packets
-  npx @skyf0xx/hedgehog debt list [<task-id>]     list declared debt, oldest first
+  npx @skyf0xx/hedgehog debt list [<task-id>] [--all]   list open debt, oldest first (--all includes resolved)
+  npx @skyf0xx/hedgehog debt resolve <debt-id> --reason "<why>"   mark a debt note resolved
   npx @skyf0xx/hedgehog decision add <task-id> "<note>"   declare a decision that lands in dependent tasks' packets
   npx @skyf0xx/hedgehog decision list [<task-id>]     list declared decisions, oldest first
   npx @skyf0xx/hedgehog db migrate                bring the graph's schema up to the latest version
@@ -3844,28 +3845,61 @@ async function debtCommand(args) {
   }
 
   if (sub === 'list') {
-    const taskId = args[1];
+    const includeResolved = args.includes('--all') || args.includes('--resolved');
+    const taskId = args.slice(1).find((a) => !a.startsWith('--'));
     const db = openDb();
     let entries;
     try {
-      entries = listDebt(db, taskId);
+      entries = listDebt(db, taskId, { includeResolved });
     } finally {
       db.close();
     }
 
     if (entries.length === 0) {
-      console.log(`${dim('No debt declared.')}\n`);
+      console.log(`${dim(includeResolved ? 'No debt declared.' : 'No open debt.')}\n`);
       return;
     }
     for (const entry of entries) {
       console.log(`#${entry.id}  ${dim(entry.loggedAt)}  ${bold(entry.taskId)}`);
-      console.log(`  ${entry.note}\n`);
+      console.log(`  ${entry.note}`);
+      if (entry.resolvedAt) {
+        console.log(`  ${green('resolved')} ${dim(entry.resolvedAt)} — ${entry.resolvedReason}`);
+      }
+      console.log('');
     }
     return;
   }
 
+  if (sub === 'resolve') {
+    const debtId = args[1];
+    const reasonIdx = args.indexOf('--reason');
+    const reason = reasonIdx !== -1 ? args[reasonIdx + 1] : undefined;
+
+    if (!debtId || debtId.startsWith('--') || !reason) {
+      console.error(`${red('Usage:')} hedgehog debt resolve <debt-id> --reason "<why>"\n`);
+      process.exitCode = 1;
+      return;
+    }
+
+    const db = openDb();
+    let result;
+    try {
+      result = await resolveDebt(db, { debtId: Number(debtId), reason });
+    } catch (err) {
+      console.error(`${red('Failed to resolve debt:')} ${err.message}\n`);
+      process.exitCode = 1;
+      return;
+    } finally {
+      db.close();
+    }
+
+    console.log(`  ${green('resolved')}  #${result.id} ${bold(result.taskId)}`);
+    console.log(`  ${dim(result.note)}`);
+    return;
+  }
+
   console.error(
-    `${red('Unknown debt subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog debt add <task-id> "<note>"\n   or: hedgehog debt list [<task-id>]\n`,
+    `${red('Unknown debt subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog debt add <task-id> "<note>"\n   or: hedgehog debt list [<task-id>] [--all]\n   or: hedgehog debt resolve <debt-id> --reason "<why>"\n`,
   );
   process.exitCode = 1;
 }

@@ -105,11 +105,27 @@ function loadInheritedDebt(db, taskId) {
   try {
     return db
       .prepare(
-        `SELECT task_id AS taskId, note FROM debt WHERE task_id IN (${placeholders}) ORDER BY id ASC`,
+        `SELECT task_id AS taskId, note FROM debt
+         WHERE task_id IN (${placeholders}) AND resolved_at IS NULL
+         ORDER BY id ASC`,
       )
       .all(...upstream);
   } catch {
     return [];
+  }
+}
+
+// Total open (unresolved) debt across the whole graph — not just this
+// task's ancestors — so a packet can say plainly that debt exists even
+// where none of it happens to be inherited here. Tolerates a `debt` table
+// or `resolved_at` column that doesn't exist yet, the same way
+// loadInheritedDebt does.
+function loadOpenDebtCount(db) {
+  try {
+    const row = db.prepare('SELECT COUNT(*) AS n FROM debt WHERE resolved_at IS NULL').get();
+    return row.n;
+  } catch {
+    return 0;
   }
 }
 
@@ -181,6 +197,7 @@ function assemblePacket(db, task) {
   const incompleteDeps = incompleteDependencies(db, task.id);
   const inheritedDebt = loadInheritedDebt(db, task.id);
   const inheritedDecisions = loadInheritedDecisions(db, task.id);
+  const openDebtCount = loadOpenDebtCount(db);
 
   return {
     task,
@@ -190,6 +207,7 @@ function assemblePacket(db, task) {
     incompleteDeps,
     inheritedDebt,
     inheritedDecisions,
+    openDebtCount,
   };
 }
 
@@ -484,6 +502,7 @@ export function formatPacket(packet, statusLine, coreId = null, exists = null) {
     incompleteDeps = [],
     inheritedDebt = [],
     inheritedDecisions = [],
+    openDebtCount = 0,
   } = packet;
   const scopeGlobs = JSON.parse(task.scope_globs);
   const firstArrival = firstArrivalPackages(task, exists);
@@ -520,6 +539,11 @@ export function formatPacket(packet, statusLine, coreId = null, exists = null) {
     for (const entry of inheritedDebt) {
       lines.push(`  ! ${entry.taskId}  ${entry.note}`);
     }
+  }
+  if (openDebtCount > 0) {
+    lines.push(
+      `  ${openDebtCount} open debt note(s) across the whole graph — \`hedgehog debt list --all\` to see them all`,
+    );
   }
   lines.push('');
   lines.push('INHERITED DECISIONS');

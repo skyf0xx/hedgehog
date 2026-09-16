@@ -103,10 +103,12 @@ CREATE TABLE IF NOT EXISTS verifications (
 -- every task that (transitively) depends on task_id, so the limitation
 -- travels down the chain the same way the dependency does.
 CREATE TABLE IF NOT EXISTS debt (
-  id        INTEGER PRIMARY KEY,
-  task_id   TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  note      TEXT NOT NULL,
-  logged_at TEXT NOT NULL DEFAULT (datetime('now'))
+  id               INTEGER PRIMARY KEY,
+  task_id          TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  note             TEXT NOT NULL,
+  logged_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  resolved_at      TEXT,
+  resolved_reason  TEXT
 );
 
 -- Declared decision: a note one task leaves for the tasks that inherit
@@ -176,7 +178,7 @@ export function ensureTaskColumns(db) {
 // hand-set past what MIGRATIONS actually covers, since runMigrations
 // trusts this number to mean "every migration through this version has
 // run."
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 // Forward migrations, applied in order to bring a graph's user_version up
 // to CURRENT_SCHEMA_VERSION. Unlike the CREATE TABLE IF NOT EXISTS /
@@ -207,6 +209,18 @@ const MIGRATIONS = [
           logged_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
       `);
+    },
+  },
+  {
+    version: 3,
+    // A `debt` row with no `resolved_at` reads back as unresolved, so an
+    // existing graph's rows default to open the moment this column exists.
+    migrate: (db) => {
+      const existing = new Set(db.prepare('PRAGMA table_info(debt)').all().map((row) => row.name));
+      if (!existing.has('resolved_at')) db.exec('ALTER TABLE debt ADD COLUMN resolved_at TEXT');
+      if (!existing.has('resolved_reason')) {
+        db.exec('ALTER TABLE debt ADD COLUMN resolved_reason TEXT');
+      }
     },
   },
 ];

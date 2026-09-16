@@ -45,12 +45,21 @@ function validateNotesFile(record, path) {
     if (entry === null || typeof entry !== 'object') {
       throw new Error(`${path}: notes file "${task}" has a non-object entry in notes`);
     }
-    if (entry.kind !== 'debt' && entry.kind !== 'decision') {
+    if (entry.kind !== 'debt' && entry.kind !== 'decision' && entry.kind !== 'debt-resolve') {
       throw new Error(
-        `${path}: notes file "${task}" has an entry with kind "${entry.kind}" — expected "debt" or "decision"`,
+        `${path}: notes file "${task}" has an entry with kind "${entry.kind}" — expected "debt", "decision", or "debt-resolve"`,
       );
     }
-    if (!entry.note || typeof entry.note !== 'string') {
+    if (entry.kind === 'debt-resolve') {
+      if (!entry.resolves || typeof entry.resolves !== 'string') {
+        throw new Error(
+          `${path}: notes file "${task}" has a "debt-resolve" entry with no "resolves" (the logged_at of the debt note it closes)`,
+        );
+      }
+      if (!entry.reason || typeof entry.reason !== 'string') {
+        throw new Error(`${path}: notes file "${task}" has a "debt-resolve" entry with no "reason"`);
+      }
+    } else if (!entry.note || typeof entry.note !== 'string') {
       throw new Error(`${path}: notes file "${task}" has an entry with no "note" (string)`);
     }
     if (!entry.logged_at || typeof entry.logged_at !== 'string') {
@@ -92,7 +101,7 @@ export async function loadNotes(notesDir = NOTES_DIR) {
 // never leaves a half-written file for loadNotes to trip on —
 // reconcile.mjs#writeReconciledFile's pattern, applied to a file that
 // grows instead of one written once.
-export async function appendNote(taskId, { kind, note, loggedAt }, notesDir = NOTES_DIR) {
+export async function appendNote(taskId, { kind, note, loggedAt, resolves, reason }, notesDir = NOTES_DIR) {
   const path = notesFilePath(taskId, notesDir);
 
   let existing = [];
@@ -103,9 +112,17 @@ export async function appendNote(taskId, { kind, note, loggedAt }, notesDir = NO
     if (!err || err.code !== 'ENOENT') throw err;
   }
 
+  // `debt-resolve` entries carry `resolves`/`reason` instead of `note` —
+  // omit `note` entirely rather than writing it as undefined/null, so a
+  // resolve entry's shape matches what validateNotesFile expects back.
+  const entry =
+    kind === 'debt-resolve'
+      ? { kind, resolves, reason, logged_at: loggedAt }
+      : { kind, note, logged_at: loggedAt };
+
   const record = {
     task: taskId.toUpperCase(),
-    notes: [...existing, { kind, note, logged_at: loggedAt }],
+    notes: [...existing, entry],
   };
 
   await mkdir(notesDir, { recursive: true });
