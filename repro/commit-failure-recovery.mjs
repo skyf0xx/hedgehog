@@ -16,10 +16,14 @@
 //   hedgehog renew    — succeeds, and only extends the strand
 // The task sits unreachable until the lease expires (45 min by default).
 //
-// This exercises both commit call sites, because both have the exposure:
-//   Case A — a no-op layer (commitNoOpLayer, `git commit --allow-empty`)
+// A genuine no-op layer (nothing in its scope touched at all) never calls
+// `git commit` — verify.mjs closes it `complete` directly, before
+// verify_command even runs (see noop.mjs) — so a rejecting hook has
+// nothing to reject there; Case A below proves exactly that. The exposure
+// this reproduction is actually about lives in commitTouchedPaths, the
+// call site a layer with a real file still goes through:
 //   Case B — an ordinary layer with a real file (commitTouchedPaths)
-// and then Case C checks that recovery actually works once the cause is
+// and Case C checks that recovery actually works once the cause is
 // removed, which is the whole point of not stranding the task.
 //
 // The lever is a pre-commit hook exiting non-zero — the cleanest stand-in
@@ -260,27 +264,45 @@ async function main() {
   git(root, ['commit', '-q', '-m', 'chore: add demo intent']);
   await planTasksHeadless(root);
 
-  // Case A — the no-op layer: commitNoOpLayer / `git commit --allow-empty`.
-  assertSurvivesCommitFailure(
-    root, dbPath, 'DEMO-FOUNDATION',
-    'Case A — no-op layer, commit rejected by a git hook',
-  );
+  // Case A — the no-op layer never reaches commitTouchedPaths or
+  // commitNoOpLayer at all: gate 1 already knows its scope has nothing
+  // touched, so verify_command never runs and no commit is attempted.
+  // The rejecting hook stays installed throughout to prove it; if this
+  // ever again routed through `git commit`, the hook would reject it and
+  // this section would fail the way Case B does below.
+  console.log('Case A — no-op layer, rejecting hook installed but never invoked\n');
 
-  // Recovery: remove the cause and re-run verify, exactly as the error says.
-  console.log('\nCase C1 — recovery of the no-op layer once the hook is gone\n');
-  removeRejectingHook(root);
-  const recoverA = hedgehog(root, ['verify', 'DEMO-FOUNDATION', '--owner', 'repro']);
-  console.log(`  verify exit ${recoverA.code}: ${recoverA.out.split('\n')[0]}\n`);
-  check('DEMO-FOUNDATION verifies cleanly after the cause is removed', {
+  const claimA = hedgehog(root, ['claim', '--owner', 'repro']);
+  if (!claimA.out.includes('DEMO-FOUNDATION')) {
+    console.error(`could not claim DEMO-FOUNDATION; claim said:\n${claimA.out}`);
+    process.exit(2);
+  }
+  installRejectingHook(root);
+
+  const headBeforeA = git(root, ['rev-parse', 'HEAD']);
+  const verifyA = hedgehog(root, ['verify', 'DEMO-FOUNDATION', '--owner', 'repro']);
+  const afterA = taskRow(dbPath, 'DEMO-FOUNDATION');
+
+  console.log(`  verify exit ${verifyA.code}: ${verifyA.out.split('\n')[0]}`);
+  console.log(`  after verify: ${describe(afterA)}\n`);
+
+  check('DEMO-FOUNDATION: verify succeeds despite the rejecting hook', {
+    expected: 'exit 0',
+    actual: `exit ${verifyA.code}`,
+    pass: verifyA.code === 0,
+  });
+  check('DEMO-FOUNDATION: the task closed complete, not stranded', {
     expected: 'complete',
-    actual: taskRow(dbPath, 'DEMO-FOUNDATION').status,
-    pass: taskRow(dbPath, 'DEMO-FOUNDATION').status === 'complete',
+    actual: afterA.status,
+    pass: afterA.status === 'complete',
   });
-  check('DEMO-FOUNDATION finally got its commit', {
-    expected: 'chore(infra): foundation for demo',
-    actual: git(root, ['log', '-1', '--format=%s']),
-    pass: git(root, ['log', '-1', '--format=%s']) === 'chore(infra): foundation for demo',
+  check('DEMO-FOUNDATION: HEAD never moved (no commit was attempted)', {
+    expected: 'HEAD unchanged',
+    actual: git(root, ['rev-parse', 'HEAD']) === headBeforeA ? 'HEAD unchanged' : 'HEAD moved',
+    pass: git(root, ['rev-parse', 'HEAD']) === headBeforeA,
   });
+
+  removeRejectingHook(root);
 
   // Case B — the ordinary layer: commitTouchedPaths. This is the
   // pre-existing call site, the one observed failing under lefthook.

@@ -41,7 +41,7 @@
 //      worktree DB.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   makeProject,
@@ -148,6 +148,12 @@ try {
   // branch and cannot be found by any ordinary rebuild run there.
   check('claim CLUSTER on trunk exits 0', 0, cli(dir, ['claim', '--owner', 'trunk-agent', '--count', '1']).status);
   check('CLUSTER is building on trunk', 'building', taskStatuses(dir)['CLUSTER']);
+  // A real file inside CLUSTER's own scope: with nothing touched, verify
+  // now closes a genuine no-op with no commit at all (noop.mjs) — this
+  // test is specifically about a commit's cross-branch visibility, so it
+  // needs the ordinary committed path, not the no-op one.
+  mkdirSync(join(dir, 'infra', 'cluster'), { recursive: true });
+  writeFileSync(join(dir, 'infra', 'cluster', 'config.txt'), 'cluster config\n');
   check('verify CLUSTER on trunk exits 0', 0, cli(dir, ['verify', 'CLUSTER', '--owner', 'trunk-agent']).status);
   check('CLUSTER is complete on trunk', 'complete', taskStatuses(dir)['CLUSTER']);
 

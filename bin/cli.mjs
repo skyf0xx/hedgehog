@@ -100,6 +100,8 @@ import {
   formatReconciliations,
   RECONCILED_DIR,
 } from '../src/db/reconcile.mjs';
+import { NOOP_DIR } from '../src/db/noop.mjs';
+import { runFastpath, loadFastpaths, orphanedFastpathTasks, FASTPATH_DIR } from '../src/db/fastpath.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
 import { wrapSection } from '../src/hosts/claude-md-merge.mjs';
@@ -625,6 +627,11 @@ ${bold('Usage')}
                                                    close one task on your judgment — no scope gate and no
                                                    verify command run; records it under .hedgehog/reconciled/
   npx @skyf0xx/hedgehog reconcile list            list recorded reconciliations
+  npx @skyf0xx/hedgehog fast-path <intent-id> --reason "<why>" --verify "<command>"
+                                                   close every remaining task of a small, already-committed
+                                                   intent below the per-layer loop; still gated by scope
+                                                   and by --verify; records it under .hedgehog/fastpath/
+  npx @skyf0xx/hedgehog fast-path list            list recorded fast-paths
   npx @skyf0xx/hedgehog merge <intent-id>         merge that intent's worktree branch into trunk,
                                                    rebuild trunk's graph, remove the worktree — fails
                                                    if the intent's tasks aren't all complete there
@@ -1310,6 +1317,33 @@ async function dbRebuildCommand() {
   if (result.orphanedReconciled?.length > 0) {
     console.log(
       `${yellow(bold('Reconciliations without a task.'))} ${result.orphanedReconciled.join(', ')} —\n` +
+        `no task with this id exists in the rebuilt graph, so each closes nothing.\n`,
+    );
+  }
+  // Same reporting split as tasksReconciled above, for the same reason: a
+  // no-op-completed task had no verify_command run and no commit made,
+  // and folding it into the plain "marked complete" count would hide that.
+  if (result.tasksNoop > 0) {
+    console.log(
+      `${dim(`${result.tasksNoop} task(s) replayed from ${NOOP_DIR}/ — closed as a no-op, no commit`)}\n`,
+    );
+  }
+  if (result.orphanedNoop?.length > 0) {
+    console.log(
+      `${yellow(bold('No-op records without a task.'))} ${result.orphanedNoop.join(', ')} —\n` +
+        `no task with this id exists in the rebuilt graph, so each closes nothing.\n`,
+    );
+  }
+  // Same split as tasksReconciled/tasksNoop above: a fast-pathed task had
+  // no per-layer verify_command run against it individually.
+  if (result.tasksFastpathed > 0) {
+    console.log(
+      `${dim(`${result.tasksFastpathed} task(s) replayed from ${FASTPATH_DIR}/ — closed by fast-path, not per-layer verification`)}\n`,
+    );
+  }
+  if (result.orphanedFastpath?.length > 0) {
+    console.log(
+      `${yellow(bold('Fast-path records without a task.'))} ${result.orphanedFastpath.join(', ')} —\n` +
         `no task with this id exists in the rebuilt graph, so each closes nothing.\n`,
     );
   }
@@ -2257,7 +2291,7 @@ async function verifyCommand(args) {
       return;
     }
     const overrides = await loadOverrides();
-    result = verifyTask(db, taskId, owner, overrides);
+    result = await verifyTask(db, taskId, owner, overrides);
   } catch (err) {
     console.error(`${red('Verify failed:')} ${err.message}\n`);
     process.exitCode = 1;
@@ -2287,7 +2321,11 @@ async function verifyCommand(args) {
   }
 
   console.log(`${green(bold('Verified.'))} Task ${bold(taskId)} is now ${bold('complete')}.`);
-  if (result.commitSha) console.log(`  ${dim('commit')}  ${result.commitSha}`);
+  if (result.noop) {
+    console.log(`  ${dim('no-op — nothing in scope to verify or commit')}`);
+  } else if (result.commitSha) {
+    console.log(`  ${dim('commit')}  ${result.commitSha}`);
+  }
   if (result.unlocked.length === 0) {
     console.log(`  ${dim('no dependents unlocked')}`);
   } else {
@@ -3503,6 +3541,97 @@ async function reconcileCommand(args) {
   console.log(`${formatEvidence(evidence)}\n`);
 }
 
+// `hedgehog fast-path <intent-id> --reason "<why>" --verify "<command>"` —
+// closes every remaining task of an intent below the normal per-layer
+// claim/verify ceremony (see src/db/fastpath.mjs). Requires a clean
+// working tree, checks the fix against the union of the remaining tasks'
+// own scope, and runs `--verify` for real before completing anything.
+async function fastpathCommand(args) {
+  await ensureDb();
+
+  if (!(await exists(DB_PATH))) {
+    console.error(`${red('No build graph found.')} Run ${bold('hedgehog db init')} first.\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const sub = args[0];
+
+  if (sub === 'list') {
+    const fastpaths = await loadFastpaths();
+    const db = openDb({ readOnly: true });
+    let orphaned;
+    try {
+      orphaned = orphanedFastpathTasks(db, fastpaths);
+    } finally {
+      db.close();
+    }
+    if (fastpaths.size === 0) {
+      console.log(`${dim('No intent has been fast-pathed.')}\n`);
+      return;
+    }
+    for (const record of fastpaths.values()) {
+      console.log(`${bold(record.intent)}`);
+      console.log(`  ${record.reason}`);
+      console.log(`  verified with: ${record.verify_command}`);
+      console.log(`  confirmed ${record.confirmed_at}`);
+      console.log(`  tasks: ${record.tasks.join(', ')}`);
+      console.log();
+    }
+    if (orphaned.length > 0) {
+      console.log(
+        `${dim(`Orphaned: ${orphaned.join(', ')} — no task with this id exists in the build graph.`)}\n`,
+      );
+    }
+    return;
+  }
+
+  const intentId = args[0];
+  const reasonIdx = args.indexOf('--reason');
+  const reason = reasonIdx !== -1 ? args[reasonIdx + 1] : undefined;
+  const verifyIdx = args.indexOf('--verify');
+  const verifyCommand = verifyIdx !== -1 ? args[verifyIdx + 1] : undefined;
+
+  if (!intentId || intentId.startsWith('--') || !reason || !verifyCommand) {
+    console.error(
+      `${red('Usage:')} hedgehog fast-path <intent-id> --reason "<why>" --verify "<command>"\n` +
+        `   or: hedgehog fast-path list\n\n` +
+        `${dim('A fast-path is a narrow exception, not a default: use it only for a change')}\n` +
+        `${dim('small enough that the per-layer loop costs more than the risk it prevents —')}\n` +
+        `${dim('already committed, already tested, low risk. --verify names one real command')}\n` +
+        `${dim('that must pass; the working tree must already be clean; and the diff since')}\n` +
+        `${dim("the graph's last credited commit is still checked against the union of the")}\n` +
+        `${dim('remaining tasks\' own scope — a fast-path never bypasses scope gating.')}\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  printDbTarget();
+  const db = openDb();
+  let result;
+  try {
+    result = await runFastpath(db, { intentId, reason, verifyCommand });
+  } catch (err) {
+    console.error(`${red('Failed to fast-path:')} ${err.message}\n`);
+    process.exitCode = 1;
+    return;
+  } finally {
+    db.close();
+  }
+
+  const file = `${FASTPATH_DIR}/${result.record.intent.toLowerCase()}.json`;
+  console.log(
+    `  ${green('complete')}  ${bold(result.record.intent)} ${dim(`(${result.record.tasks.length} task(s), fast-pathed, not per-layer verified)`)}`,
+  );
+  for (const taskId of result.record.tasks) console.log(`  ${dim('closed')}   ${taskId}`);
+  console.log(`  ${green('recorded')}  ${file}`);
+  console.log(
+    `\n  ${bold('Commit that file.')} ${dim('The build graph is derived and gitignored — an')}\n` +
+      `  ${dim('uncommitted fast-path is reverted by the next `hedgehog db rebuild`.')}\n`,
+  );
+}
+
 // `hedgehog merge <intent-id>` — merges `hedgehog/<intent-id>` into trunk
 // with `git merge --no-ff`, rebuilds trunk's graph from what merged, then
 // removes the worktree and its branch. See src/db/worktree.mjs for why a
@@ -4366,6 +4495,11 @@ async function main() {
 
   if (cmd === 'reconcile') {
     await reconcileCommand(args.slice(1));
+    return;
+  }
+
+  if (cmd === 'fast-path') {
+    await fastpathCommand(args.slice(1));
     return;
   }
 
