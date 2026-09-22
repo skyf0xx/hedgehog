@@ -64,6 +64,67 @@ export function appendCoreSection(existingContent, section) {
   return `${existingContent.trimEnd()}\n\n${block}\n`;
 }
 
+// One phase name only, `bootstrap-only` — there is exactly one
+// transition in a project's life (still bootstrapping vs. not), so a
+// predicate grammar for a one-bit state would be a maintenance burden
+// with no second case to justify it.
+const PHASE_MARKER_START = (phase) => `<!-- hedgehog:${phase} start -->`;
+const PHASE_MARKER_END = (phase) => `<!-- hedgehog:${phase} end -->`;
+
+// Removes every `<!-- hedgehog:<phase> start -->...end -->` block from
+// `content`, along with the blank lines immediately surrounding each
+// removed block, so stripping never leaves a double blank line behind.
+// Byte-for-byte identity when no markers are present is the contract
+// every core package not yet using markers relies on.
+//
+// A block is self-contained by convention (no section outside it may
+// reference into it), so removal never leaves a dangling reference for
+// this function to worry about — that's enforced by review of what gets
+// marked, not by this code.
+export function stripPhaseBlocks(content, phase) {
+  const start = PHASE_MARKER_START(phase);
+  const end = PHASE_MARKER_END(phase);
+  const startCount = countOccurrences(content, start);
+  const endCount = countOccurrences(content, end);
+  if (startCount === 0 && endCount === 0) return content;
+  if (startCount !== endCount) {
+    throw new Error(
+      `stripPhaseBlocks: ${startCount} "${start}" marker(s) but ${endCount} "${end}" marker(s) — unterminated or orphaned`,
+    );
+  }
+
+  // Flat, non-nesting blocks only: a start found before the matching end
+  // of the previous block indicates nesting, which this vocabulary
+  // deliberately does not support.
+  const blockRe = new RegExp(`${escapeRe(start)}[\\s\\S]*?${escapeRe(end)}`, 'g');
+  let matchCount = 0;
+  let stripped = content.replace(blockRe, () => {
+    matchCount++;
+    return '\u0000';
+  });
+  if (matchCount !== startCount) {
+    throw new Error(
+      `stripPhaseBlocks: found ${startCount} "${start}" marker(s) but only ${matchCount} well-formed block(s) — check for nesting or an orphaned marker`,
+    );
+  }
+
+  // Each removed block leaves a null-byte placeholder; collapse it and
+  // the blank lines around it so no double blank line remains.
+  stripped = stripped.replace(/[ \t]*\n?[ \t]*\u0000[ \t]*\n?[ \t]*\n?/g, '\n');
+  stripped = stripped.replace(/\n{3,}/g, '\n\n');
+  return stripped;
+}
+
+function countOccurrences(haystack, needle) {
+  let count = 0;
+  let i = 0;
+  while ((i = haystack.indexOf(needle, i)) !== -1) {
+    count++;
+    i += needle.length;
+  }
+  return count;
+}
+
 function escapeRe(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

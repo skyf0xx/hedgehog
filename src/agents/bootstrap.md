@@ -61,9 +61,11 @@ workspace is scaffolded (see `planner.md`'s Workflow step 7 and step 9).
 This compiles those intents into tasks so the core's loop skill has
 something to pick up from `hedgehog next`. Then run `hedgehog graph` to
 start (or reuse) the live graph server and open it, so the build graph is
-on screen before the first build step starts. Then state plainly that
-Bootstrap is closed and name the loop skill that owns everything from
-here. Don't hand off to another instance of yourself.
+on screen before the first build step starts. Run `hedgehog shed` to
+strip bootstrap-only content from the bootstrap file now that it no
+longer applies. Then state plainly that Bootstrap is closed and name the
+loop skill that owns everything from here. Don't hand off to another
+instance of yourself.
 
 
 ## Constraints
