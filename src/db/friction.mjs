@@ -33,8 +33,44 @@ export async function addFriction(db, { note, taskId }) {
 }
 
 // Returns every friction row, oldest first, for tweaker's review pass.
-export function listFriction(db) {
+// Resolved rows are excluded by default — same convention as
+// listDebt — and included when `includeResolved` is set (`--all`).
+export function listFriction(db, { includeResolved = false } = {}) {
+  const where = includeResolved ? '' : 'WHERE resolved_at IS NULL';
   return db
-    .prepare(`SELECT id, task_id AS taskId, note, logged_at AS loggedAt FROM friction ORDER BY id ASC`)
+    .prepare(
+      `SELECT id, task_id AS taskId, note, logged_at AS loggedAt,
+              resolved_at AS resolvedAt, resolved_reason AS resolvedReason
+       FROM friction ${where} ORDER BY id ASC`,
+    )
     .all();
+}
+
+// Resolves one friction row by id: marks it resolved in the DB and
+// appends the marker to the same committed log (FRICTION_LOG_PATH) the
+// original entry was written to — friction has no `.hedgehog/notes/`
+// record the way debt does, so this is the row's only committed source
+// and `db rebuild` leaves friction rows untouched (see rebuild.mjs).
+export async function resolveFriction(db, { frictionId, reason }) {
+  if (!frictionId) throw new Error('friction resolve requires a friction id');
+  if (!reason) throw new Error('friction resolve requires a --reason');
+
+  const row = db
+    .prepare('SELECT id, task_id AS taskId, note, resolved_at AS resolvedAt FROM friction WHERE id = ?')
+    .get(frictionId);
+  if (!row) throw new Error(`no such friction entry: #${frictionId}`);
+  if (row.resolvedAt) throw new Error(`friction #${frictionId} is already resolved`);
+
+  const resolvedAt = new Date().toISOString();
+  db.prepare('UPDATE friction SET resolved_at = ?, resolved_reason = ? WHERE id = ?').run(
+    resolvedAt,
+    reason,
+    frictionId,
+  );
+
+  await mkdir(FRICTION_DIR, { recursive: true });
+  const header = `## ${resolvedAt} resolved #${frictionId}${row.taskId ? ` ${row.taskId}` : ''}`;
+  await appendFile(FRICTION_LOG_PATH, `${header}\n\n${reason}\n\n`);
+
+  return { id: row.id, taskId: row.taskId, note: row.note, resolvedAt, resolvedReason: reason };
 }

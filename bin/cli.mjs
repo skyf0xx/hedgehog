@@ -58,7 +58,7 @@ import {
   formatMissingRequirements,
 } from '../src/db/requires.mjs';
 import { whyPath, formatWhy } from '../src/db/why.mjs';
-import { addFriction, listFriction } from '../src/db/friction.mjs';
+import { addFriction, listFriction, resolveFriction } from '../src/db/friction.mjs';
 import { addDebt, listDebt, resolveDebt } from '../src/db/debt.mjs';
 import { addDecision, listDecisions } from '../src/db/decision.mjs';
 import {
@@ -668,7 +668,8 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog graph --no-open           start (or reuse) the server; print the URL instead
   npx @skyf0xx/hedgehog why <path>                provenance chain for a file
   npx @skyf0xx/hedgehog friction add "<note>"     log a friction note [--task <task-id>]
-  npx @skyf0xx/hedgehog friction list             list logged friction, oldest first
+  npx @skyf0xx/hedgehog friction list [--all]     list open friction, oldest first (--all includes resolved)
+  npx @skyf0xx/hedgehog friction resolve <friction-id> --reason "<why>"   mark a friction note resolved
   npx @skyf0xx/hedgehog debt add <task-id> "<note>"   declare debt that lands in dependent tasks' packets
   npx @skyf0xx/hedgehog debt list [<task-id>] [--all]   list open debt, oldest first (--all includes resolved)
   npx @skyf0xx/hedgehog debt resolve <debt-id> --reason "<why>"   mark a debt note resolved
@@ -3299,27 +3300,60 @@ async function frictionCommand(args) {
   }
 
   if (sub === 'list') {
+    const includeResolved = args.includes('--all') || args.includes('--resolved');
     const db = openDb();
     let entries;
     try {
-      entries = listFriction(db);
+      entries = listFriction(db, { includeResolved });
     } finally {
       db.close();
     }
 
     if (entries.length === 0) {
-      console.log(`${dim('No friction logged.')}\n`);
+      console.log(`${dim(includeResolved ? 'No friction logged.' : 'No open friction.')}\n`);
       return;
     }
     for (const entry of entries) {
       console.log(`#${entry.id}  ${dim(entry.loggedAt)}${entry.taskId ? `  ${bold(entry.taskId)}` : ''}`);
-      console.log(`  ${entry.note}\n`);
+      console.log(`  ${entry.note}`);
+      if (entry.resolvedAt) {
+        console.log(`  ${green('resolved')} ${dim(entry.resolvedAt)} — ${entry.resolvedReason}`);
+      }
+      console.log('');
     }
     return;
   }
 
+  if (sub === 'resolve') {
+    const frictionId = args[1];
+    const reasonIdx = args.indexOf('--reason');
+    const reason = reasonIdx !== -1 ? args[reasonIdx + 1] : undefined;
+
+    if (!frictionId || frictionId.startsWith('--') || !reason) {
+      console.error(`${red('Usage:')} hedgehog friction resolve <friction-id> --reason "<why>"\n`);
+      process.exitCode = 1;
+      return;
+    }
+
+    const db = openDb();
+    let result;
+    try {
+      result = await resolveFriction(db, { frictionId: Number(frictionId), reason });
+    } catch (err) {
+      console.error(`${red('Failed to resolve friction:')} ${err.message}\n`);
+      process.exitCode = 1;
+      return;
+    } finally {
+      db.close();
+    }
+
+    console.log(`  ${green('resolved')}  #${result.id}${result.taskId ? ` (${result.taskId})` : ''}`);
+    console.log(`  ${dim(result.note)}`);
+    return;
+  }
+
   console.error(
-    `${red('Unknown friction subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog friction add "<note>" [--task <task-id>]\n   or: hedgehog friction list\n`,
+    `${red('Unknown friction subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog friction add "<note>" [--task <task-id>]\n   or: hedgehog friction list [--all]\n   or: hedgehog friction resolve <friction-id> --reason "<why>"\n`,
   );
   process.exitCode = 1;
 }
