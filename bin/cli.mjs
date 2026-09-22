@@ -14,6 +14,7 @@
 //   npx @skyf0xx/hedgehog --help
 
 import { cp, mkdir, access, readdir, stat, rm, readFile, writeFile, mkdtemp } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
 import { constants, existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';

@@ -97,10 +97,16 @@ export function stripPhaseBlocks(content, phase) {
   // of the previous block indicates nesting, which this vocabulary
   // deliberately does not support.
   const blockRe = new RegExp(`${escapeRe(start)}[\\s\\S]*?${escapeRe(end)}`, 'g');
+  // Not a valid marker (the phase name can't contain whitespace), and not
+  // realistic page content either, so it can't collide with anything
+  // already in `content` — used as a removal placeholder instead of a
+  // control character, which linting disallows anywhere a regex pattern
+  // could embed it.
+  const PLACEHOLDER = '⁣hedgehog-stripped-block⁣';
   let matchCount = 0;
   let stripped = content.replace(blockRe, () => {
     matchCount++;
-    return '\u0000';
+    return PLACEHOLDER;
   });
   if (matchCount !== startCount) {
     throw new Error(
@@ -108,9 +114,10 @@ export function stripPhaseBlocks(content, phase) {
     );
   }
 
-  // Each removed block leaves a null-byte placeholder; collapse it and
-  // the blank lines around it so no double blank line remains.
-  stripped = stripped.replace(/[ \t]*\n?[ \t]*\u0000[ \t]*\n?[ \t]*\n?/g, '\n');
+  // Each removed block leaves a placeholder; collapse it and the blank
+  // lines around it so no double blank line remains.
+  const placeholderRe = new RegExp(`[ \\t]*\\n?[ \\t]*${escapeRe(PLACEHOLDER.trim())}[ \\t]*\\n?[ \\t]*\\n?`, 'g');
+  stripped = stripped.replace(placeholderRe, '\n');
   stripped = stripped.replace(/\n{3,}/g, '\n\n');
   return stripped;
 }

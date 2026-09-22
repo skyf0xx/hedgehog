@@ -274,6 +274,12 @@ export async function graphWorktreeStatus(db, opts) {
   return worktreeStatus(db, opts);
 }
 
+// Printed at the bottom of both `hedgehog status` and `hedgehog ready` —
+// the two commands every session provably runs — since no static check
+// can verify an orchestrating session actually reads the skill this
+// names.
+export const ORCHESTRATING_FOOTER = 'See the hedgehog-orchestrating skill for the claim → dispatch → verify cycle.';
+
 const BLOCKED_REASON_LABELS = {
   verification_failed: 'verification failed',
   scope_violation: 'scope violation',
@@ -469,6 +475,9 @@ export function formatStatus({
     lines.push(`  No scope gate and no verify command ran on these. Recorded in ${RECONCILED_DIR}/.`);
     lines.push('  See: hedgehog reconcile list');
   }
+
+  lines.push('');
+  lines.push(ORCHESTRATING_FOOTER);
 
   return lines.join('\n');
 }
