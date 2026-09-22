@@ -104,7 +104,7 @@ import { NOOP_DIR } from '../src/db/noop.mjs';
 import { runFastpath, loadFastpaths, orphanedFastpathTasks, FASTPATH_DIR } from '../src/db/fastpath.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
-import { wrapSection } from '../src/hosts/claude-md-merge.mjs';
+import { wrapSection, stripPhaseBlocks } from '../src/hosts/claude-md-merge.mjs';
 import {
   recordVersion,
   checkForUpdate,
@@ -372,6 +372,11 @@ function corePayload(core, h, { hostOnly = false } = {}) {
 // re-vendor, per each shelf's ATTRIBUTION.md) — none of those belong in
 // an update, so a core's `workspace` and `vendor_skills` are left alone
 // here while its agents and skills are refreshed.
+// The bootstrap file is excluded here on purpose: `hedgehog shed` (and
+// writePlannedFile's own self-heal) is the only thing allowed to remove
+// content from it, and an update pass that also touched it would race
+// that removal against whatever bootstrap-only content a fresh shell
+// still carries.
 function updatePlan(host = DEFAULT_HOST, core = null) {
   const h = HOSTS[host];
   return [
@@ -478,6 +483,98 @@ function warnOrphanedNotes({ orphanedNotes }) {
   console.log('');
 }
 
+const PHASE_NAME = 'bootstrap-only';
+
+// Engine-generic conditions for "this project's build graph is past
+// bootstrap" — never core-specific facts like nx.json or
+// astro.config.mjs, which the engine has no business knowing about. Both
+// must hold: a build graph exists, and at least one task has been
+// compiled into it. The bootstrap file's own {{PROJECT_SUMMARY}}
+// placeholder is the third condition (see shedCommand and
+// writePlannedFile's self-heal) but is checked per-file, since a
+// multi-host project can have several bootstrap files to test.
+async function graphPastBootstrap() {
+  if (!(await exists(DB_PATH))) return false;
+  const db = openDb();
+  try {
+    return db.prepare('SELECT 1 FROM tasks LIMIT 1').get() !== undefined;
+  } finally {
+    db.close();
+  }
+}
+
+async function canShed(bootstrapContent) {
+  if (!(await graphPastBootstrap())) return false;
+  return !bootstrapContent.includes('{{PROJECT_SUMMARY}}');
+}
+
+// `hedgehog shed` — strips bootstrap-only content from every host
+// bootstrap file actually on disk, once the project has provably moved
+// past bootstrap. Guard conditions are engine-generic only (see
+// graphPastBootstrap/canShed above); this command names which one failed
+// rather than a single generic refusal, in the style of `hedgehog
+// boundary`.
+async function shedCommand() {
+  if (!(await exists(DB_PATH))) {
+    console.error(
+      `${red('No build graph found.')} ${bold(dbAbsPath())} does not exist — run ${bold('hedgehog init')} or ${bold('hedgehog db init')} first.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  if (!(await graphPastBootstrap())) {
+    console.error(
+      `${red('No task has been compiled into the build graph yet.')} Run ${bold('hedgehog plan')} first.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const hosts = await installedHosts(DEST_ROOT);
+  const bootstrapFiles = [
+    ...new Set(hosts.map((name) => HOSTS[name].bootstrapFile).filter(Boolean)),
+  ];
+
+  const present = [];
+  for (const rel of bootstrapFiles) {
+    const abs = join(DEST_ROOT, rel);
+    if (await exists(abs)) present.push({ rel, abs });
+  }
+  if (present.length === 0) {
+    console.error(`${red('No bootstrap file found.')} Expected one of: ${bootstrapFiles.join(', ')}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const unfilled = [];
+  for (const { rel, abs } of present) {
+    const content = await readFile(abs, 'utf8');
+    if (content.includes('{{PROJECT_SUMMARY}}')) unfilled.push(rel);
+  }
+  if (unfilled.length > 0) {
+    console.error(
+      `${red('{{PROJECT_SUMMARY}} is still unfilled in:')} ${unfilled.join(', ')} — nothing has been built yet.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  let anyStripped = false;
+  for (const { rel, abs } of present) {
+    const before = await readFile(abs, 'utf8');
+    const after = stripPhaseBlocks(before, PHASE_NAME);
+    if (after === before) continue;
+    anyStripped = true;
+    await writeFile(abs, after);
+    const beforeBytes = Buffer.byteLength(before, 'utf8').toLocaleString('en-US');
+    const afterBytes = Buffer.byteLength(after, 'utf8').toLocaleString('en-US');
+    console.log(`${rel}  ${beforeBytes} → ${afterBytes} B`);
+  }
+  if (!anyStripped) {
+    console.log('nothing to shed');
+  }
+}
+
 // Writes one planned file to disk — a straight copy, or for a `merge`
 // entry, the shell template with {{CORE_SECTION}} replaced by the
 // chosen core's include.
@@ -528,7 +625,12 @@ async function writePlannedFile(f) {
       out = out.replaceAll('{{CORE_SECTION}}', wrapSection(section));
     }
     const dispatch = await readFile(join(PKG_ROOT, f.merge.dispatch), 'utf8');
-    await writeFile(f.dest, out.replaceAll('{{HOST_DISPATCH}}', dispatch.trimEnd()));
+    out = out.replaceAll('{{HOST_DISPATCH}}', dispatch.trimEnd());
+    // Self-heal: a project past bootstrap that re-runs `init --force`
+    // must not silently regain bootstrap-only content just because this
+    // write started from the pristine shell again.
+    if (await canShed(out)) out = stripPhaseBlocks(out, PHASE_NAME);
+    await writeFile(f.dest, out);
     return;
   }
   // Rendered from the payload rather than copied from it — the routing
@@ -675,6 +777,8 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog debt resolve <debt-id> --reason "<why>"   mark a debt note resolved
   npx @skyf0xx/hedgehog decision add <task-id> "<note>"   declare a decision that lands in dependent tasks' packets
   npx @skyf0xx/hedgehog decision list [<task-id>]     list declared decisions, oldest first
+  npx @skyf0xx/hedgehog shed                      strip bootstrap-only content from the installed
+                                                   bootstrap file(s), once the project is past bootstrap
   npx @skyf0xx/hedgehog db migrate                bring the graph's schema up to the latest version
   npx @skyf0xx/hedgehog community star --answer <a>   record the star prompt's answer
   npx @skyf0xx/hedgehog community showcase --repo <url> [--description <text>]
@@ -4544,6 +4648,11 @@ async function main() {
 
   if (cmd === 'abandon') {
     await abandonCommand(args.slice(1));
+    return;
+  }
+
+  if (cmd === 'shed') {
+    await shedCommand();
     return;
   }
 
