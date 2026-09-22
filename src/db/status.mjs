@@ -17,6 +17,7 @@ import { listFriction } from './friction.mjs';
 import { orphanedOverrides } from './overrides.mjs';
 import { RECONCILED_DIR, RECONCILED_NOTE_PREFIX } from './reconcile.mjs';
 import { formatMissingRequirements } from './requires.mjs';
+import { possiblySatisfiedTasks, formatPossiblySatisfied } from './satisfied.mjs';
 import { readyTasks, heldBackReason } from './ready.mjs';
 import { worktreeStatus } from './worktree.mjs';
 import { findClaimableTasks } from './claim.mjs';
@@ -219,6 +220,15 @@ function countFriction(db) {
 // in every count and list here. Reported unconditionally, not as a
 // warning: reconciling is a supported act, and the point is that the
 // distinction stays visible after the session that made it is gone.
+//
+// `possiblySatisfied` (satisfied.mjs) is a `planned` task whose scope
+// globs already resolve to tracked, clean files — a heuristic nudge, not
+// a completion: `db rebuild`'s attribution only credits a task whose own
+// commit_message appears as some commit's subject (rebuild.mjs), so work
+// that landed inside a commit made for a different task never has a
+// subject to match, and the task stays `planned` with no other signal
+// that its scope may already be covered. Read-only, like drift and
+// orphaned overrides — nothing here is ever auto-completed.
 // Synchronous, as it always was: `boundary.mjs#boundaryState` (a hot path
 // that only ever reads `graph.inFlight`) depends on that, and every other
 // section here is a plain SQL read with no I/O to await. The worktree
@@ -236,6 +246,7 @@ export function graphStatus(db, { core = null, overrides = new Map() } = {}) {
   const debt = loadDebtByTask(db);
   const frictionCount = countFriction(db);
   const reconciled = loadReconciledTasks(db);
+  const possiblySatisfied = possiblySatisfiedTasks(db);
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return {
     counts,
@@ -248,6 +259,7 @@ export function graphStatus(db, { core = null, overrides = new Map() } = {}) {
     debt,
     frictionCount,
     reconciled,
+    possiblySatisfied,
     total,
   };
 }
@@ -293,6 +305,7 @@ export function formatStatus({
   debt = [],
   frictionCount = 0,
   reconciled = [],
+  possiblySatisfied = [],
   worktrees = { active: [], orphaned: [] },
   total,
   missingRequirements,
@@ -379,6 +392,15 @@ export function formatStatus({
   if (drift && drift.length > 0) {
     lines.push('');
     lines.push(formatDrift(drift));
+  }
+
+  // Below drift, same family of "condition of the graph as a whole" —
+  // and above orphaned overrides, since a possibly-satisfied task is work
+  // an operator can act on right now (`hedgehog reconcile`), where an
+  // orphaned override is only ever inert.
+  if (possiblySatisfied.length > 0) {
+    lines.push('');
+    lines.push(formatPossiblySatisfied(possiblySatisfied));
   }
 
   // Below drift because it's the rarer of the two and never blocks the
