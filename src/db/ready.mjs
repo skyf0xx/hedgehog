@@ -7,6 +7,7 @@
 
 import { findClaimableTasks, findInFlightTasks } from './claim.mjs';
 import { conflicts, verifyRadius } from './conflict.mjs';
+import { ORCHESTRATING_FOOTER } from './status.mjs';
 
 // Walks the same candidates claimTasks would, in the same priority/id
 // order, greedily sorting each into CLAIMABLE (doesn't conflict with
@@ -91,6 +92,9 @@ export function formatReady({ claimable, heldBack }) {
       lines.push(`  ${task.id.padEnd(20)}${task.layer.padEnd(13)}${heldBackReason(task, conflict)}`);
     }
   }
+
+  lines.push('');
+  lines.push(ORCHESTRATING_FOOTER);
 
   return lines.join('\n');
 }
