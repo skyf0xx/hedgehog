@@ -9,6 +9,7 @@
 // publish.yml as a gate before `npm publish`.
 
 import { readdir, readFile, stat } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -18,6 +19,7 @@ import { loadCore, lintCore } from '../src/db/core.mjs';
 import { loadRegistry } from '../src/registry/index.mjs';
 import { parseCoreManifest } from '../src/registry/manifest.mjs';
 import { fetchCore } from '../src/registry/fetch.mjs';
+import { stripPhaseBlocks } from '../src/hosts/claude-md-merge.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -399,6 +401,143 @@ try {
   }
 } catch (err) {
   fail(`npm pack --dry-run failed: ${err.message}`);
+}
+
+// ── 6b. CLAUDE.md size budget. Computes the merged file in-memory the
+//    same way writePlannedFile does (bin/cli.mjs) — shell + core template
+//    + dispatch — and fails above a committed budget. Budgets the
+//    *post-shed* size, not the raw size: raw size still carries bootstrap
+//    content the shed mechanism already handles, and budgeting that would
+//    punish content that's supposed to be there for a first install.
+//
+//    Core templates live in each core's own package, not this repo, so
+//    the shell+dispatch budget (this engine's own payload) runs
+//    unconditionally and the full merged budget (shell + a real core
+//    template + dispatch) only when that core's repo is checked out
+//    beside this one — same sibling-checkout convention as §2b, counted
+//    into the same siblingsCompared/siblingsSkipped totals so a "not
+//    checked" full-budget run is never indistinguishable from a clean
+//    one. Never a network fetch. ─────────────────────────────────────────
+const SHELL_DISPATCH_BUDGET_BYTES = 6000;
+// Generous relative to every shipped core's own template — pwa-app's is
+// the largest at ~17,150 B merged, a fact about that core's own content,
+// not something this engine's own checks should police. This budget
+// exists to catch a regression in the engine's own shell/dispatch
+// duplicating into the full merge, not to cap a core's template size.
+const FULL_MERGED_BUDGET_BYTES = 20000;
+{
+  const shellPath = join(ROOT, 'src/templates/CLAUDE.md');
+  const dispatchPath = join(ROOT, 'src/hosts/claude/DISPATCH.md');
+  const shell = await readFile(shellPath, 'utf8');
+  const dispatch = (await readFile(dispatchPath, 'utf8')).trimEnd();
+
+  const shellDispatchMerged = stripPhaseBlocks(
+    shell.replaceAll('{{CORE_SECTION}}', '').replaceAll('{{HOST_DISPATCH}}', dispatch),
+    'bootstrap-only',
+  );
+  const shellDispatchBytes = Buffer.byteLength(shellDispatchMerged, 'utf8');
+  if (shellDispatchBytes > SHELL_DISPATCH_BUDGET_BYTES) {
+    fail(
+      `CLAUDE.md size budget: post-shed shell + Claude dispatch is ${shellDispatchBytes} B, ` +
+        `over the committed budget of ${SHELL_DISPATCH_BUDGET_BYTES} B. Trim src/templates/CLAUDE.md ` +
+        `or src/hosts/claude/DISPATCH.md, or widen the budget deliberately.`,
+    );
+  }
+
+  for (const core of cores) {
+    if (!core.package) continue;
+    const siblingRepo = resolve(ROOT, `../hedgehog-core-${core.name}`);
+    const fixturePath = join(ROOT, `repro/fixtures/cores/${core.name}.manifest.yaml`);
+    let manifest;
+    try {
+      manifest = parseCoreManifest(await readFile(fixturePath, 'utf8'), `${core.name}.manifest.yaml`);
+    } catch {
+      continue;
+    }
+    if (!manifest.template) continue;
+    const templatePath = join(siblingRepo, manifest.template);
+    const templateText = await readFile(templatePath, 'utf8').catch(() => null);
+    if (templateText === null) {
+      siblingsSkipped++;
+      continue;
+    }
+    siblingsCompared++;
+    const fullMerged = stripPhaseBlocks(
+      shell.replaceAll('{{CORE_SECTION}}', templateText).replaceAll('{{HOST_DISPATCH}}', dispatch),
+      'bootstrap-only',
+    );
+    const fullBytes = Buffer.byteLength(fullMerged, 'utf8');
+    if (fullBytes > FULL_MERGED_BUDGET_BYTES) {
+      fail(
+        `CLAUDE.md size budget: full merge with ${core.name}'s template is ${fullBytes} B, ` +
+          `over the committed budget of ${FULL_MERGED_BUDGET_BYTES} B.`,
+      );
+    }
+  }
+}
+
+// ── 6c. Canary strings. A hand-picked list of exact strings, each
+//    asserted to appear in exactly one file under src/ — the one-owner
+//    rule (CLAUDE.md's own "a fact restated ... has exactly one owning
+//    file") made mechanically checkable for the specific duplications
+//    it's caught before. Deliberately not generic duplicate-sentence
+//    detection: a similarity heuristic false-positives on shared
+//    vocabulary and gets tuned into uselessness or disabled, where a
+//    fixed list of exact strings is a rule with zero false positives. ───
+const CANARY_STRINGS = [
+  "match a contributor's existing setup",
+];
+{
+  async function walkSrcFiles(dir) {
+    const out = [];
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...(await walkSrcFiles(path)));
+      else if (entry.isFile()) out.push(path);
+    }
+    return out;
+  }
+  const srcFiles = await walkSrcFiles(join(ROOT, 'src'));
+  for (const needle of CANARY_STRINGS) {
+    const hits = [];
+    for (const path of srcFiles) {
+      const text = await readFile(path, 'utf8').catch(() => '');
+      if (text.includes(needle)) hits.push(path);
+    }
+    if (hits.length > 1) {
+      fail(`canary string "${needle}" appears in ${hits.length} files, not one: ${hits.map((p) => p.replace(`${ROOT}/`, '')).join(', ')}`);
+    } else if (hits.length === 0) {
+      fail(`canary string "${needle}" appears in no file under src/ — update or remove it from CANARY_STRINGS`);
+    }
+  }
+}
+
+// ── 6d. Marker well-formedness. Across src/templates/ and src/hosts/*/,
+//    every "bootstrap-only start" has a matching "end", no nesting, no
+//    orphans — stripPhaseBlocks itself throws on exactly this, so
+//    running it is the check. ────────────────────────────────────────────
+{
+  async function walkFiles(dir) {
+    const out = [];
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...(await walkFiles(path)));
+      else if (entry.isFile()) out.push(path);
+    }
+    return out;
+  }
+  const markerDirs = [join(ROOT, 'src/templates'), join(ROOT, 'src/hosts')];
+  for (const dir of markerDirs) {
+    for (const path of await walkFiles(dir)) {
+      const text = await readFile(path, 'utf8').catch(() => null);
+      if (text === null || !text.includes('hedgehog:bootstrap-only')) continue;
+      try {
+        stripPhaseBlocks(text, 'bootstrap-only');
+      } catch (err) {
+        fail(`${path.replace(`${ROOT}/`, '')}: malformed bootstrap-only marker(s) — ${err.message}`);
+      }
+    }
+  }
 }
 
 // ── 7. CLI entrypoint runs. ─────────────────────────────────────────────
