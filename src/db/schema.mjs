@@ -127,10 +127,12 @@ CREATE TABLE IF NOT EXISTS decisions (
 );
 
 CREATE TABLE IF NOT EXISTS friction (
-  id        INTEGER PRIMARY KEY,
-  task_id   TEXT REFERENCES tasks(id) ON DELETE SET NULL,
-  note      TEXT NOT NULL,
-  logged_at TEXT NOT NULL DEFAULT (datetime('now'))
+  id               INTEGER PRIMARY KEY,
+  task_id          TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+  note             TEXT NOT NULL,
+  logged_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  resolved_at      TEXT,
+  resolved_reason  TEXT
 );
 `;
 
@@ -178,7 +180,7 @@ export function ensureTaskColumns(db) {
 // hand-set past what MIGRATIONS actually covers, since runMigrations
 // trusts this number to mean "every migration through this version has
 // run."
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 // Forward migrations, applied in order to bring a graph's user_version up
 // to CURRENT_SCHEMA_VERSION. Unlike the CREATE TABLE IF NOT EXISTS /
@@ -220,6 +222,18 @@ const MIGRATIONS = [
       if (!existing.has('resolved_at')) db.exec('ALTER TABLE debt ADD COLUMN resolved_at TEXT');
       if (!existing.has('resolved_reason')) {
         db.exec('ALTER TABLE debt ADD COLUMN resolved_reason TEXT');
+      }
+    },
+  },
+  {
+    version: 4,
+    // Same shape as version 3's debt columns, for friction — an existing
+    // graph's rows default to open the moment these columns exist.
+    migrate: (db) => {
+      const existing = new Set(db.prepare('PRAGMA table_info(friction)').all().map((row) => row.name));
+      if (!existing.has('resolved_at')) db.exec('ALTER TABLE friction ADD COLUMN resolved_at TEXT');
+      if (!existing.has('resolved_reason')) {
+        db.exec('ALTER TABLE friction ADD COLUMN resolved_reason TEXT');
       }
     },
   },
