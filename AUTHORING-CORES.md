@@ -183,20 +183,71 @@ See "Keeping a shipped core's workspace current" in
 (`full-stack-app`, `pwa-app`, `landing-page`) and why each is shaped the
 way it is.
 
+## Splitting a large skill
+
+A `SKILL.md` that serves two audiences at different frequencies — an
+orchestrator's per-session loop, read whole and often, versus a build
+agent's occasional lookup, read only for one named section — should split
+along that line rather than ship as one file everyone loads in full. The
+trigger is size, not a feel for "too long": review a `SKILL.md` against
+this convention once it crosses roughly **15 KB**. That's well above the
+largest single-purpose skill in this repo (`hedgehog-planning-intake` at
+~25 KB is the outlier and the reason this convention exists — it has
+per-core subsections that would fit the same split) and comfortably above
+`hedgehog-core-full-stack-app`'s `nx-workspace/SKILL.md`, which sits at
+under 8 KB after already carrying out this split once.
+
+**Shape**: `SKILL.md` keeps the orchestrator-facing content in full, plus
+one pointer sentence at the exact point each rarely-needed section used
+to occupy, naming the reference file and the situation that calls for
+opening it. `hedgehog-core-full-stack-app`'s `nx-workspace/SKILL.md` is
+the worked example — its "Affected Projects" section reads in full:
+
+> If the user is asking about affected projects, read the [affected
+> projects reference](references/AFFECTED.md) for detailed commands and
+> examples.
+
+`references/<topic>.md` holds the moved content, self-contained: a reader
+who opens only that file, without having read `SKILL.md` first, must be
+able to act on it. `nx-workspace/references/AFFECTED.md` fills that role
+for the `nx affected` command family.
+
 ## Authoring checklist
 
 1. Write the core's package: `hedgehog-core.yaml`, `core.yaml`,
    `CLAUDE.core.md`, its `agents/`, `skills/`, optional
    `vendor-skills/`, and optional `workspace/`.
-2. If it ships a workspace, build its generators before hand-authoring
+2. Slim the payload `CLAUDE.core.md` ships:
+   - Wrap bootstrap-only content — a "run once" skill bullet, a
+     `planner`/`bootstrap` roster entry, anything true only before the
+     graph exists — in `<!-- hedgehog:bootstrap-only start/end -->`
+     markers, stripped by `hedgehog shed`.
+   - Before stating a fact in `CLAUDE.core.md`, check whether
+     `formatPacket` (`src/db/next.mjs`) already delivers it in every
+     dispatched task packet — ALLOWED SCOPE and the verify-gates-completion
+     rule are already there and need no restatement.
+   - If a section only applies under one selection within the core (a
+     `type:`-gated format, an add-on), it must not ship unconditionally
+     to every project on that core — name the mechanism that scopes it
+     (`.hedgehog/addons.yaml`, a brief's `type:` field, or equivalent).
+   - `hedgehog-core-full-stack-app`'s `CLAUDE.core.md` is the worked
+     example for all three: its bootstrap skill bullet is
+     bootstrap-only-wrapped, its "The agents" section names
+     `backend-eng`/`front-end-eng` and their layers without restating
+     `hedgehog-loop`'s claim/verify sequencing, and its add-on table
+     scopes Auth/Queue/Mobile content to `.hedgehog/addons.yaml`'s
+     per-project picks.
+   - A loop skill's `SKILL.md` over ~15 KB should be reviewed against
+     "Splitting a large skill" below.
+3. If it ships a workspace, build its generators before hand-authoring
    any repeatable scaffolding, and add the dependency-update workflow
    described above.
-3. In the loop skill's per-packet dispatch step, add the fallback pointer
+4. In the loop skill's per-packet dispatch step, add the fallback pointer
    to root CLAUDE.md's "Delegating on this host" note described above.
-4. Add the entry to `src/registry/cores.json`, including `selects_when`.
-5. Sweep the places that enumerate cores by hand rather than reading the
+5. Add the entry to `src/registry/cores.json`, including `selects_when`.
+6. Sweep the places that enumerate cores by hand rather than reading the
    registry — `CLAUDE.md` names the full list to update in the same PR.
-6. Run `npm run check` — it asserts a manifest's `selects_when` isn't
+7. Run `npm run check` — it asserts a manifest's `selects_when` isn't
    silently duplicating the registry's, among other structural checks.
 
 ## Auditing an existing core
@@ -240,12 +291,32 @@ satisfies the package contract above.
 - [ ] No `requires:` entries for ordinary JS/TS toolchain binaries
       (vitest, tsc, eslint, nx, …) — those don't belong there.
 
+### `CLAUDE.core.md`
+
+- [ ] Every "run once" or first-arrival-only bullet is wrapped in
+      `<!-- hedgehog:bootstrap-only start/end -->` markers.
+- [ ] "### The agents" names owners and doesn't restate their substance —
+      model `hedgehog-core-landing-page`'s `CLAUDE.core.md` "### The
+      agents" section: *"See `hedgehog-landing-loop` for exactly which
+      agent owns which stage... that skill is the source, not restated
+      here."* `hedgehog-core-full-stack-app`'s post-slimming
+      `CLAUDE.core.md` is the fuller worked example — its "### The
+      agents" section, bootstrap-only marker placement, and add-on table
+      scoping all satisfy this checklist end to end.
+- [ ] No fact stated here is also stated in this core's own
+      `agents/*.md` or `skills/*/SKILL.md`, or already delivered by
+      `formatPacket` (`src/db/next.mjs`).
+- [ ] No content here applies to only a subset of projects on this core
+      without a stated scoping mechanism.
+
 ### Loop skill
 
 - [ ] The per-packet dispatch step points back to root CLAUDE.md's
       "Delegating on this host" note for the not-found-on-first-session
       case, per "The loop skill's dispatch step needs a fallback pointer"
       above.
+- [ ] If `SKILL.md` is over ~15 KB, it's been reviewed against
+      "Splitting a large skill" below.
 
 ### `src/registry/cores.json` entry
 
