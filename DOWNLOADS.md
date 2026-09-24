@@ -1,6 +1,6 @@
 # Downloads
 
-Total downloads across every published Hedgehog package, refreshed daily. Last updated 2026-09-23 10:27 UTC.
+Total downloads across every published Hedgehog package, refreshed daily. Last updated 2026-09-24 10:44 UTC.
 
 | Package | Downloads |
 | --- | ---: |
