@@ -117,11 +117,11 @@ console.log('\n4. malformed markers are errors, never a silent partial strip');
 }
 
 // ---------------------------------------------------------------------
-console.log('\n5. identity against every cached core template on this machine');
+console.log('\n5. every cached core template on this machine: identity when unmarked, clean strip when marked');
 // A local, machine-specific cache (~/.hedgehog/cores/*/*/CLAUDE.core.md)
 // rather than a repo fixture, so this is a bonus pass when present and a
-// silent skip otherwise — CI never has it, and that must not read as a
-// failure.
+// silent skip otherwise. Whether CI has it depends on whether an earlier
+// repro fetched a core, so both marked and unmarked templates must pass.
 {
   const coresDir = join(homedir(), '.hedgehog/cores');
   let coreNames = [];
@@ -148,11 +148,20 @@ console.log('\n5. identity against every cached core template on this machine');
       const text = await readFile(templatePath, 'utf8').catch(() => null);
       if (text === null) continue;
       templatesChecked++;
-      check(
-        `${name}@${version} CLAUDE.core.md unchanged when no markers`,
-        stripPhaseBlocks(text, 'bootstrap-only'),
-        text,
-      );
+      const label = `${name}@${version} CLAUDE.core.md`;
+      if (!text.includes('<!-- hedgehog:bootstrap-only ')) {
+        check(`${label} unchanged when no markers`, stripPhaseBlocks(text, 'bootstrap-only'), text);
+        continue;
+      }
+      let once;
+      try {
+        once = stripPhaseBlocks(text, 'bootstrap-only');
+      } catch (err) {
+        check(`${label} strips without error`, err.message, 'no error');
+        continue;
+      }
+      check(`${label} has no markers left after strip`, once.includes('<!-- hedgehog:bootstrap-only '), false);
+      check(`${label} strip is idempotent`, stripPhaseBlocks(once, 'bootstrap-only'), once);
     }
   }
   if (coreNames.length > 0 && templatesChecked === 0) {
