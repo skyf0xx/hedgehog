@@ -105,7 +105,12 @@ import { NOOP_DIR } from '../src/db/noop.mjs';
 import { runFastpath, loadFastpaths, orphanedFastpathTasks, FASTPATH_DIR } from '../src/db/fastpath.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
-import { wrapSection, stripPhaseBlocks } from '../src/hosts/claude-md-merge.mjs';
+import {
+  wrapSection,
+  stripPhaseBlocks,
+  hasCoreSection,
+  appendCoreSection,
+} from '../src/hosts/claude-md-merge.mjs';
 import {
   recordVersion,
   checkForUpdate,
@@ -491,9 +496,9 @@ const PHASE_NAME = 'bootstrap-only';
 // astro.config.mjs, which the engine has no business knowing about. Both
 // must hold: a build graph exists, and at least one task has been
 // compiled into it. The bootstrap file's own {{PROJECT_SUMMARY}}
-// placeholder is the third condition (see shedCommand and
-// writePlannedFile's self-heal) but is checked per-file, since a
-// multi-host project can have several bootstrap files to test.
+// placeholder is the third condition (see summaryUnfilled) but is
+// checked per-file, since a multi-host project can have several
+// bootstrap files to test.
 async function graphPastBootstrap() {
   if (!(await exists(DB_PATH))) return false;
   const db = openDb();
@@ -504,9 +509,18 @@ async function graphPastBootstrap() {
   }
 }
 
+// The shell's placeholder carries its own instructions inside the braces
+// (`{{PROJECT_SUMMARY — 2–4 sentences…}}`), so the match is on the prefix.
+// Bootstrap-only blocks are excluded because the shell's first-message
+// block names the placeholder in prose, and that block is exactly what
+// shedding removes.
+function summaryUnfilled(bootstrapContent) {
+  return stripPhaseBlocks(bootstrapContent, PHASE_NAME).includes('{{PROJECT_SUMMARY');
+}
+
 async function canShed(bootstrapContent) {
   if (!(await graphPastBootstrap())) return false;
-  return !bootstrapContent.includes('{{PROJECT_SUMMARY}}');
+  return !summaryUnfilled(bootstrapContent);
 }
 
 // `hedgehog shed` — strips bootstrap-only content from every host
@@ -550,7 +564,7 @@ async function shedCommand() {
   const unfilled = [];
   for (const { rel, abs } of present) {
     const content = await readFile(abs, 'utf8');
-    if (content.includes('{{PROJECT_SUMMARY}}')) unfilled.push(rel);
+    if (summaryUnfilled(content)) unfilled.push(rel);
   }
   if (unfilled.length > 0) {
     console.error(
@@ -587,13 +601,15 @@ async function writePlannedFile(f) {
     // `planner` already filled in: {{PROJECT_NAME}}/{{PROJECT_SUMMARY}}
     // are filled once, by hand or by `planner`, and never touched again.
     // Starting from the existing file instead of the pristine shell
-    // whenever it's still missing only {{CORE_SECTION}} preserves that —
-    // the shell is the base only for a destination that doesn't exist
-    // yet, or one still holding the raw, unfilled template.
+    // whenever those are filled preserves that — whether the core section
+    // is still the {{CORE_SECTION}} placeholder or an already-filled,
+    // marked section that the new core's content replaces in place. The
+    // shell is the base only for a destination that doesn't exist yet, or
+    // one still holding the raw, unfilled template.
     let out = null;
     if (await exists(f.dest)) {
       const existing = await readFile(f.dest, 'utf8');
-      if (!existing.includes('{{PROJECT_NAME}}') && existing.includes('{{CORE_SECTION}}')) {
+      if (!existing.includes('{{PROJECT_NAME}}') && hasCoreSection(existing)) {
         out = existing;
       } else if (!existing.includes('{{PROJECT_NAME}}') && !f.merge.include) {
         // Brownfield: hand-written content that predates Hedgehog, with
@@ -623,13 +639,15 @@ async function writePlannedFile(f) {
       // both paths' output mutually recognizable is what lets
       // hasCoreSection/appendCoreSection treat a template-filled file
       // and an appended one the same way on a later re-run.
-      out = out.replaceAll('{{CORE_SECTION}}', wrapSection(section));
+      out = out.includes('{{CORE_SECTION}}')
+        ? out.replaceAll('{{CORE_SECTION}}', wrapSection(section))
+        : appendCoreSection(out, section);
     }
     const dispatch = await readFile(join(PKG_ROOT, f.merge.dispatch), 'utf8');
     out = out.replaceAll('{{HOST_DISPATCH}}', dispatch.trimEnd());
     // Self-heal: a project past bootstrap that re-runs `init --force`
-    // must not silently regain bootstrap-only content just because this
-    // write started from the pristine shell again.
+    // leaves this write with no bootstrap-only content, whether or not
+    // `hedgehog shed` ever ran.
     if (await canShed(out)) out = stripPhaseBlocks(out, PHASE_NAME);
     await writeFile(f.dest, out);
     return;
