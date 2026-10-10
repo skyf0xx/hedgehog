@@ -724,7 +724,8 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog init --cursor             install for Cursor (default: Claude Code)
   npx @skyf0xx/hedgehog init --host=claude,gemini install for several coding agents at once
   npx @skyf0xx/hedgehog init --all-hosts          install for every supported coding agent
-  npx @skyf0xx/hedgehog init --force              overwrite existing files
+  npx @skyf0xx/hedgehog init --force | -f         overwrite existing files
+  npx @skyf0xx/hedgehog --version | -v            print the installed version
   npx @skyf0xx/hedgehog update                    refresh the installed agents + skills
   npx @skyf0xx/hedgehog update --check            report whether a newer release is published
   npx @skyf0xx/hedgehog db init                   create .hedgehog/hedgehog.db if absent
