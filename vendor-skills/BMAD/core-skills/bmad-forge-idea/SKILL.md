@@ -1,6 +1,6 @@
 ---
 name: bmad-forge-idea
-description: Pressure-test an idea through persona-driven interrogation until it hardens, proves out, or dies cheaply. Use when the user says 'forge an idea', 'pressure-test this idea', 'stress-test my thinking', or 'harden this idea'.
+description: Test a half-formed idea in a questioning conversation, with different personas probing its weak points, until the user can act on it or drop it with confidence. Optionally writes a short brief for planning skills to build on. Use when the user says 'forge an idea', 'pressure-test this idea', 'stress-test my thinking', or 'harden this idea'
 ---
 
 # BMad Forge Idea
@@ -23,7 +23,7 @@ Lead by questioning, not lecturing. Ask one question at a time, press on weak po
 
 ## On Activation
 
-1. Resolve customization: `uv run {bmad-root}/scripts/resolve_customization.py --skill {skill-root} --key workflow`. On failure, read `{skill-root}/customize.toml` directly with defaults. Apply the resolved `{workflow.*}` values throughout.
+1. Resolve customization: `uv run {bmad-root}/scripts/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow`. On failure, read `{skill-root}/customize.toml` directly with defaults. Apply the resolved `{workflow.*}` values throughout.
 2. Run each `{workflow.activation_steps_prepend}` entry; treat each `{workflow.persistent_facts}` entry as foundational context (`file:` entries load their contents, `skill:` names a skill to consult, others are facts verbatim).
 3. Resolve `{user_name}`, `{communication_language}`, `{output_folder}` using sensible defaults (ask the user or omit `{user_name}`; English for language fields); `{date}` is today. Missing values → neutral defaults; never block. Greet `{user_name}` in `{communication_language}` and stay in it.
 4. Resume: glob `{workflow.forge_output_path}/**/.memlog.md` (recursive, so it still finds sessions when `run_folder_pattern` is overridden to nest paths) and read only each match's frontmatter to find any whose `status` is not `complete`. Offer to resume one — then read its full memlog once to rebuild state and continue append-only — or to start fresh.
@@ -48,7 +48,7 @@ Otherwise ask for what's missing, in order:
 
 ### Steering the conversation
 
-Tell the user they can say **"attack this"**, **"defend this"**, or **"switch roles"** at any time to change how the current idea is argued. In attack mode, do not agree with the idea; look for contradictions, weak assumptions, and failure cases. In defend mode, argue for the strongest version of the idea. Tell the user they can also name a persona at any time to change who participates in the session.
+Tell the user they can say **"attack this"**, **"defend this"**, or **"switch roles"** at any time to change how the current idea is argued. In attack mode, do not agree with the idea; look for contradictions, weak assumptions, and failure cases. In defend mode, argue for the strongest version of the idea. Tell the user they can also name a persona or party at any time to change who participates in the session.
 
 ### Set up the session
 
