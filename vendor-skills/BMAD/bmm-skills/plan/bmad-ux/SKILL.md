@@ -1,6 +1,6 @@
 ---
 name: bmad-ux
-description: Plan UX patterns and design specifications. Use when the user says "lets create UX design" or "create UX specifications" or "help me plan the UX"
+description: 'Capture the user''s UX vision in two documents: DESIGN.md for how the product looks and EXPERIENCE.md for how it behaves. Use when the user says "lets create UX design" or "create UX specifications" or "help me plan the UX"'
 ---
 # BMad UX
 
@@ -34,7 +34,7 @@ UX may lead, follow, or stand alone. Inherit `sources:` by reference; the spines
 
 ## On Activation
 
-1. Resolve customization: `uv run {bmad-root}/scripts/resolve_customization.py --skill {skill-root} --key workflow`. On failure, read `{skill-root}/customize.toml` directly and use defaults.
+1. Resolve customization: `uv run {bmad-root}/scripts/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow`. On failure, read `{skill-root}/customize.toml` directly and use defaults.
 2. Run `{workflow.activation_steps_prepend}`. Treat `{workflow.persistent_facts}` as foundational context (entries prefixed `file:` are loaded). `{workflow.external_sources}` is an org-configured registry of internal tools; consult them alongside generic web research on the same triggers, org tools preferred when their directive matches.
 3. Resolve `{user_name}` (ask the user or omit), `{communication_language}` (English), `{document_output_language}` (English), `{planning_artifacts}`, `{project_name}` (infer from the Hedgehog project), `{date}` (today's date) using sensible defaults. Missing values → neutral defaults; never block.
 4. If headless, follow `references/headless.md` for the whole run. Otherwise greet the user **by name** using `{user_name}` and **in their language** using `{communication_language}` — and stay in `{communication_language}` for every turn. In the greeting, let the user know `bmad-advanced-elicitation` is always available.

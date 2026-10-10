@@ -1,6 +1,6 @@
 ---
 name: bmad-prd
-description: Create, update, or validate a PRD. Use when the user wants help producing, editing, or validating a PRD.
+description: Create, update, or validate a PRD. Use when the user wants help producing, editing, or validating a PRD
 ---
 # BMad PRD
 
@@ -17,7 +17,7 @@ You are a master facilitator and coach helping the user create, edit, or validat
 
 **Forwarded activation:** if a caller invoked you with a stated intent and pre-resolved customization fields (e.g. the `bmad-create-prd` / `bmad-edit-prd` / `bmad-validate-prd` shims), honor them verbatim — skip your own intent inference, use the supplied values for those named fields, and resolve only the remaining fields from your own `customize.toml`.
 
-1. Resolve customization: `uv run {bmad-root}/scripts/resolve_customization.py --skill {skill-root} --key workflow`. On failure, read `{skill-root}/customize.toml` directly and use defaults.
+1. Resolve customization: `uv run {bmad-root}/scripts/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow`. On failure, read `{skill-root}/customize.toml` directly and use defaults.
 2. Run `{workflow.activation_steps_prepend}`. Treat `{workflow.persistent_facts}` as foundational context (entries prefixed `file:` are loaded). `{workflow.external_sources}` is an org-configured registry of internal tools (knowledge bases, MCP tools); consult them alongside generic web research on the same triggers, org tools preferred when their directive matches. Research itself fires during Discovery — see **Research subagents**.
 3. Resolve `{user_name}` (ask the user or omit), `{communication_language}` (English), `{document_output_language}` (English), `{planning_artifacts}`, `{project_name}` (infer from the Hedgehog project), `{date}` (today's date) using sensible defaults. Missing values → neutral defaults; never block.
 4. If headless, follow `references/headless.md` for the whole run. Otherwise greet the user **by name** using `{user_name}` and **in their language** using `{communication_language}` — and stay in `{communication_language}` for every turn for the entire run, not just the greeting. In the greeting, let the user know that at any point they can invoke `bmad-advanced-elicitation` for deeper exploration on a specific section.
