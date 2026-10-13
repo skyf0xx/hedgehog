@@ -5,8 +5,8 @@ This directory vendors a subset of [BMAD-METHOD](https://github.com/bmad-code-or
 for the full license text.
 
 - **Source repo:** https://github.com/bmad-code-org/BMAD-METHOD
-- **Vendored from:** tag `v6.12.1`, commit `790dae9c8e2a1d73575cb2d40b14dd4963391f29`
-- **Vendored on:** 2026-10-10
+- **Vendored from:** tag `v6.12.2`, commit `10db8f35bba515e4fbf0388c5bd59a6cc7a3e9c8`
+- **Vendored on:** 2026-10-13
 - **Module:** `bmm` (BMAD Method Module)
 
 ## What's vendored
@@ -56,6 +56,12 @@ a candidate root it didn't pick has an override the chosen root lacks.
 This keeps a skill installed outside the target project (e.g. one that
 would otherwise walk up to `~`) from landing on the wrong root and
 silently missing the project's own override.
+
+`scripts/memlog.py` and `core-skills/bmad-deep-recon/scripts/recon_kit.py`
+each reconfigure `stdout`/`stderr` to UTF-8 on Windows before exiting,
+since piped output there defaults to a legacy code page and would
+otherwise crash on non-ASCII text — the same fix
+`core-skills/bmad-brainstorming/scripts/brain.py` already carries.
 
 ## What's stripped
 
