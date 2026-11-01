@@ -8,7 +8,7 @@
 // Adding a host means adding one entry here (and a matching directory
 // under src/hosts/<name>/ for whatever templates it needs).
 
-import { emitPromptAgent } from './emit.mjs';
+import { emitPromptAgent, emitOpencodeAgent } from './emit.mjs';
 
 // Hosts that dispatch real subagents get the full discipline: each build
 // step runs in its own context with its own role. Hosts that don't are
@@ -108,6 +108,22 @@ export const HOSTS = {
       ];
     },
   },
+
+  // OpenCode auto-loads AGENTS.md from the repo root — the same file
+  // every host ships as an index. The bootstrap merge carries the
+  // discipline shell and the dispatch into it directly, so no separate
+  // routing doc is generated and the file has one writer per install
+  // flag. Subagents register from `.opencode/agents/` (the file name is
+  // the agent name; Claude Code's `model:`/`tools:` subagent schema
+  // comes off on install), and skills load on demand from
+  // `.opencode/skills/`.
+  opencode: {
+    agentsDir: '.opencode/agents',
+    skillsDir: '.opencode/skills',
+    bootstrapFile: 'AGENTS.md',
+    label: 'OpenCode',
+    emitAgent: emitOpencodeAgent,
+  },
 };
 
 // One install flag per host, named for the tool a user is asking to use.
@@ -117,6 +133,7 @@ export const HOST_FLAGS = {
   '--claude': 'claude',
   '--cursor': 'cursor',
   '--gemini': 'gemini',
+  '--opencode': 'opencode',
 };
 
 export const DEFAULT_HOST = 'claude';

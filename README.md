@@ -251,6 +251,12 @@ gemini extensions install https://github.com/skyf0xx/hedgehog
 git clone https://github.com/skyf0xx/hedgehog ~/.cursor/plugins/local/hedgehog
 ```
 
+### OpenCode
+
+``` bash
+npx @skyf0xx/hedgehog init --host=opencode
+```
+
 Then open a project and describe what you want to build and mention `hedgehog`.
 
 On a fresh project with no warm pnpm store, that first install can take

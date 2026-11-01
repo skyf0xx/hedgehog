@@ -21,3 +21,19 @@ export function emitPromptAgent(text) {
   const constraint = `**Tools for this role:** ${grant.summary}\n\n`;
   return stringify(kept, `\n${constraint}${body.replace(/^\n+/, '')}`);
 }
+
+// OpenCode registers subagents from `.opencode/agents/` markdown files.
+// Its frontmatter wants `description` and `mode`, and the file name is
+// the agent name. Claude Code's `model:`/`tools:` subagent schema and
+// the redundant `name:` come off; the tool grant is restated as a line
+// the agent reads — `hedgehog verify` gates the commit regardless.
+export function emitOpencodeAgent(text) {
+  const { data, body } = parse(text);
+  const kept = { ...data };
+  for (const key of [...CLAUDE_ONLY, 'name']) delete kept[key];
+  kept.mode = 'subagent';
+
+  const grant = grantFor(data.name);
+  const constraint = `**Tools for this role:** ${grant.summary}\n\n`;
+  return stringify(kept, `\n${constraint}${body.replace(/^\n+/, '')}`);
+}
