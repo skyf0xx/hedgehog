@@ -124,6 +124,19 @@ export const HOSTS = {
     label: 'OpenCode',
     emitAgent: emitOpencodeAgent,
   },
+
+  // Windsurf (Devin Desktop) auto-loads AGENTS.md from the repo root as
+  // an always-on instruction file. The bootstrap merge carries the
+  // discipline shell and dispatch into it directly. Subagents register
+  // from `.devin/agents/` with their tool grant in the prompt, and
+  // skills load from `.devin/skills/`.
+  windsurf: {
+    agentsDir: '.devin/agents',
+    skillsDir: '.devin/skills',
+    bootstrapFile: 'AGENTS.md',
+    label: 'Windsurf',
+    emitAgent: emitPromptAgent,
+  },
 };
 
 // One install flag per host, named for the tool a user is asking to use.
@@ -134,6 +147,7 @@ export const HOST_FLAGS = {
   '--cursor': 'cursor',
   '--gemini': 'gemini',
   '--opencode': 'opencode',
+  '--windsurf': 'windsurf',
 };
 
 export const DEFAULT_HOST = 'claude';
