@@ -257,6 +257,12 @@ git clone https://github.com/skyf0xx/hedgehog ~/.cursor/plugins/local/hedgehog
 npx @skyf0xx/hedgehog init --host=opencode
 ```
 
+###  Windsurf
+
+``` bash
+npx @skyf0xx/hedgehog init --host=windsurf
+```
+
 Then open a project and describe what you want to build and mention `hedgehog`.
 
 On a fresh project with no warm pnpm store, that first install can take
