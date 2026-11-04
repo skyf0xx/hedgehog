@@ -11,10 +11,12 @@ Hedgehog is a package of agents and skills, built on an opinionated stack per co
 | Claude Code | `.claude/agents/` | `.claude/skills/` | `CLAUDE.md` |
 | Cursor | `.cursor/agents/` | `.cursor/skills/` | `HEDGEHOG.md` (+ `.cursor/rules/hedgehog.mdc`) |
 | Gemini CLI | `.gemini/agents/` | `.gemini/skills/` | `GEMINI.md` (+ `gemini-extension.json`) |
+| OpenCode | `.opencode/agents/` | `.opencode/skills/` | `AGENTS.md` |
+| Windsurf | `.devin/agents/` | `.devin/skills/` | `AGENTS.md` |
 
 Claude Code reads the canonical files as authored, so its payload is copied verbatim. Hosts that dispatch an untyped subagent carry the role in the prompt instead: `src/hosts/emit.mjs` strips the Claude Code subagent schema (`model`, `color`, `tools`) and restates the tool grant as a line the agent reads, mapped from the capability table in `src/hosts/capabilities.mjs`.
 
-Every install also generates `AGENTS.md` at the repo root from the agents' and skills' own `description` frontmatter — an index of what each role is for and when it applies. Coding agents that read `AGENTS.md` work from that index.
+Claude Code, Cursor, and Gemini CLI installs also generate `AGENTS.md` at the repo root from the agents' and skills' own `description` frontmatter — an index of what each role is for and when it applies. Coding agents that read `AGENTS.md` work from that index. OpenCode and Windsurf load `AGENTS.md` as their instructions file, so their install writes the discipline shell and dispatch into it directly instead of generating the index.
 
 Tool grants are defense in depth. The enforcement is `hedgehog verify`, which checks the touched files against the task packet's ALLOWED SCOPE and gates the commit — so the ordered steps, scoped file access, and per-layer verification hold on every host regardless of what it granted.
 

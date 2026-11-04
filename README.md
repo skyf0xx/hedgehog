@@ -257,7 +257,7 @@ git clone https://github.com/skyf0xx/hedgehog ~/.cursor/plugins/local/hedgehog
 npx @skyf0xx/hedgehog init --host=opencode
 ```
 
-###  Windsurf
+### Windsurf
 
 ``` bash
 npx @skyf0xx/hedgehog init --host=windsurf

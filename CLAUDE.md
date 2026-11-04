@@ -123,7 +123,7 @@ names them; `init` fetches the one a project asks for.
   `verify`, `claim`, `intent add`, `plan`, `friction add`/`list`, …) that
   read and write `src/db/`'s build graph.
 - `src/hosts/` — one entry per coding agent Hedgehog installs into
-  (Claude Code, Cursor, Gemini CLI): where the payload lands, which
+  (Claude Code, Cursor, Gemini CLI, OpenCode, Windsurf): where the payload lands, which
   instructions file that agent loads, and how to emit the agent files
   when its format differs from the canonical one. `capabilities.mjs`
   owns the agent → tool-grant fact for hosts that can't register a
