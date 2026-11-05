@@ -2105,8 +2105,8 @@ function warnSingularModuleIdsAtPlan(core, db) {
 //
 // This lives in the CLI rather than in any one host's hook because every
 // host drives the same binary: Claude Code, Cursor, Gemini CLI, OpenCode,
-// and Windsurf all reach it through `hedgehog next`, and one implementation here covers
-// all of them.
+// Windsurf, and GitHub Copilot all reach it through `hedgehog next`, and
+// one implementation here covers all of them.
 //
 // Never throws and never blocks: the answer comes from a day-long cache,
 // a missing or unreachable registry reads as "no news", and the notice is
@@ -2145,9 +2145,10 @@ function samePath(a, b) {
 }
 
 // Hedgehog runs as a global install: every host (Claude Code, Cursor,
-// Gemini CLI, OpenCode, Windsurf) drives it through the `hedgehog` binary on PATH, and `npx
-// @skyf0xx/hedgehog` is expected to arrive at that same global install
-// rather than an ephemeral, unmanaged copy. This makes both halves of
+// Gemini CLI, OpenCode, Windsurf, GitHub Copilot) drives it through the
+// `hedgehog` binary on PATH, and `npx @skyf0xx/hedgehog` is expected to
+// arrive at that same global install rather than an ephemeral, unmanaged
+// copy. This makes both halves of
 // that true on every invocation, before any command's real work starts:
 //
 // - **No global install yet** (a fresh `npx` fetch, or a dev checkout

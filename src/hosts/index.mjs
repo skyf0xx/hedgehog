@@ -137,6 +137,23 @@ export const HOSTS = {
     label: 'Windsurf',
     emitAgent: emitPromptAgent,
   },
+
+  // GitHub Copilot loads `.github/copilot-instructions.md` as its
+  // repo-wide instructions, so the discipline shell and dispatch land
+  // there, and the generated AGENTS.md indexes the roles. Custom agents
+  // register from `.github/agents/` (the file name is the agent name)
+  // with their tool grant in the prompt, and skills load from
+  // `.github/skills/`.
+  copilot: {
+    agentsDir: '.github/agents',
+    skillsDir: '.github/skills',
+    bootstrapFile: '.github/copilot-instructions.md',
+    label: 'GitHub Copilot',
+    emitAgent: emitPromptAgent,
+    get extraEntries() {
+      return [routingDoc('copilot')];
+    },
+  },
 };
 
 // One install flag per host, named for the tool a user is asking to use.
@@ -148,6 +165,7 @@ export const HOST_FLAGS = {
   '--gemini': 'gemini',
   '--opencode': 'opencode',
   '--windsurf': 'windsurf',
+  '--copilot': 'copilot',
 };
 
 export const DEFAULT_HOST = 'claude';

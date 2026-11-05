@@ -87,9 +87,10 @@ Run the matching command:
   workspace. Prefer this coreless install over guessing between the
   shipped cores.
 
-Add a host flag when the user is on Cursor, Gemini CLI, OpenCode, or
-Windsurf rather than Claude Code: `--cursor`, `--gemini`, `--opencode`,
-`--windsurf`, `--host=claude,cursor`, or `--all-hosts`.
+Add a host flag when the user is on Cursor, Gemini CLI, OpenCode,
+Windsurf, or GitHub Copilot rather than Claude Code: `--cursor`,
+`--gemini`, `--opencode`, `--windsurf`, `--copilot`,
+`--host=claude,cursor`, or `--all-hosts`.
 
 ## Updating the plugin
 
