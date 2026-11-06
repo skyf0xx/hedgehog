@@ -263,6 +263,12 @@ npx @skyf0xx/hedgehog init --host=opencode
 npx @skyf0xx/hedgehog init --host=windsurf
 ```
 
+### GitHub Copilot
+
+``` bash
+npx @skyf0xx/hedgehog init --host=copilot
+```
+
 Then open a project and describe what you want to build and mention `hedgehog`.
 
 On a fresh project with no warm pnpm store, that first install can take
