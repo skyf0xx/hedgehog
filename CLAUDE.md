@@ -117,9 +117,15 @@ names them; `init` fetches the one a project asks for.
   This is the live source of truth every loop skill and its agents query
   and mutate for what's next and what's done.
 - `bin/cli.mjs` — the `hedgehog` CLI installed by `npx @skyf0xx/hedgehog`:
-  `init` (installer), `core record-adopted` (lands the `adopted` core's
-  agents/skills and records them for `hedgehog-adopt`, which has no `init`
-  step of its own to call from), and the subcommands (`status`, `next`,
+  `init` (installer); `core install <name>` (lands a core into a project
+  whose `init` named none — agents, skills, vendored shelves and workspace
+  for every installed host, the core's section in each host's
+  instructions file, and the record `update` reads; `bootstrap` runs it
+  first, and `core record-adopted` is its alias for `adopted`); `core
+  check [path]` (loads and lints a `core.yaml`); `core show [--json]`
+  (prints the resolved core's layers, whether it lives at `core.yaml` or
+  `.hedgehog/core.yaml` — what a skill cites instead of a path); and the
+  subcommands (`status`, `next`,
   `verify`, `claim`, `intent add`, `plan`, `friction add`/`list`, …) that
   read and write `src/db/`'s build graph.
 - `src/hosts/` — one entry per coding agent Hedgehog installs into
@@ -130,7 +136,7 @@ names them; `init` fetches the one a project asks for.
   per-agent grant; `routing.mjs` generates the root `AGENTS.md` index
   from the agents' and skills' own frontmatter; `claude-md-merge.mjs`
   safely merges a core's CLAUDE.md section into a repo's hand-written
-  root instructions file (adoption case). `version.mjs` owns
+  root instructions file (adoption case), run by `core install`. `version.mjs` owns
   payload-staleness detection: `init` and `update` stamp the version they
   wrote into `.hedgehog/version.json`, and that stamp is compared against
   the newest published release. See

@@ -45,6 +45,13 @@ At the package root:
     (`CLAUDE.core.md`).
   - `workspace` — path to the scaffold (e.g. `workspace/`). Omitted by a
     core that scaffolds nothing (`authored`, `adopted`).
+
+  `init --core <name>` lands these pieces at install time. A project whose
+  `init` named no core gets them from `hedgehog core install <name>`,
+  which `bootstrap` runs for the core `planner` chose: the same agents,
+  skills, vendored shelves and workspace, the `template` section filled
+  into every installed host's instructions file, and the record `update`
+  reads. `hedgehog core record-adopted` is its alias for `adopted`.
   - `agents`, `skills`, `vendor_skills` — lists naming `agents/<name>.md`,
     `skills/<name>/`, and `vendor-skills/<name>/` inside the package.
   - `engine` — a caret range over a three-part version (e.g. `"^5.0.0"`)
@@ -61,6 +68,10 @@ At the package root:
   the shape `src/db/core.mjs` loads for an authored core. This turns the
   core's build order into something `hedgehog verify` can gate on
   mechanically, rather than a convention an agent is asked to follow.
+  `hedgehog core check [path]` loads and lints one, and `hedgehog core
+  show [--json]` prints the one a project resolves; a core's skills run
+  these commands rather than importing engine modules by path, which a
+  consuming project does not have.
   A layer may also carry `requires: [<binary>, ...]`, naming a system
   binary — Docker, Terraform, a database CLI — that its `verify` command
   needs beyond what the workspace's package manager installs. JS/TS
