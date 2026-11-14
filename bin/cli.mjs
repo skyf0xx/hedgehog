@@ -107,7 +107,8 @@ import {
   formatReconciliations,
   RECONCILED_DIR,
 } from '../src/db/reconcile.mjs';
-import { NOOP_DIR } from '../src/db/noop.mjs';
+import { NOOP_DIR, loadNoopRecords } from '../src/db/noop.mjs';
+import { writeReopenedRecords, clearReopenedRecord, REOPENED_DIR } from '../src/db/reopened.mjs';
 import { runFastpath, loadFastpaths, orphanedFastpathTasks, FASTPATH_DIR } from '../src/db/fastpath.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
@@ -2701,7 +2702,9 @@ async function verifyCommand(args) {
   }
 
   console.log(`${green(bold('Verified.'))} Task ${bold(taskId)} is now ${bold('complete')}.`);
-  if (result.noop) {
+  if (result.noop && result.verifyRan) {
+    console.log(`  ${dim('no-op — verify command passed; nothing in scope to commit')}`);
+  } else if (result.noop) {
     console.log(`  ${dim('no-op — nothing in scope to verify or commit')}`);
   } else if (result.commitSha) {
     console.log(`  ${dim('commit')}  ${result.commitSha}`);
@@ -2984,6 +2987,24 @@ async function retryCommand(args) {
 // a complete task does, transitively, for everything built on top of it
 // — that's consequential enough to need the caller to say so explicitly
 // rather than default to it.
+// Whether each reopened task's earlier close ran its verify command: a
+// passed verifications row, a no-op record's `verify_ran`, or otherwise a
+// commit close. A reconciled or fast-pathed task closed with no verify
+// run. See src/db/reopened.mjs for how verify uses the answer.
+async function reopenedRecordsFor(db, taskIds) {
+  const noopRecords = await loadNoopRecords();
+  const reconciled = await loadReconciliations();
+  const fastpathed = new Set([...(await loadFastpaths()).values()].flatMap((r) => r.tasks));
+  const passed = db.prepare("SELECT 1 FROM verifications WHERE task_id = ? AND status = 'passed'");
+  return taskIds.map((task) => {
+    let verifyRan;
+    if (passed.get(task) !== undefined) verifyRan = true;
+    else if (noopRecords.has(task)) verifyRan = noopRecords.get(task).verify_ran;
+    else verifyRan = !reconciled.has(task) && !fastpathed.has(task);
+    return { task, verify_ran: verifyRan };
+  });
+}
+
 async function reopenCommand(args) {
   await ensureDb();
 
@@ -3014,8 +3035,10 @@ async function reopenCommand(args) {
 
   const db = openDb();
   let result;
+  let reopenedRecords = [];
   try {
     result = reopenTask(db, taskId);
+    if (result.reopened) reopenedRecords = await reopenedRecordsFor(db, result.reopenedIds);
   } finally {
     db.close();
   }
@@ -3032,10 +3055,15 @@ async function reopenCommand(args) {
     return;
   }
 
+  await writeReopenedRecords(reopenedRecords);
+
   console.log(
     `${green(bold('Reopened.'))} ${bold(result.reopenedIds.length)} task(s) back to ${bold('planned')}: ${result.reopenedIds.join(', ')}`,
   );
   console.log(`  ${dim('claim the fix with')}  hedgehog claim ${taskId} --owner <owner>`);
+  console.log(
+    `  ${bold('Commit')} ${REOPENED_DIR}/ ${dim('— it keeps these tasks open across `hedgehog db rebuild` until each verifies again.')}`,
+  );
   if (result.stillInFlight.length > 0) {
     console.log(
       `\n${yellow(bold('Downstream, not reopened'))} (not complete — nothing shipped yet to invalidate):`,
@@ -3045,7 +3073,7 @@ async function reopenCommand(args) {
     }
   }
   console.log(
-    `\n${dim('Hand-committing the fix instead of running it through')} ${bold('hedgehog verify')}${dim('? Reconcile graph state afterward with')} ${bold('hedgehog db rebuild')}${dim('.')}`,
+    `\n${dim('Hand-committing the fix instead of running it through')} ${bold('hedgehog verify')}${dim('? Credit each reopened task afterward with')} ${bold('hedgehog reconcile confirm <task-id> --reason "<why>"')}${dim('.')}`,
   );
 }
 
@@ -3919,6 +3947,7 @@ async function reconcileCommand(args) {
       db.close();
     }
 
+    await clearReopenedRecord(result.record.task);
     const file = `${RECONCILED_DIR}/${result.record.task.toLowerCase()}.json`;
     console.log(`  ${green('complete')}  ${bold(result.record.task)} ${dim('(reconciled, not verified)')}`);
     console.log(`  ${green('recorded')}  ${file}`);
@@ -4038,6 +4067,7 @@ async function fastpathCommand(args) {
     db.close();
   }
 
+  for (const taskId of result.record.tasks) await clearReopenedRecord(taskId);
   const file = `${FASTPATH_DIR}/${result.record.intent.toLowerCase()}.json`;
   console.log(
     `  ${green('complete')}  ${bold(result.record.intent)} ${dim(`(${result.record.tasks.length} task(s), fast-pathed, not per-layer verified)`)}`,

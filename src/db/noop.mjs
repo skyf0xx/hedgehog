@@ -1,6 +1,6 @@
 // `.hedgehog/noop/<task-id>.json` — the committed record behind a task
 // verify.mjs closes `complete` without a git commit, because its scope had
-// nothing left to touch before verify_command even ran.
+// nothing to touch (whether or not verify_command ran — see verify.mjs).
 //
 // A completed task is normally recoverable on `hedgehog db rebuild`
 // because its own commit's subject matches its `commit_message`
@@ -9,9 +9,14 @@
 // hand-written commit that doesn't match — this file is the committed
 // source rebuild.mjs replays instead.
 //
-// One file per task, written once: a task closes as a no-op at most once,
-// the same reason reconcile.mjs's record refuses to overwrite rather than
-// growing like notes.mjs's does.
+// `verify_ran` says whether verify_command ran on that close. A reopened
+// task re-runs its command on an empty re-verification only when an
+// earlier close ran it (reopened.mjs).
+//
+// One file per task. A task reopened by `hedgehog reopen` can close as a
+// no-op again; that rewrite refreshes the same record's `verified_at`
+// rather than adding a second one. A file at that path naming a different
+// task is refused.
 
 import { readdir, readFile, mkdir, writeFile, rename, rm } from 'node:fs/promises';
 
@@ -40,7 +45,10 @@ function validateNoop(record, path) {
     throw new Error(`${path}: no-op record "${task}" requires a "verified_at" timestamp (string)`);
   }
 
-  return { task, commit_message: commitMessage, verified_at: verifiedAt };
+  // Absent on a record from a close that never ran verify_command.
+  const verifyRan = record.verify_ran === true;
+
+  return { task, commit_message: commitMessage, verified_at: verifiedAt, verify_ran: verifyRan };
 }
 
 // Every *.json in `noopDir`, validated, as a Map from task id to its
@@ -72,19 +80,29 @@ export async function loadNoopRecords(noopDir = NOOP_DIR) {
 
 // Writes one no-op record via temp file + rename, so a crash mid-write
 // never leaves a half-written file for loadNoopRecords to trip on —
-// reconcile.mjs#writeReconciledFile's pattern, applied to the same
-// one-shot-per-task shape.
+// reconcile.mjs#writeReconciledFile's pattern, one file per task.
 //
-// Refuses to overwrite silently: a task closes no-op once, and a second
-// attempt for the same id is a wrong id or a re-run worth stopping for,
-// not a second distinct fact.
+// An existing record for the same task is replaced (a re-verification
+// after `hedgehog reopen`); an existing file that is unreadable or names a
+// different task is refused.
 export async function writeNoopFile(record, noopDir = NOOP_DIR) {
   const path = noopFilePath(record.task, noopDir);
+  let existing;
   try {
-    await readFile(path, 'utf8');
-    throw new Error(`${path} already exists — ${record.task} is already recorded as a no-op completion.`);
+    existing = await readFile(path, 'utf8');
   } catch (err) {
     if (!err || err.code !== 'ENOENT') throw err;
+  }
+  if (existing !== undefined) {
+    let existingTask;
+    try {
+      existingTask = validateNoop(JSON.parse(existing), path).task;
+    } catch (err) {
+      throw new Error(`${path} already exists and is not a valid no-op record: ${err.message}`, { cause: err });
+    }
+    if (existingTask !== record.task.toUpperCase()) {
+      throw new Error(`${path} already exists and records ${existingTask}, not ${record.task}.`);
+    }
   }
 
   await mkdir(noopDir, { recursive: true });
@@ -97,6 +115,19 @@ export async function writeNoopFile(record, noopDir = NOOP_DIR) {
     throw err;
   }
   return record;
+}
+
+// The validated record for `taskId`, or null when it has none.
+export async function loadNoopRecord(taskId, noopDir = NOOP_DIR) {
+  const path = noopFilePath(taskId, noopDir);
+  let raw;
+  try {
+    raw = await readFile(path, 'utf8');
+  } catch (err) {
+    if (err?.code === 'ENOENT') return null;
+    throw err;
+  }
+  return validateNoop(JSON.parse(raw), path);
 }
 
 // No-op-record task ids matching no row in `tasks` — same read-side
