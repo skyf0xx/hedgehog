@@ -6,27 +6,34 @@ description: Use when uncommitted changes need to be split into atomic, conventi
 # Conventional Commits
 
 Turn uncommitted changes into a series of atomic, conventional commits
-ordered for review, using Hedgehog's commit vocabulary (`hedgehog-loop`).
+ordered for review, using the commit subjects of the installed core.
+
+The installed core owns the build steps: each layer in `.hedgehog/core.yaml`
+declares a `commit` subject, and `hedgehog core show` prints the layer
+sequence with those subjects in build order. `hedgehog verify <task-id>`
+commits a task under its layer's subject. Read step names and order from
+there; the names in this skill's examples come from one core
+(`full-stack-app`) and illustrate the shape only.
 
 ## When this runs
 
-Normally the Loop commits one step at a time as it goes — schema, then
-contract, then repository, and so on — so there's nothing to clean up.
+Normally the Loop commits one step at a time as it goes, in the core's
+layer order, so there's nothing to clean up.
 This skill is for when that didn't happen cleanly:
 
 - A **Correction Protocol** fix touched an upstream step and several
   fast-forwarded dependents in one working-tree pass, needing to land as
-  separate commits (one per step, per the Correction Protocol's own
-  rule).
+  separate commits (one per step, per the Correction Protocol in
+  `hedgehog-orchestrating`).
 - Work happened outside the Loop's discipline (exploratory changes, a
   session that didn't commit as it went) and needs reconstructing into
   the step-shaped history Hedgehog expects.
 
 ## What "atomic" means here
 
-One commit = one build step, where that applies (one schema, one
-contract, one repository, etc.) — not one file. A single step may span
-several files (a Drizzle schema + its migration, a service + its test).
+One commit = one build step, where that applies (one layer of one module)
+— not one file. A single step may span several files (for example, a
+schema + its migration, or a service + its test).
 If work doesn't map onto a build step (tooling, config, docs), fall back
 to normal atomic-commit judgment: one logical change per commit.
 
@@ -50,14 +57,14 @@ changes you haven't read.
 ### 2. Group hunks into logical commits
 
 For each hunk, ask: *which build step is this part of, for which module?*
-Group by step first, module second. A hunk in the `orders` schema and a
-hunk in the `orders` repository are different commits even though both
-are "orders" — different steps.
+Group by step first, module second. In a core with `schema` and `repository` layers, a hunk in the `orders`
+schema and a hunk in the `orders` repository are different commits even
+though both are "orders" — different steps.
 
-Group together: a schema change with its Drizzle migration; a service
-with its unit test (tests land with the step they test, not a trailing
-"add tests" commit); config/tooling changes (lefthook, eslint boundaries,
-env schema) isolated from any domain step.
+Group together: a schema change with its migration; a service with its
+unit test (tests land with the step they test, not a trailing "add
+tests" commit); config/tooling changes (hooks, lint boundaries, env
+schema) isolated from any domain step.
 
 Keep separate: different build steps, even for the same module; a
 Correction Protocol fix from the unrelated new work it landed alongside;
@@ -65,9 +72,10 @@ different modules' changes.
 
 ### 3. Order the commits for review
 
-1. **Build-sequence order.** Schema before contract, contract before
-   repository, repository before service, service before controller —
-   the same dependency order the Loop builds in.
+1. **Build-sequence order.** The core's layer order from `hedgehog core
+   show` (each layer's `depends_on` chain) — the same dependency order
+   the Loop builds in. In `full-stack-app` that is schema, contract,
+   repository, service, controller.
 2. **Upstream fix before its fast-forwarded dependents**, for a
    Correction Protocol cleanup — the fix commit needs to make sense
    before the commits that changed because of it.
@@ -75,8 +83,8 @@ different modules' changes.
 
 ### 4. Propose the plan, then execute
 
-Output the plan as a numbered list using Hedgehog's commit format before
-committing anything:
+Output the plan as a numbered list using the core's commit subjects before
+committing anything (example from `full-stack-app`):
 
 ```
 feat(orders): schema
@@ -94,7 +102,7 @@ Then execute each commit:
 - Commit with the conventional message.
 - Verify clean state with `git status` before the next commit.
 
-If a pre-commit hook (lefthook: typecheck/lint/test) fails: fix the
+If a pre-commit hook (the project's typecheck/lint/test gate) fails: fix the
 issue, re-stage, create a NEW commit — a commit that fails the gate did
 not happen, so amending would rewrite the wrong thing (see Hard rules).
 
@@ -109,10 +117,11 @@ not happen, so amending would rewrite the wrong thing (see Hard rules).
 - **scope**: the domain module name (`orders`, `users`, ...) for a build
   step, or an infra area (`db`, `contracts`, `auth`, `hooks`, `api`,
   `worker`, `web`, `mobile`, `config`) for bootstrap/tooling commits.
-- **subject** for a build step: the step name itself — `schema`,
-  `contract`, `repository`, `service`, `api`, `queue`, `hooks`,
-  `screen-web` — matching `hedgehog-loop`'s step tables exactly. For
-  non-step commits, imperative and lowercase, under ~70 chars.
+- **subject** for a build step: the layer's `commit` subject from the
+  installed core's `core.yaml`, with `{module}` filled in (`full-stack-app`
+  example: `schema`, `contract`, `repository`, `service`, `api`), matching
+  it exactly. For non-step commits, imperative and lowercase, under ~70
+  chars.
 - Body only when the *why* is non-obvious — for a Correction Protocol
   commit, the body is the explanation ("the commit messages are the
   explanation").
