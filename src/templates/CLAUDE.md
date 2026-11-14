@@ -106,7 +106,8 @@ taking the faster path.
 The build graph is the source of truth for what's next — never re-derive
 build state from prose. The `hedgehog-orchestrating` skill owns the claim →
 dispatch → verify cycle, the intent check, debt and decision recording, the
-context boundaries to clear at, and the post-build handoff. Read it at the
-start of every session and follow it.
+Friction log, the Correction Protocol, the Stop Condition and post-build
+handoff, and the context boundaries to clear at. Read it at the start of
+every session and follow it.
 
 {{HOST_DISPATCH}}
