@@ -1,29 +1,19 @@
 // Which core package a project installed, and at which version.
 //
-// `init` records it so `update` can refresh that core's agents and skills
-// from the same package without being told which core the project is on.
-// A project whose core was chosen at planning intake rather than at
-// install time has nothing recorded until its bootstrap-core skill lands
-// the core — `installedCore` returns null until then, and `update` limits
-// itself to the shared payload.
+// `init` records it when it names a core, and `hedgehog core install`
+// (bin/cli.mjs) records it when the core is chosen later: at planning
+// intake, where `bootstrap` installs planner's choice, or by
+// `hedgehog-adopt` through its `core record-adopted` alias. `update` reads
+// the record to refresh that core's agents and skills from the same
+// package without being told which core the project is on, and
+// `installedCore` returns null until one is recorded, in which case
+// `update` limits itself to the shared payload.
 //
-// `adopted` has no `init` step at all: `hedgehog-adopt` (shipped in
-// @skyf0xx/hedgehog-core-adopted) brings the discipline to a repo that
-// already exists by writing `.hedgehog/core.yaml` itself, directly, and
-// never calls `recordCore`. `hedgehog core record-adopted` (bin/cli.mjs)
-// is the record path for that case instead: it fetches the `adopted`
-// package and lands its agents/skills — otherwise never installed, since
-// adoption's `init` runs with no `--core` flag and `bootstrap` is skipped
-// entirely for adoption — and calls `recordCore` the same as any other
-// core, naming `adopted`. That name is the one thing distinguishing an
-// adopted record from a normal one: `update`'s resolveInstalledCore
-// refreshes an adopted project's payload the same as any other (same
-// package, same agents/skills, kept current) but must never treat
-// `record.name === 'adopted'` changing upstream, or the record going
-// missing, as license to fetch and install a *different* core the way it
-// would for a project that chose one at `init` — adoption's core is a
-// fixed fact of the repo (its `.hedgehog/core.yaml`), not a choice
-// `update` gets to revisit.
+// `adopted` is recorded the same way as every other core. Its name marks
+// a project whose core is a fixed fact of the repo (its
+// `.hedgehog/core.yaml`): `update` refreshes the same package's agents and
+// skills, and never treats the record changing upstream, or going
+// missing, as license to fetch and install a different core.
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -48,9 +38,8 @@ export async function recordCore(root, { name, version }) {
 
 /**
  * The core `update` should refresh — `{ name, version }` — or null when
- * this project has no core installed yet. `name === 'adopted'` marks a
- * record written by `hedgehog core record-adopted` rather than by `init`
- * — see the module comment above.
+ * this project has no core installed yet. `name === 'adopted'` marks an
+ * adopted repo — see the module comment above.
  */
 export async function installedCore(root) {
   try {
