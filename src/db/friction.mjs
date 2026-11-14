@@ -157,11 +157,34 @@ const insertFrictionRow = (db) =>
      VALUES (?, ?, ?, ?, ?)`,
   );
 
+// BEGIN IMMEDIATE holds the write lock across the file writes, so two
+// processes syncing or adding at once cannot both see a row as missing and
+// insert it twice, or delete a row the other just inserted.
+async function withWriteLock(db, fn) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const result = await fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // Rollback failing must not mask the original error.
+    }
+    throw err;
+  }
+}
+
 // Brings the DB and the records into line without renumbering rows: a row
 // in `datetime('now')` form with no record gets one written, an ISO row
 // with no record is deleted, and a record with no row gets one inserted
 // (a record that arrived by `git pull` or a worktree carry).
-export async function syncFrictionRecords(db, frictionDir = FRICTION_DIR) {
+export function syncFrictionRecords(db, frictionDir = FRICTION_DIR) {
+  return withWriteLock(db, () => syncUnlocked(db, frictionDir));
+}
+
+async function syncUnlocked(db, frictionDir) {
   const records = await loadFrictionRecords(frictionDir);
   const rowKeys = new Set();
   const deleteRow = db.prepare('DELETE FROM friction WHERE id = ?');
@@ -187,24 +210,25 @@ export async function syncFrictionRecords(db, frictionDir = FRICTION_DIR) {
   }
 }
 
-// Rows in `datetime('now')` form with no record, read before rebuild
-// clears anything, so replayFriction can keep them. Each keeps the task_id
-// it held before the clear detached it.
-export function frictionRowsWithoutRecords(db, records) {
-  return frictionRows(db).filter(
-    (row) => hasNoRecordFormat(row.loggedAt) && !records.has(frictionKey(row)),
-  );
+// What rebuild needs from the table before its clear detaches every row
+// from its task: the rows in `datetime('now')` form with no record (kept
+// as they are, with their task_id), and each existing row's task_id by key.
+export function frictionBeforeClear(db, records) {
+  const rows = frictionRows(db);
+  return {
+    unrecorded: rows.filter((row) => hasNoRecordFormat(row.loggedAt) && !records.has(frictionKey(row))),
+    priorTasks: new Map(rows.map((row) => [frictionKey(row), row.taskId])),
+  };
 }
 
 // Replaces the `friction` table with `records` plus `unrecorded` rows, in
-// logged_at order. An entry whose task is not in the rebuilt graph is kept
-// with a null task_id and returned as orphaned; its record is rewritten
-// with the null task, so the next rebuild does not report it again.
-export async function replayFriction(db, records, unrecorded = []) {
-  const entries = [
-    ...[...records.values()].map(({ path, entry }) => ({ ...entry, path })),
-    ...unrecorded,
-  ].sort(byLoggedAt);
+// logged_at order. Records are only read: an entry whose task is not in the
+// rebuilt graph gets a null task_id in the DB and keeps its task in the
+// record, so it re-attaches when the task returns. It is reported as
+// orphaned only when its row had a task before this rebuild (or there was
+// no row), so a repeat rebuild of the same DB stays quiet.
+export function replayFriction(db, records, { unrecorded = [], priorTasks = new Map() } = {}) {
+  const entries = [...[...records.values()].map(({ entry }) => entry), ...unrecorded].sort(byLoggedAt);
   const taskExists = db.prepare('SELECT 1 FROM tasks WHERE id = ?');
   const insert = insertFrictionRow(db);
   const orphaned = [];
@@ -212,20 +236,26 @@ export async function replayFriction(db, records, unrecorded = []) {
   for (const entry of entries) {
     let taskId = entry.taskId ?? null;
     if (taskId && taskExists.get(taskId) === undefined) {
-      orphaned.push({ kind: 'friction', taskId, note: entry.note });
+      const key = frictionKey(entry);
+      if (!priorTasks.has(key) || priorTasks.get(key) != null) {
+        orphaned.push({ kind: 'friction', taskId, note: entry.note });
+      }
       taskId = null;
-      if (entry.path) await writeFrictionRecord({ ...entry, taskId: null }, entry.path);
     }
     insert.run(taskId, entry.note, entry.loggedAt, entry.resolvedAt ?? null, entry.resolvedReason ?? null);
   }
   return orphaned;
 }
 
+const RECORD_PATH = new RegExp(`^${FRICTION_DIR.replace(/[.]/g, '\\.')}/[^/]+\\.json$`);
+
 // Copies the friction records that are untracked or modified in the
 // checkout at `fromRoot` into the one at `toRoot`, then restores
 // `fromRoot`'s copies so its tree is clean for `git worktree remove`. A
 // record present on both sides keeps trunk's copy unless only the incoming
-// one is resolved. Returns the carried paths.
+// one is resolved. Only `*.json` directly under FRICTION_DIR is carried; a
+// file that does not parse as a record is left in place and reported.
+// Returns { carried, skipped: [{ path, error }] }.
 export async function carryFrictionRecords(fromRoot, toRoot) {
   const status = execFileSync(
     'git',
@@ -233,15 +263,30 @@ export async function carryFrictionRecords(fromRoot, toRoot) {
     { cwd: fromRoot, encoding: 'utf8', stdio: 'pipe' },
   );
   const carried = [];
+  const skipped = [];
   for (const line of status.split('\n')) {
     if (!line.trim()) continue;
     const code = line.slice(0, 2);
     const path = line.slice(3);
-    if (!path.endsWith('.json') || code.includes('D')) continue;
+    if (!RECORD_PATH.test(path) || code.includes('D')) continue;
 
-    const incoming = await readFrictionRecord(join(fromRoot, path));
+    let incoming;
+    try {
+      incoming = await readFrictionRecord(join(fromRoot, path));
+    } catch (err) {
+      skipped.push({ path, error: err.message });
+      continue;
+    }
     const target = join(toRoot, path);
-    const existing = existsSync(target) ? await readFrictionRecord(target) : null;
+    let existing = null;
+    if (existsSync(target)) {
+      try {
+        existing = await readFrictionRecord(target);
+      } catch (err) {
+        skipped.push({ path, error: err.message });
+        continue;
+      }
+    }
     if (!existing || (incoming.resolvedAt && !existing.resolvedAt)) {
       await writeFrictionRecord(incoming, target);
     }
@@ -260,7 +305,7 @@ export async function carryFrictionRecords(fromRoot, toRoot) {
       await rm(join(fromRoot, path), { force: true });
     }
   }
-  return carried;
+  return { carried, skipped };
 }
 
 // Writes one friction entry: committed record first, then the DB row, so a
@@ -270,19 +315,21 @@ export async function carryFrictionRecords(fromRoot, toRoot) {
 // moved forward a millisecond at a time until the key is free.
 export async function addFriction(db, { note, taskId }, frictionDir = FRICTION_DIR) {
   if (!note) throw new Error('friction requires a note');
-  await syncFrictionRecords(db, frictionDir);
+  return withWriteLock(db, async () => {
+    await syncUnlocked(db, frictionDir);
 
-  let time = Date.now();
-  const entryAt = (ms) => ({ taskId: taskId ?? null, note, loggedAt: new Date(ms).toISOString() });
-  while (existsSync(`${frictionDir}/${frictionKey(entryAt(time))}.json`)) time++;
-  const entry = entryAt(time);
+    let time = Date.now();
+    const entryAt = (ms) => ({ taskId: taskId ?? null, note, loggedAt: new Date(ms).toISOString() });
+    while (existsSync(`${frictionDir}/${frictionKey(entryAt(time))}.json`)) time++;
+    const entry = entryAt(time);
 
-  await writeFrictionRecord(entry, null, frictionDir);
-  const result = db
-    .prepare('INSERT INTO friction (task_id, note, logged_at) VALUES (?, ?, ?)')
-    .run(entry.taskId, note, entry.loggedAt);
+    await writeFrictionRecord(entry, null, frictionDir);
+    const result = db
+      .prepare('INSERT INTO friction (task_id, note, logged_at) VALUES (?, ?, ?)')
+      .run(entry.taskId, note, entry.loggedAt);
 
-  return { id: Number(result.lastInsertRowid), taskId: entry.taskId, note };
+    return { id: Number(result.lastInsertRowid), taskId: entry.taskId, note };
+  });
 }
 
 // Every friction row, oldest first. Resolved rows are excluded by default

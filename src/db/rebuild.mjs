@@ -21,10 +21,9 @@
 // trunk's graph from what merged, exactly as it would for a fresh clone.
 // No DB row is ever copied between databases.
 //
-// A rebuild READS the permanent record. Its one write is to a friction
-// record whose task is gone, which replayFriction rewrites with a null
-// task (friction.mjs). Intent replay goes through `insertIntentRows`, not
-// `addIntent`, so no intent file is touched even on a failed run. That matters because this path also
+// A rebuild READS the permanent record. It never writes it: replay goes
+// through `insertIntentRows`, not `addIntent`, so no intent file is
+// touched even on a failed run, and friction records are only read. That matters because this path also
 // fires automatically when the DB is missing (bin/cli.mjs#ensureDb) — a
 // user who never typed `db rebuild` must not be able to lose planning to
 // it.
@@ -46,7 +45,7 @@ import {
 import { loadNotes, NOTES_DIR } from './notes.mjs';
 import {
   loadFrictionRecords,
-  frictionRowsWithoutRecords,
+  frictionBeforeClear,
   replayFriction,
   FRICTION_DIR,
 } from './friction.mjs';
@@ -600,11 +599,12 @@ export async function rebuildDb(
 ) {
   applySchema(db);
 
-  // Read before the clear, which detaches every row from its task. A row in
-  // `datetime('now')` form with no record has no other source, so it is
-  // carried across (friction.mjs).
+  // Read before the clear, which detaches every row from its task: a row in
+  // `datetime('now')` form with no record has no other source and is
+  // carried across, and each row's prior task decides whether a missing
+  // task is reported again (friction.mjs#replayFriction).
   const frictionRecords = await loadFrictionRecords(frictionDir);
-  const unrecordedFriction = frictionRowsWithoutRecords(db, frictionRecords);
+  const frictionPrior = frictionBeforeClear(db, frictionRecords);
 
   clearDerivedGraph(db);
 
@@ -689,7 +689,7 @@ export async function rebuildDb(
 
   const orphanedNotes = [
     ...replayNotes(db, notesByTask),
-    ...(await replayFriction(db, frictionRecords, unrecordedFriction)),
+    ...replayFriction(db, frictionRecords, frictionPrior),
   ];
 
   // After planTasks and markCompletedTasks, not before: an abandoned

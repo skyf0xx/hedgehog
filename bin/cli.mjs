@@ -479,8 +479,8 @@ function warnRebuildDrift({ drift }, corePath) {
 // friction from `.hedgehog/friction/`, re-attaching each by task id. A
 // note whose task is no longer in the recompiled graph — its intent file
 // was renamed, deleted, or its layer sequence changed — has nowhere to
-// re-attach. Friction is kept unattached (its task_id is nullable, and its
-// record is rewritten without the task, so it is reported once); debt and
+// re-attach. Friction is kept unattached (its task_id is nullable; its
+// record keeps the task, so it re-attaches if the task returns); debt and
 // decision notes are not replayed, so all three are printed with their
 // text rather than disappearing into a count.
 function warnOrphanedNotes({ orphanedNotes }) {
@@ -3921,7 +3921,10 @@ async function mergeCommand(args) {
   // Friction logged in the worktree is an untracked file there that verify
   // never commits; without this it is lost and blocks `git worktree remove`.
   try {
-    const carried = await carryFrictionRecords(worktree.path, process.cwd());
+    const { carried, skipped } = await carryFrictionRecords(worktree.path, process.cwd());
+    for (const { path, error } of skipped) {
+      console.error(`${yellow('Friction record not carried:')} ${path} — ${error}`);
+    }
     if (carried.length > 0) {
       console.log(`  ${green('carried')}  ${carried.length} friction record(s) from the worktree ${dim('— commit them on trunk')}`);
     }
@@ -4093,7 +4096,10 @@ async function abandonCommand(args) {
   if (worktree) {
     // Friction is about the process, not the dropped code, so it is kept.
     try {
-      const carried = await carryFrictionRecords(worktree.path, process.cwd());
+      const { carried, skipped } = await carryFrictionRecords(worktree.path, process.cwd());
+      for (const { path, error } of skipped) {
+        console.error(`${yellow('Friction record not carried:')} ${path} — ${error}`);
+      }
       if (carried.length > 0) {
         const trunkDb = openDb();
         try {
