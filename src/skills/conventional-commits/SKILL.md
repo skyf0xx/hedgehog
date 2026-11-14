@@ -8,12 +8,12 @@ description: Use when uncommitted changes need to be split into atomic, conventi
 Turn uncommitted changes into a series of atomic, conventional commits
 ordered for review, using the commit subjects of the installed core.
 
-The installed core owns the build steps: each layer in `.hedgehog/core.yaml`
-declares a `commit` subject, and `hedgehog core show` prints the layer
-sequence with those subjects in build order. `hedgehog verify` (run with
-`--owner <owner>`) commits a task under its layer's subject. Read step names and order from
-there; the names in this skill's examples come from one core
-(`full-stack-app`) and illustrate the shape only.
+The installed core owns the build steps: each layer in the core's
+`core.yaml` declares a `commit` subject, and `hedgehog core show` prints
+the layer sequence with those subjects in build order. `hedgehog verify`
+(run with `--owner <owner>`) commits a task under its layer's subject.
+Read step names and order from there; the names in this skill's examples
+come from one core (`full-stack-app`) and illustrate the shape only.
 
 ## When this runs
 
