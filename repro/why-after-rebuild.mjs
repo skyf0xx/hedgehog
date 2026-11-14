@@ -32,6 +32,9 @@ try {
 
   const none = cli(dir, ['why', 'other.txt']);
   checkContains('untraceable path says no commit matches', none.stdout, 'no commit touching this path matches');
+
+  const outside = cli(dir, ['why', '../outside-path']);
+  checkContains('git failure is not reported as no-match', outside.stdout, 'git history could not be read');
 } finally {
   cleanup(dir);
 }

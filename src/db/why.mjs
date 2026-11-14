@@ -66,13 +66,18 @@ function traceTask(db, task, artifact, commit = null) {
 function traceFromGit(db, path, cwd) {
   let out;
   try {
-    out = execFileSync('git', ['log', '--format=%H%x00%s', '--', path], {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
+    out = execFileSync(
+      'git',
+      ['--literal-pathspecs', 'log', '--follow', '--format=%H%x00%s', '--', path],
+      {
+        cwd,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        maxBuffer: 16 * 1024 * 1024,
+      },
+    );
   } catch {
-    return [];
+    return Object.assign([], { gitFailed: true });
   }
   const byMessage = db.prepare('SELECT * FROM tasks WHERE commit_message = ? ORDER BY id');
   const seen = new Set();
@@ -94,7 +99,8 @@ function traceFromGit(db, path, cwd) {
 // each carrying its task, latest verification, requirements, and intent.
 // When no artifacts row exists, the chain is derived from git history
 // (entries carry `commit` and a null `artifact`). Empty array when
-// neither source names a task.
+// neither source names a task; the empty array carries `gitFailed` when
+// git itself could not be read.
 export function whyPath(db, path, cwd = process.cwd()) {
   const rows = loadArtifacts(db, path);
   if (rows.length > 0) return rows.map((artifact) => traceArtifact(db, artifact));
@@ -115,6 +121,12 @@ function formatVerification(verification) {
 // repo — the graph is change-scoped and never backfills code that
 // predates adoption — so the message says that plainly.
 export function formatWhy(path, chain) {
+  if (chain.length === 0 && chain.gitFailed) {
+    return (
+      `${path}\n  (no artifact row, and git history could not be read to look ` +
+      `for a task's commit)`
+    );
+  }
   if (chain.length === 0) {
     return (
       `${path}\n  (no artifact row and no commit touching this path matches a task's ` +
