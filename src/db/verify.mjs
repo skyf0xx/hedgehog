@@ -25,19 +25,27 @@
 //      lease released. This is a scope violation, not a failing check.
 //   2. Once every touched path matches scope, gate 1's own scan already
 //      knows whether this task's scope has anything touched at all. If
-//      not — a genuine no-op, the layer's work already satisfied upstream
-//      — verify_command never runs and no commit is made: the task closes
-//      `complete` directly, and a committed record under `.hedgehog/noop/`
+//      not, and the task's check covers only its own edits (a layer that
+//      is not `exclusive`, declares no `verify_radius`, and has never
+//      closed `complete` before — see checksBeyondOwnEdits), verify_command
+//      never runs and no commit is made: the task closes `complete`
+//      directly as a no-op, and a committed record under `.hedgehog/noop/`
 //      is what `hedgehog db rebuild` replays to recover it (noop.mjs),
 //      since there is no commit for rebuild to match against.
 //      Otherwise verify_command runs. Exit 0: verifications row (passed)
-//      → artifacts recorded → git commit with commit_message → complete,
-//      lease released → direct dependents re-evaluated (a dependent is
-//      ready once every dependency is complete — same check as the
-//      readiness SELECT in next.mjs).
+//      → artifacts recorded → git commit with commit_message (or, when
+//      scope is still untouched, the no-op record instead of a commit) →
+//      complete, lease released → direct dependents re-evaluated (a
+//      dependent is ready once every dependency is complete — same check
+//      as the readiness SELECT in next.mjs).
 //      Nonzero: verifications row (failed, output retained) → blocked
 //      with blocked_reason `verification_failed`, lease released,
 //      dependents stay blocked.
+//
+// An error thrown after Phase 0 leaves the task `blocked` with
+// `verification_failed`, the same place a failing verify_command does, so
+// `hedgehog retry` reaches it. The one exception is a failed commit, which
+// rolls the task back to `building` instead (see rollbackToBuilding).
 //
 // The commit lock (commitLock.mjs, backed by the gitignored `.hedgehog/
 // commit.lock`) wraps gate 1's diff read and, separately, gate 2's
@@ -68,7 +76,8 @@ import { reapExpiredLeases, pathFingerprint } from './claim.mjs';
 import { ensureTaskColumns } from './schema.mjs';
 import { composeScope } from './overrides.mjs';
 import { FASTPATH_DIR } from './fastpath.mjs';
-import { writeNoopFile } from './noop.mjs';
+import { writeNoopFile, hasNoopRecord } from './noop.mjs';
+import { hasReopenedRecord, clearReopenedRecord } from './reopened.mjs';
 import { isEngineStatePath as isEngineStatePathShared } from './engineState.mjs';
 
 // The build graph file, the commit lock, the star-prompt state file, and
@@ -439,15 +448,108 @@ function claimForVerify(db, taskId, owner) {
   return { ...task, status: 'verifying' };
 }
 
+// True when this task's verify_command has to run even with nothing in
+// its own scope touched, because the check covers more than the task's
+// own edits: an `exclusive` layer (a join whose workspace-wide check is
+// the only gate that sees cross-module breakage), a layer that declares a
+// `verify_radius` wider than its scope, or a re-verification of a task
+// that has closed `complete` before (`hedgehog reopen`, or a once-layer
+// reopened by `hedgehog plan`). The prior-completion signals are a
+// passed verifications row, a no-op record, and a reopen record; the two
+// records are committed, so the answer survives `hedgehog db rebuild`.
+//
+// A plain layer seeing its scope untouched for the first time is the one
+// case that skips the command: its module is outside this intent, and its
+// command may have nothing to run against (a test filter matching no
+// files exits nonzero).
+async function checksBeyondOwnEdits(db, task) {
+  if (task.exclusive || task.verify_radius != null) return true;
+  const passed = db
+    .prepare("SELECT 1 FROM verifications WHERE task_id = ? AND status = 'passed'")
+    .get(task.id);
+  if (passed !== undefined) return true;
+  return (await hasNoopRecord(task.id)) || (await hasReopenedRecord(task.id));
+}
+
+// Moves a task still `verifying` to `blocked` / `verification_failed`,
+// releasing its lease. Returns true when it moved the task. A task some
+// earlier step already moved (rollbackToBuilding) is left alone.
+function blockIfStillVerifying(db, taskId) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const task = loadTask(db, taskId);
+    const moved = task?.status === 'verifying';
+    if (moved) setTaskStatus(db, taskId, 'blocked', { blockedReason: 'verification_failed' });
+    db.exec('COMMIT');
+    return moved;
+  } catch {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // Rollback failing must not mask the original error.
+    }
+    return false;
+  }
+}
+
+// Closes `task` complete with no commit: writes the no-op record that
+// `hedgehog db rebuild` replays in place of a commit (noop.mjs,
+// rebuild.mjs#replayNoopRecords), records the verify_command run when
+// one happened, and clears any reopen record.
+async function closeAsNoop(db, task, verification) {
+  const verifiedAt = new Date().toISOString();
+  await writeNoopFile({ task: task.id, commit_message: task.commit_message, verified_at: verifiedAt });
+
+  let unlocked;
+  let completedIntent;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (verification) {
+      insertVerification(db).run(
+        task.id,
+        task.verify_command,
+        verification.exitCode,
+        verification.output,
+        'passed',
+      );
+    }
+    setTaskStatus(db, task.id, 'complete');
+    unlocked = unlockReadyDependents(db, task.id);
+    completedIntent = completeIntentIfDone(db, task.intent_id);
+    db.exec('COMMIT');
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // Rollback failing must not mask the original error.
+    }
+    throw err;
+  }
+  await clearReopenedRecord(task.id);
+
+  return {
+    outcome: 'complete',
+    exitCode: verification?.exitCode ?? null,
+    output: verification?.output ?? null,
+    commitSha: null,
+    noop: true,
+    verifyRan: verification !== null,
+    unlocked,
+    intentComplete: completedIntent !== null,
+    completedIntent: completedIntent ?? null,
+  };
+}
+
 // Runs the full verify flow for `taskId`, held by `owner`'s lease.
 // Returns a result object describing what happened:
 //   { outcome: 'scope_violation', offending: [...] }
 //   { outcome: 'failed', exitCode, output }
 //   { outcome: 'complete', exitCode, output, commitSha, unlocked: [...],
 //     intentComplete, completedIntent }
-// `completedIntent` is the intent row (id/goal/outcome) when this task
-// was the last one of its intent, else null — the CLI prints it back as
-// an INTENT CHECK.
+// A no-op close adds `noop: true` and `verifyRan` (whether verify_command
+// ran), with `commitSha` null. `completedIntent` is the intent row
+// (id/goal/outcome) when this task was the last one of its intent, else
+// null — the CLI prints it back as an INTENT CHECK.
 //
 // `overrides` (a Map from loadOverrides(), same shape recompileTasks and
 // detectDrift already take from their own callers) composes live into
@@ -463,7 +565,20 @@ function claimForVerify(db, taskId, owner) {
 // caller's behavior unchanged.
 export async function verifyTask(db, taskId, owner, overrides = new Map()) {
   const task = claimForVerify(db, taskId, owner);
+  try {
+    return await verifyClaimed(db, task, owner, overrides);
+  } catch (err) {
+    if (!blockIfStillVerifying(db, task.id)) throw err;
+    throw new Error(
+      `${err.message}\n\nTask ${task.id} is now \`blocked\` (verification_failed). ` +
+        `Fix the cause, then \`hedgehog retry ${task.id}\` returns it to \`planned\`.`,
+      { cause: err },
+    );
+  }
+}
 
+async function verifyClaimed(db, task, owner, overrides) {
+  const taskId = task.id;
   const scopeGlobs = JSON.parse(composeScope({ scope_globs: task.scope_globs }, taskId, overrides).scope_globs);
   // Gate 1 runs inside the commit lock: the diff has to see a working
   // tree no other task's commit is landing into mid-read, and the
@@ -502,45 +617,14 @@ export async function verifyTask(db, taskId, owner, overrides = new Map()) {
     return { outcome: 'scope_violation', offending };
   }
 
-  // Genuine no-op: nothing this task's scope claims has changed even
-  // before verify_command runs — the layer's work was already satisfied
-  // by an earlier layer, or this intent never touches this module at all.
-  // verify_command has nothing to check here, so it never runs, and no
-  // commit is made. The completion still needs to survive `hedgehog db
-  // rebuild`, which recovers completion from a matching commit subject;
-  // with no commit to match, the committed record under NOOP_DIR is what
-  // rebuild replays instead (see noop.mjs, rebuild.mjs#replayNoopRecords).
-  if (inScopeBeforeVerify.length === 0) {
-    const verifiedAt = new Date().toISOString();
-    await writeNoopFile({ task: task.id, commit_message: task.commit_message, verified_at: verifiedAt });
-
-    let unlocked;
-    let completedIntent;
-    db.exec('BEGIN IMMEDIATE');
-    try {
-      setTaskStatus(db, task.id, 'complete');
-      unlocked = unlockReadyDependents(db, task.id);
-      completedIntent = completeIntentIfDone(db, task.intent_id);
-      db.exec('COMMIT');
-    } catch (err) {
-      try {
-        db.exec('ROLLBACK');
-      } catch {
-        // Rollback failing must not mask the original error.
-      }
-      throw err;
-    }
-
-    return {
-      outcome: 'complete',
-      exitCode: null,
-      output: null,
-      commitSha: null,
-      noop: true,
-      unlocked,
-      intentComplete: completedIntent !== null,
-      completedIntent: completedIntent ?? null,
-    };
+  // Nothing in this task's scope has changed even before verify_command
+  // runs: the layer's work was already satisfied by an earlier layer, or
+  // this intent never touches this module. A check that covers only the
+  // task's own edits has nothing to check, so the task closes as a no-op
+  // without running it; a check that reaches further still runs below.
+  const nothingInScope = inScopeBeforeVerify.length === 0;
+  if (nothingInScope && !(await checksBeyondOwnEdits(db, task))) {
+    return closeAsNoop(db, task, null);
   }
 
   const { exitCode, output } = runVerifyCommand(task.verify_command);
@@ -584,6 +668,9 @@ export async function verifyTask(db, taskId, owner, overrides = new Map()) {
   try {
     ({ touched, kindByPath, commitSha } = withCommitLock(() => {
       const inScope = changedPaths(scopeGlobs.map((glob) => `:(glob)${glob}`));
+      if (nothingInScope && inScope.length === 0) {
+        return { touched: [], kindByPath: new Map(), commitSha: null };
+      }
       return {
         touched: inScope,
         kindByPath: classifyArtifacts(inScope),
@@ -604,6 +691,8 @@ export async function verifyTask(db, taskId, owner, overrides = new Map()) {
       { cause: err },
     );
   }
+
+  if (commitSha === null) return closeAsNoop(db, task, { exitCode, output });
 
   let unlocked;
   let completedIntent;
@@ -629,6 +718,7 @@ export async function verifyTask(db, taskId, owner, overrides = new Map()) {
     }
     throw err;
   }
+  await clearReopenedRecord(task.id);
 
   return {
     outcome: 'complete',

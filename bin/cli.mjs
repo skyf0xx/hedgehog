@@ -2670,7 +2670,9 @@ async function verifyCommand(args) {
   }
 
   console.log(`${green(bold('Verified.'))} Task ${bold(taskId)} is now ${bold('complete')}.`);
-  if (result.noop) {
+  if (result.noop && result.verifyRan) {
+    console.log(`  ${dim('no-op — verify command passed; nothing in scope to commit')}`);
+  } else if (result.noop) {
     console.log(`  ${dim('no-op — nothing in scope to verify or commit')}`);
   } else if (result.commitSha) {
     console.log(`  ${dim('commit')}  ${result.commitSha}`);
