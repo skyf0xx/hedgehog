@@ -1,15 +1,16 @@
-// `.hedgehog/hedgehog.db` is gitignored, so friction that lived only in
-// the DB was gone after a fresh clone, a deleted DB, or a merged-back
-// worktree, and `friction list` came back empty. Each `friction add` and
-// `friction resolve` writes a committed record under `.hedgehog/friction/`,
-// and `db rebuild` replays it, open and resolved alike.
+// `.hedgehog/hedgehog.db` is gitignored, so friction must have a committed
+// source to outlive a fresh clone or a deleted DB. Each `friction add` and
+// `friction resolve` writes a record under `.hedgehog/friction/`, and
+// `db rebuild` replays it, open and resolved alike.
 //
-// A row that exists only in the DB (logged before records existed) must
-// survive too: `db rebuild` carries it across as it is, and the next
-// `friction list` writes it a record, after which it survives a rebuild
-// from a deleted DB.
+// A DB row in SQLite's `datetime('now')` form with no record survives
+// `db rebuild` as it is, and the next `friction list` writes it a record.
+// An ISO row with no record is a deleted record: rebuild drops it rather
+// than bringing it back, and an edited record replaces its old row rather
+// than adding a second one. Ordering compares times, not strings, across
+// both timestamp forms.
 
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   makeProject,
@@ -24,11 +25,13 @@ import {
   ONCE_CORE,
 } from './_lib.mjs';
 
+const frictionDir = (dir) => join(dir, '.hedgehog/friction');
+
 const frictionRows = (dir) => {
   const db = openGraph(dir);
   try {
     return db
-      .prepare('SELECT task_id, note, resolved_reason FROM friction ORDER BY logged_at, note')
+      .prepare('SELECT task_id, note, resolved_reason FROM friction ORDER BY id')
       .all()
       .map((row) => ({ ...row }));
   } finally {
@@ -36,8 +39,19 @@ const frictionRows = (dir) => {
   }
 };
 
-const recordCount = (dir) =>
-  readdirSync(join(dir, '.hedgehog/friction')).filter((n) => n.endsWith('.json')).length;
+const recordFiles = (dir) => readdirSync(frictionDir(dir)).filter((n) => n.endsWith('.json'));
+
+const recordFor = (dir, note) =>
+  recordFiles(dir).find((name) => JSON.parse(readFileSync(join(frictionDir(dir), name), 'utf8')).note === note);
+
+const insertRow = (dir, note, loggedAt) => {
+  const db = openGraph(dir);
+  try {
+    db.prepare('INSERT INTO friction (task_id, note, logged_at) VALUES (?, ?, ?)').run('CLUSTER', note, loggedAt);
+  } finally {
+    db.close();
+  }
+};
 
 const dir = makeProject(ONCE_CORE, { git: true });
 try {
@@ -51,7 +65,7 @@ try {
     0,
     cli(dir, ['friction', 'resolve', '2', '--reason', 'filed upstream']).status,
   );
-  check('one record per friction entry', 2, recordCount(dir));
+  check('one record per friction entry', 2, recordFiles(dir).length);
 
   const expected = [
     { task_id: 'CLUSTER', note: 'pool gap', resolved_reason: null },
@@ -63,39 +77,61 @@ try {
 
   const listed = cli(dir, ['friction', 'list']);
   checkContains('friction list shows the open entry', listed.stdout, 'pool gap');
-  check(
-    'friction list leaves the resolved entry out',
-    false,
-    listed.stdout.includes('docs unclear'),
-  );
+  check('friction list leaves the resolved entry out', false, listed.stdout.includes('docs unclear'));
 
-  // A row from before records existed: in the DB, with no file behind it.
-  const db = openGraph(dir);
-  try {
-    db.prepare("INSERT INTO friction (task_id, note, logged_at) VALUES ('CLUSTER', 'legacy row', '2020-01-01 00:00:00')").run();
-  } finally {
-    db.close();
-  }
+  // A deleted record stays deleted.
+  check('friction add exits 0', 0, cli(dir, ['friction', 'add', 'junk']).status);
+  rmSync(join(frictionDir(dir), recordFor(dir, 'junk')));
+  check('db rebuild exits 0', 0, cli(dir, ['db', 'rebuild']).status);
+  check('a deleted record does not come back as a row', expected, frictionRows(dir));
+  check('friction list exits 0', 0, cli(dir, ['friction', 'list']).status);
+  check('a deleted record does not come back as a file', 2, recordFiles(dir).length);
 
+  // An edited record replaces its row.
+  const poolPath = join(frictionDir(dir), recordFor(dir, 'pool gap'));
+  const pool = JSON.parse(readFileSync(poolPath, 'utf8'));
+  writeFileSync(poolPath, JSON.stringify({ ...pool, note: 'pool size gap' }, null, 2));
+  check('db rebuild exits 0', 0, cli(dir, ['db', 'rebuild']).status);
+  expected[0] = { ...expected[0], note: 'pool size gap' };
+  check('an edited record yields one row, not two', expected, frictionRows(dir));
+  check('friction list exits 0', 0, cli(dir, ['friction', 'list']).status);
+  check('an edited record yields no extra file', 2, recordFiles(dir).length);
+
+  // A row with no record, in SQLite's own timestamp form.
+  insertRow(dir, 'unrecorded row', '2020-01-01 00:00:00');
   check('db rebuild exits 0', 0, cli(dir, ['db', 'rebuild']).status);
   check(
-    'a DB-only row is carried across a rebuild of the same DB',
+    'a datetime-form row with no record is carried across a rebuild of the same DB',
     true,
-    frictionRows(dir).some((row) => row.note === 'legacy row' && row.task_id === 'CLUSTER'),
+    frictionRows(dir).some((row) => row.note === 'unrecorded row' && row.task_id === 'CLUSTER'),
   );
-
   check('friction list exits 0', 0, cli(dir, ['friction', 'list']).status);
-  check('friction list wrote a record for the DB-only row', 3, recordCount(dir));
-  check('a second friction list writes nothing more', 3, (cli(dir, ['friction', 'list']), recordCount(dir)));
+  check('friction list wrote a record for that row', 3, recordFiles(dir).length);
+  cli(dir, ['friction', 'list']);
+  check('a second friction list writes nothing more', 3, recordFiles(dir).length);
 
   check('db rebuild from a deleted DB exits 0', 0, rebuildFromScratch(dir).status);
   check(
-    'the backfilled row survives a rebuild from a deleted DB',
-    [{ task_id: 'CLUSTER', note: 'legacy row', resolved_reason: null }, ...expected],
+    'the row with its new record survives a rebuild from a deleted DB',
+    [{ task_id: 'CLUSTER', note: 'unrecorded row', resolved_reason: null }, ...expected],
     frictionRows(dir),
+  );
+
+  // Ordering across timestamp forms: 09:00Z is earlier than 10:00 UTC.
+  writeFileSync(
+    join(frictionDir(dir), 'ordering.json'),
+    JSON.stringify({ task: null, note: 'iso nine', logged_at: '2021-06-01T09:00:00.000Z', resolved_at: null, resolved_reason: null }),
+  );
+  insertRow(dir, 'sqlite ten', '2021-06-01 10:00:00');
+  check('db rebuild exits 0', 0, cli(dir, ['db', 'rebuild']).status);
+  const order = frictionRows(dir).map((row) => row.note);
+  check(
+    'a 09:00Z record sorts before a 10:00 datetime-form row',
+    true,
+    order.indexOf('iso nine') !== -1 && order.indexOf('iso nine') < order.indexOf('sqlite ten'),
   );
 } finally {
   cleanup(dir);
 }
 
-report('friction, open and resolved, survives a rebuild from a deleted DB');
+report('friction, open and resolved, survives a rebuild; deleted and edited records are not resurrected');

@@ -102,6 +102,15 @@ try {
   } finally {
     db.close();
   }
+
+  checkContains('the orphaned friction note is reported', rebuilt.stdout, 'module axis is plural');
+  const again = cli(dir, ['db', 'rebuild']);
+  check('a second db rebuild exits 0', 0, again.status);
+  check(
+    'the orphaned friction note is reported once, not on every rebuild',
+    false,
+    again.stdout.includes('module axis is plural'),
+  );
 } finally {
   cleanup(dir);
 }
