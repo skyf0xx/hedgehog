@@ -16,9 +16,12 @@ Lock either way) belongs to `planner`.
 ## Phase 0 — BMAD elicitation (first run only)
 
 Phase 0 and Phase 1 below are the **first run** — a project whose build
-graph holds no intents yet. When the graph already holds intents, run the
-**Re-entry pass** at the end of this file instead; the shelf does not run
-twice on one project.
+graph holds no intents yet. The shelf runs once per project: new scope
+later goes where `planner`'s "Per-core intake" sends it (the **Re-entry
+pass** at the end of this file, on the cores it covers), never through
+the shelf again. deepseek-harness is the exception: its intake can run
+the shelf once per plugin, and `hedgehog-dsh-loop`'s Planning intake
+governs each run's archive.
 
 Run Phase 0 in the session already talking to the user, never as a
 detached subagent — every skill below can drop into Facilitator or
@@ -107,21 +110,29 @@ on an explicit choice, after the conflict has been named.
 Compressed intake replaces the shelf with **one batched round of
 questions covering only what can't be inferred from the user's brief**,
 then writes a thinned archive at the same paths a full run uses. It
-writes exactly the files this core's mining step reads, and nothing
-else: a file that isn't written is named as not-run in `00-manifest.md`,
+writes exactly the files this core's archive readers (see "Who reads the
+archive" below) read, and nothing else: a file that isn't written is named as not-run in `00-manifest.md`,
 never left as an empty placeholder. Everything else about intake is
 unchanged — mining, Confirm & Lock, and any boolean gate all run exactly
 as they do on a full run, against the archive this mode writes.
 
 **What the round covers and what the archive holds, per core:**
 
-- **full-stack-app, pwa-app, authored core** — the round is for the
-  boolean decision: Auth, Queue, and Mobile (full-stack-app) or sync and
-  remote entities (pwa-app) must each be *answered*, inferred from a
-  concrete trigger in the user's brief or asked directly in that one
-  round, per the gate
-  `planner`'s "The Add-ons decision" states. Compressed intake compresses
-  BMAD's elicitation, never that gate. The archive:
+- **full-stack-app, pwa-app, authored core** — what the round covers
+  differs by core:
+  - full-stack-app and pwa-app: the boolean decision. Auth, Queue, and
+    Mobile (full-stack-app) or sync and remote entities (pwa-app) must
+    each be *answered*, inferred from a concrete trigger in the user's
+    brief or asked directly in that one round, per the gate `planner`'s
+    "The Add-ons decision" states. Compressed intake compresses BMAD's
+    elicitation, never that gate.
+  - authored core: there is no boolean decision. The round covers the
+    drivers `hedgehog-core-design` designs from and the brief leaves
+    open: the system shape, the ecosystem the target users already work
+    in, the deployment target, and any hard constraint on stack or
+    platform.
+
+  All three write the same archive:
 
   ```
   .hedgehog/BMAD/
@@ -195,6 +206,8 @@ Its readers are exactly these:
   module;
 - `landing-builder` (landing-page), which reads `04-prd.md`'s
   Features/FRs and `05-ux-spec/` at the stages its own file names;
+- `landing-copywriter` (landing-page), which reads `04-prd.md`'s
+  Hero/Core Claim feature at Stage 4, where it exists;
 - the Re-entry pass below, as context for new scope.
 
 No core loop's day-to-day operation, no bootstrap skill, and no
@@ -264,7 +277,9 @@ Procedure:
    <path.json>` batch matching the same shape (`{ id, goal, outcome,
    rules, acceptance, depends_on, priority }`). This is Phase 1's only
    write to the build graph.
-8. **Write `.hedgehog/addons.yaml`** with the decision from step 5.
+8. **Write `.hedgehog/addons.yaml`** with the decision from step 5, on a
+   core that had one (full-stack-app, pwa-app). An authored core writes
+   no `addons.yaml`.
 9. **Fill root `CLAUDE.md`'s `{{PROJECT_NAME}}` and `{{PROJECT_SUMMARY}}`
    placeholders**, first run only, then delete the installer's HTML
    comment block at the top of that file. Leave every other line
@@ -367,9 +382,10 @@ their commits.
    and nothing else — intents already built are `active`/`complete`, so
    `plan` never even reads them. If it reports compiling something you
    didn't just add, stop: an existing intent was edited by mistake.
-7. **Show `hedgehog status` in full**, then hand to this core's loop
-   skill; `hedgehog next` now emits the first task of the new work.
-   `planner`'s Workflow step 8 commits the pass.
+7. **Show `hedgehog status` in full.**
+8. **Commit the pass** per `planner`'s Workflow step 8, then hand to this
+   core's loop skill; `hedgehog next` emits the first task of the new
+   work.
 
 **Dependency direction is forward only.** A new intent may depend on an
 existing one — the edge lands on that intent's last layer, so the new
