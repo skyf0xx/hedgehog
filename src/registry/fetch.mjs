@@ -54,12 +54,14 @@ const exists = (p) =>
   );
 
 // What `npm pack` is asked to resolve for this core: a registry spec, or
-// a local path under HEDGEHOG_CORE_SOURCE named for the package's last
-// path segment (`@skyf0xx/hedgehog-core-landing-page` →
-// `hedgehog-core-landing-page`).
-function packSpec(entry) {
+// a local path under HEDGEHOG_CORE_SOURCE: `hedgehog-core-<name>` when that
+// directory exists, else the package's last path segment
+// (`@skyf0xx/hedgehog-core-landing-page` → `hedgehog-core-landing-page`).
+async function packSpec(entry) {
   const source = process.env[SOURCE_ENV];
   if (!source) return `${entry.package}@${entry.version}`;
+  const byName = join(source, `hedgehog-core-${entry.name}`);
+  if (await exists(byName)) return byName;
   return join(source, entry.package.split('/').pop());
 }
 
@@ -122,7 +124,7 @@ export async function cachedCore(entry, version) {
 }
 
 async function packAndExtract(entry) {
-  const spec = packSpec(entry);
+  const spec = await packSpec(entry);
   const tmp = await mkdtemp(join(tmpdir(), `hedgehog-core-${entry.name}-`));
 
   let tarball;

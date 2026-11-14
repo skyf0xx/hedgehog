@@ -9,7 +9,7 @@ independently.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for how the engine resolves and
 installs a core, and its per-core tables for what `full-stack-app`,
-`pwa-app`, `landing-page`, `authored`, and `adopted` each chose and why.
+`pwa-app`, `landing-page`, `copywriting`, `deepseek-harness`, `authored`, and `adopted` each chose and why.
 
 This doc is the package contract a new core must satisfy, plus the edits
 in this repo that make it installable.
@@ -40,7 +40,7 @@ At the package root:
   [`src/registry/manifest.mjs`](src/registry/manifest.mjs), whose header
   comment is the authoritative field list:
   - `name` — matches this core's entry in `src/registry/cores.json`.
-  - `language`, `template` — required. `template` names the file that
+  - `template` — required. `template` names the file that
     fills the installed `CLAUDE.md` shell's core section
     (`CLAUDE.core.md`).
   - `workspace` — path to the scaffold (e.g. `workspace/`). Omitted by a
@@ -111,7 +111,7 @@ this host' note rather than treating it as fatal."*
 `fetchCore` (`src/registry/fetch.mjs`) normally resolves a core package
 from the public npm registry via `npm pack <package>@<version>`. Set
 `HEDGEHOG_CORE_SOURCE` to a local directory and it resolves
-`<dir>/<package-basename>` instead — a local checkout, unpublished —
+`<dir>/hedgehog-core-<name>` (falling back to `<dir>/<package-basename>`) instead — a local checkout, unpublished —
 which is how a core is exercised end to end before `npm publish` ever
 runs.
 
@@ -160,8 +160,8 @@ published, not just a brand-new core's first install.
 
 Adding the package to the CLI's `init` menu is one entry in
 [`src/registry/cores.json`](src/registry/cores.json): `name`, `package`,
-`version` (the range `init` resolves), `flag` (the CLI install flag —
-`null`/absent for `authored`, which planning chooses rather than a user
+`version` (the range `init` resolves, in the major-line form `"1.x"` or `"0.x"`), `flag` (the CLI install flag —
+`null`/absent for `authored` and `adopted`, which planning chooses rather than a user
 passing it at install time), `repository`, and `selects_when`.
 
 `selects_when` is prose `planner` reads aloud in Phase 0 to choose a
@@ -190,8 +190,8 @@ build/test/lint targets, not a stub, and have it open a PR for human
 review rather than merge or publish on its own.
 
 See "Keeping a shipped core's workspace current" in
-[ARCHITECTURE.md](ARCHITECTURE.md) for the three existing examples
-(`full-stack-app`, `pwa-app`, `landing-page`) and why each is shaped the
+[ARCHITECTURE.md](ARCHITECTURE.md) for the existing examples
+(`full-stack-app`, `pwa-app`, `landing-page`, `copywriting`, `deepseek-harness`) and why each is shaped the
 way it is.
 
 ## Splitting a large skill
@@ -269,7 +269,7 @@ satisfies the package contract above.
 ### `hedgehog-core.yaml`
 
 - [ ] `name` matches the core's entry in `src/registry/cores.json`.
-- [ ] `language` and `template` are present; `template` names a file that
+- [ ] `template` is present; `template` names a file that
       actually exists in the package and fills `CLAUDE.core.md`.
 - [ ] `workspace` points at a real path, or is omitted (workspace-less
       cores only).

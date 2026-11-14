@@ -4,8 +4,7 @@
       "name": "full-stack-app",
       "flag": "--ts-full-stack-app",
       "package": "@skyf0xx/hedgehog-core-full-stack-app",
-      "version": "^1.1.0",
-      "language": "typescript",
+      "version": "1.x",
       "repository": "https://github.com/skyf0xx/hedgehog-core-full-stack-app",
       "selects_when": "The description names server-side logic across most of the app: authorization more expressive than per-object row-level security, background jobs, scheduled work or webhook receivers as the app's primary function, server-rendered or SEO-critical pages beyond an app shell, or a data model whose working set doesn't sensibly fit on a device. Persistent domain data alone is not the signal — a tracker, journal, notebook, or planner whose data fits on the user's device is pwa-app, even with sharing, accounts, or multi-device sync in scope, and even with one or two entities that must be server-authoritative. If the project has both a marketing page and a real app behind it, this is still full-stack-app: the page becomes routes inside apps/web, not a separate project."
     },
@@ -13,8 +12,7 @@
       "name": "pwa-app",
       "flag": "--pwa-app",
       "package": "@skyf0xx/hedgehog-core-pwa-app",
-      "version": "^1.1.0",
-      "language": "typescript",
+      "version": "1.x",
       "repository": "https://github.com/skyf0xx/hedgehog-core-pwa-app",
       "selects_when": "The description names an app whose data model fits on the user's device and whose reads and writes are the user's own — a tracker, journal, notebook, planner, offline reference, or utility. Offline capability or installability named explicitly is a strong signal. Sharing, collaboration, accounts, and multi-device sync do NOT disqualify a project: Dexie Cloud provides sync, authentication, and server-enforced per-object access control, so a shared list, a family calendar, or a small team's board is still this core. A small number of entities that must be server-authoritative — a points balance, a reward ledger, anything a client must not write to directly — do NOT disqualify a project either: those entities are declared --remote and backed by Supabase (Postgres + RLS + Edge Functions) behind the same repository interface, while the rest of the app stays local-first. What routes a project to full-stack-app is server-side logic across most of the app, not the presence of one or two such entities: authorization beyond row-level policies, background jobs or webhooks as the app's primary function, server-rendered pages, or a working set too large for a device."
     },
@@ -22,8 +20,7 @@
       "name": "landing-page",
       "flag": "--landing-page",
       "package": "@skyf0xx/hedgehog-core-landing-page",
-      "version": "^1.0.2",
-      "language": "typescript",
+      "version": "1.x",
       "repository": "https://github.com/skyf0xx/hedgehog-core-landing-page",
       "selects_when": "The description is a marketing/announcement/waitlist/portfolio page (or a small handful of such pages) with no persistent domain data of its own. A page that only collects an email into a third-party form service, or has no state at all, qualifies. The bar is \"no domain module\" — a landing page with a dozen sections is still landing-page, not promoted to full-stack-app for being long."
     },
@@ -31,24 +28,21 @@
       "name": "deepseek-harness",
       "flag": "--deepseek-harness",
       "package": "@skyf0xx/hedgehog-core-deepseek-harness",
-      "version": ">=0.2.3 <1.0.0",
-      "language": "typescript",
+      "version": "0.x",
       "repository": "https://github.com/skyf0xx/hedgehog-core-deepseek-harness",
       "selects_when": "The description names building a plugin, tool, hook, or extension for DeepSeek Harness (DSH) — a Cordis-based agent framework — or otherwise extending an existing DSH installation with new capabilities via its plugin/bundle system. Concrete signals: DSH, DeepSeek Harness, Cordis, `defineTool`, `ctx.tools.register`, a `cordis.patch.yml` manifest, or a request to add a tool that a DSH agent can call. This is the core most often confused with authored: authored fits when no shipped core matches and the planner must design a system shape from scratch, but a DSH plugin already has a fixed, battle-tested shape (the six-layer scaffold → logic → wiring → smoke → bundle → join sequence, one plugin per intent) that authored's from-scratch design would only reinvent worse. Route here whenever the target of the work is a DSH plugin, not a general \"no other core fits\" fallback."
     },
     {
       "name": "authored",
       "package": "@skyf0xx/hedgehog-core-authored",
-      "version": "^1.2.0",
-      "language": "typescript",
+      "version": "1.x",
       "repository": "https://github.com/skyf0xx/hedgehog-core-authored",
       "selects_when": "Neither shipped core fits, but the description names a real artifact a Builder step would produce — just not in either shipped core's shape. This core is designed by the planner rather than chosen from a fixed set: hedgehog-planning-intake's Phase 0 elicits the drivers first, then hedgehog-core-design names the system shape, picks the stack, derives the layers, and writes .hedgehog/core.yaml. It carries the same enforcement as a shipped core — ordered layers, scoped file access, verification before completion — but the sequence is designed for this project rather than battle-tested across many. This is the core most often confused with adopted: authored designs a workspace from scratch for a project being built new, while adopted brings Hedgehog's discipline to a repo that already exists — route here only when there is no existing codebase this work is being added to."
     },
     {
       "name": "adopted",
       "package": "@skyf0xx/hedgehog-core-adopted",
-      "version": ">=1.0.0 <2.0.0",
-      "language": "typescript",
+      "version": "1.x",
       "repository": "https://github.com/skyf0xx/hedgehog-core-adopted",
       "selects_when": "The description is about bringing Hedgehog's discipline to a codebase that already exists, rather than building something new — the repo already has real source files, or the user says so explicitly: \"adopt this repo\", \"add Hedgehog to my existing project\", \"I want scope/verify enforcement on my changes here\". Not chosen by matching a `when` paragraph the way a shipped core is: hedgehog-adopt reads the repo read-only, proposes a linear-chain .hedgehog/core.yaml whose verify commands are the repo's own, and writes only .hedgehog/ — never a workspace, never a stack migration. This is the core most often confused with authored: adopted brings discipline to an existing repo, while authored designs and scaffolds a workspace from scratch for something being built new — route here only when the work is landing on a codebase that already exists."
     },
@@ -56,8 +50,7 @@
       "name": "copywriting",
       "flag": "--copywriting",
       "package": "@skyf0xx/hedgehog-core-copywriting-prose-engineering",
-      "version": "^0.2.0",
-      "language": "typescript",
+      "version": "0.x",
       "repository": "https://github.com/skyf0xx/hedgehog-core-copywriting-prose-engineering",
       "selects_when": "The description asks for a piece of writing or prose to be written or fixed as its own deliverable — marketing copy, a product announcement, UI microcopy strings, docs prose, an email, a pitch, an article, an essay, a blog post, or any other standalone written piece — with no page, app, or other artifact being built around it. Concrete signals: \"write an article about X\", \"write copy for X\", \"help me write a blog post\", \"make this sound less like AI\", \"fix this copy\", \"improve this writing\", \"draft a product announcement\", a request to run text through an AI-tell or humanizer check. Not just marketing/product framing — any standalone prose request qualifies, articles and essays included. The core drafts against `checkCopy()`, a real script running deterministic AI-tell and prose-quality checks (banned vocabulary, passive voice, readability score, sentence-length variance), not an agent's own self-review — a piece of writing ships because the script exited 0. This is the core most often confused with landing-page: landing-page's own copy skill still owns copy that's part of a full page build (headline, hero, section copy sequenced through that core's Chain Method); route here only when the writing is the entire ask, not one stage of a larger build."
     }
