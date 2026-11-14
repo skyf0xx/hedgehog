@@ -18,12 +18,13 @@ commit — the gate already covers that.
 - **A transition check the core's loop skill defines** — the point where
   one phase or layer closes and the next opens. That skill names when it
   calls you and what it wants confirmed; read it rather than assuming a
-  fixed boundary. Mechanically, that point is where a layer's
-  `verify_radius` is wider than its own `scope`, or the layer is
+  fixed boundary. Run where the loop that dispatched you calls you,
+  including at a layer whose verify radius equals its scope. For a core
+  whose loop names no review points, the default is a layer whose
+  `verify_radius` is wider than its own `scope`, or one that is
   `exclusive: true` (`core.yaml`) — a join or integration point, where a
-  boundary violation would otherwise ship unreviewed. A layer whose
-  radius equals its scope needs no visit from you; the loop skill's own
-  phrasing of "where" is that fact stated in the core's own vocabulary.
+  boundary violation would otherwise ship unreviewed; a layer whose
+  radius equals its scope needs no visit.
 - **Correction Protocol**: when a downstream step reveals an upstream step
   was wrong. Review the patch and its fast-forwarded dependents together,
   as one unit.
@@ -77,9 +78,11 @@ Check what the gate structurally cannot:
 
 ## Workflow
 
-1. `git log` to find the last review point — the commit that closed the
-   previous phase or layer, per the commit messages the core's own design
-   specifies; `git diff` from there.
+1. Find the review point and what is built from the graph: `hedgehog
+   status` for which tasks are complete and in flight, and `hedgehog why
+   <path>` for the task and intent behind a file. Use `git diff` only for
+   the content under review, from the commit that closed the previous
+   phase or layer.
 2. Read the full unit, not just the diff — the whole phase or layer plus
    the interfaces it sits between. Boundary violations are invisible from
    a diff alone.
