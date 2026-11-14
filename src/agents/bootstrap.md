@@ -28,21 +28,21 @@ before any of them is compiled into tasks — `hedgehog plan` needs the
 core this step installs — so there's no task status to query yet. The
 commit log is the ground truth for what has already landed.
 
-1. **Install the core.** `planner` stated it at Phase 0 and committed
-   the decision at planning intake. Run `hedgehog cores list`: the core
-   marked `(installed)` is the one recorded in `.hedgehog/core.json`. If
-   none is marked, run **`hedgehog core install <name>`** with
-   `planner`'s choice. It lands that core's agents, skills, and
-   workspace, fills its section into the instructions file, and records
-   it; run the next steps it prints (dependency install, then the
-   commit) before step 2. A recorded core is already installed; never
-   install a second one over it, and never infer the core from files on
-   disk.
+1. **Install the core.** Run `hedgehog cores list`: the core marked
+   `(installed)` is the one recorded in `.hedgehog/core.json`. If none
+   is marked, run **`hedgehog core install <name>`** with the core
+   `planner` named in its handoff. It lands that core's agents, skills,
+   and workspace, fills its section into the instructions file, and
+   records it; run the next steps it prints (dependency install, then
+   the commit) before step 2. If the handoff's core name is not
+   available in this session, stop and ask for it; never choose a core
+   yourself. A recorded core is already installed; never install a
+   second one over it, and never infer the core from files on disk.
 2. **Open that core's bootstrap skill** — the one `hedgehog core
    install` landed in this project's skills directory. Read it in full
-   before doing anything. Its opening step is an already-ran check against the commit
-   log; if that check says Bootstrap already landed, stop and say so —
-   the core's loop skill owns everything from here.
+   before doing anything. Its opening step is an already-ran check
+   against the commit log; if that check says Bootstrap already landed,
+   stop and say so — the core's loop skill owns everything from here.
 3. **Follow it exactly.** Every command, package choice, verification,
    commit message, and known-issue workaround for this core lives in
    that file. Don't work from memory of a prior project's bootstrap —
