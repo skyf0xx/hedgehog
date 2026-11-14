@@ -135,31 +135,49 @@ because their project sounds small, or up to a heavier one because it
 sounds real. Picking a core because of what it "sounds like" is the
 drift this discipline exists to prevent.
 
-Two outcomes are decided here rather than by a `when` paragraph:
+Phase 0 has four outcomes:
 
-- **No core fits, but something is being built** — the description
-  names a real artifact a Builder step would produce, just not in any
-  flagged core's shape. This project gets an **authored core** (its
-  registry entry has no flag). Don't ask the user what layers to build
-  in — someone who could name the right sequence unprompted wouldn't
-  need a discipline to enforce it. An authored core is a weaker
-  guarantee than a shipped core (the sequence was designed for this
-  project, not battle-tested across many) but carries the same
-  enforcement — ordered layers, scoped file access, verification before
-  completion — and the loader has no leniency for it (`src/db/core.mjs`).
-  Its intake is under "Per-core intake" below.
-- **Nothing is being built** — a one-off script, a slide deck, a pure
-  design exercise with no page to ship, anything with no artifact any
-  core's Builder step would produce. Say so plainly and stop: forcing a
-  core's sequence onto nothing to build has no payoff, and eliciting a
-  full intake for it is ceremony on top of ceremony. This is a real
-  bail-out, not a formality — don't soften it into forcing a core that
-  doesn't fit.
+1. **A flagged core fits** — its `when` paragraph matches the
+   description. That core is chosen by name.
+2. **Nothing is being built** — a one-off script, a slide deck, a pure
+   design exercise with no page to ship, anything with no artifact any
+   core's Builder step would produce. Say so plainly and stop: forcing a
+   core's sequence onto nothing to build has no payoff, and eliciting a
+   full intake for it is ceremony on top of ceremony. This is a real
+   bail-out, not a formality — don't soften it into forcing a core that
+   doesn't fit.
+3. **No flagged core fits, but something is being built** — the
+   description names a real artifact a Builder step would produce, just
+   not in any flagged core's shape; `authored`'s `when` paragraph covers
+   exactly this fallback. This project gets an **authored core**. Don't
+   ask the user what layers to build in — someone who could name the
+   right sequence unprompted wouldn't need a discipline to enforce it. An
+   authored core is a weaker guarantee than a shipped core (the sequence
+   was designed for this project, not battle-tested across many) but
+   carries the same enforcement — ordered layers, scoped file access,
+   verification before completion — and the loader has no leniency for it
+   (`src/db/core.mjs`).
+4. **An existing repo, ongoing adoption** — `adopted`'s `when`
+   paragraph: the work lands on a codebase that already exists rather
+   than building something new. Workflow step 2 detects this before
+   Phase 0 runs, so on this outcome Phase 0's matching is skipped.
 
 State the decision plainly before Phase 1 begins, with the one-line
 reason it landed there — this is cheap to correct now and expensive once
 a core's workspace is scaffolded, so if it's genuinely ambiguous, ask
 rather than guess.
+
+**Then put the chosen core on disk.** Its intake, bootstrap, and loop
+skills ship in its own package, so check `hedgehog cores list`, which
+marks the installed core `(installed)`. If no core is marked, install
+the chosen one before its intake starts: `hedgehog core install <name>`
+on outcomes 1 and 3 (`authored` included, since `hedgehog-core-design`
+ships in that package), `hedgehog core record-adopted` on outcome 4.
+`copywriting` is the exception: `hedgehog core install` refuses it, and
+`hedgehog-copywriting-loop`'s scratch setup runs `hedgehog init
+--copywriting` itself. If a different core is already marked, stop and
+say so — `hedgehog core install` refuses to mix two cores in one
+project.
 
 ## Phase 1 — planning intake
 
@@ -225,11 +243,10 @@ one statement of that routing; other files reference it.
   same Planning intake section again, which runs once per plugin, then
   straight into the loop — not the Re-entry pass.
 - **adopted** — the description is about bringing Hedgehog's discipline
-  to a codebase that already exists (its registry entry has no flag, and
-  Workflow step 2 detects it). Run `hedgehog core record-adopted` first —
-  a no-flag `init` never fetched the `adopted` package, so
-  `hedgehog-adopt` is not on disk until it runs; it is idempotent, so run
-  it on every visit — then route to `hedgehog-adopt`. It runs its own
+  to a codebase that already exists (Phase 0's outcome 4, detected at
+  Workflow step 2). Run `hedgehog core record-adopted` first, on every
+  visit — it puts `hedgehog-adopt` on disk and is idempotent — then route
+  to `hedgehog-adopt`. It runs its own
   read-only intake and Confirm & Lock, writes `.hedgehog/core.yaml` and
   `.hedgehog/adoption.md`, adds the intents, runs `hedgehog plan`, and
   commits its own work. Never run `hedgehog-planning-intake`'s shelf
@@ -337,9 +354,10 @@ as full-stack-app's Auth/Queue/Mobile trio.
 ## Workflow
 
 Steps 6–8 are yours on full-stack-app, pwa-app, and an authored core. On
-landing-page, copywriting, deepseek-harness, and adopted, the intake
-named under "Per-core intake" runs its own Confirm & Lock, intent writes,
-`hedgehog plan`, and commit; continue at step 9 once it lands.
+landing-page, copywriting, and deepseek-harness, the intake named under
+"Per-core intake" runs its own Confirm & Lock, intent writes,
+`hedgehog plan`, and commit; continue at step 9 once it lands. Adopted
+leaves the workflow at step 2 (see there).
 
 1. **Read the requirement** fully before doing anything.
 2. **Run `hedgehog status` and decide which path you're on.** This is a
@@ -377,7 +395,7 @@ named under "Per-core intake" runs its own Confirm & Lock, intent writes,
    first-run stage on a first run, the extension variant on re-entry.
 7. **Write the intent records**: every intent via `hedgehog intent add`,
    one call per PRD Feature (per new module, on re-entry), plus
-   `.hedgehog/addons.yaml`. **On re-entry**, also run **`hedgehog plan`**
+   `.hedgehog/addons.yaml` (full-stack-app and pwa-app only). **On re-entry**, also run **`hedgehog plan`**
    here to compile those intents into tasks (see the Re-entry pass for
    why this leaves built work untouched). **On a first run**, don't run
    `plan` yet — no core is installed until step 9's `bootstrap` handoff
@@ -389,8 +407,8 @@ named under "Per-core intake" runs its own Confirm & Lock, intent writes,
    `.hedgehog/intents/*.json` (`hedgehog intent add` writes one file per
    intent — the committed record `hedgehog db rebuild` replays; the build
    graph `.hedgehog/hedgehog.db` is gitignored derived state),
-   `.hedgehog/addons.yaml` (on re-entry only if a trigger actually
-   changed), `.hedgehog/BMAD/` (first run only), the authored core's
+   `.hedgehog/addons.yaml` (full-stack-app and pwa-app only, and on
+   re-entry only if a trigger actually changed), `.hedgehog/BMAD/` (first run only), the authored core's
    `.hedgehog/core.yaml` and `.hedgehog/core-design.md` if step 4 ran, and
    root `CLAUDE.md`'s filled placeholders (first run only). Write these
    with the `no-history-in-output` skill: current state only, no
@@ -436,12 +454,15 @@ named under "Per-core intake" runs its own Confirm & Lock, intent writes,
   rules, agent/skill pointers) shared verbatim across every Hedgehog
   project on that core — not project-specific content to edit, extend,
   or "improve."
-- Archival planning output is write-once on every core. Once a file is
-  written, it's historical record — don't edit it to reflect a later
-  decision. It is written exactly once, on the first run, and read as
-  context on every re-entry after. A re-entry pass never rewrites it:
+- Archival planning output is write-once. Once a file is written, it's
+  historical record — don't edit it to reflect a later decision. On
+  full-stack-app, pwa-app, an authored core, landing-page, and
+  copywriting it is written exactly once, on the first run, and read as
+  context on every re-entry after; a re-entry pass never rewrites it:
   what's new lives in the new intents it adds, and the commit log carries
-  the rest.
+  the rest. On deepseek-harness, intake runs once per plugin and may run
+  the BMAD path each time; `hedgehog-dsh-loop`'s Planning intake governs
+  what each plugin's run archives.
 - Never invent scope. Ambiguous scope means stop and ask — this applies
   equally to a full-stack-app module boundary, a landing-page subject
   statement, and a copywriting brief, whether or not BMAD's docs offered
