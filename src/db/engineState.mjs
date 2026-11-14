@@ -4,7 +4,7 @@
 // state file, and every directory a build-graph command writes its own
 // committed record into (`friction add`, `override add`, `intent add`/
 // `db rebuild`, `reconcile confirm`, `debt add`/`decision add`, a no-op
-// completion, a fast-path). None of these is ever a layer's own work, so
+// completion, a `reopen`, a fast-path). None of these is ever a layer's own work, so
 // a path under one of them is never attributable to whatever task or
 // intent happened to be active when it changed.
 //
@@ -20,6 +20,7 @@ import { INTENTS_DIR } from './intent.mjs';
 import { RECONCILED_DIR } from './reconcile.mjs';
 import { NOTES_DIR } from './notes.mjs';
 import { NOOP_DIR } from './noop.mjs';
+import { REOPENED_DIR } from './reopened.mjs';
 import { COMMUNITY_PATH } from './community.mjs';
 
 // `FASTPATH_DIR` is deliberately not imported here: fastpath.mjs needs
@@ -34,6 +35,7 @@ export const BUILD_GRAPH_STATE_DIRS = [
   RECONCILED_DIR,
   NOTES_DIR,
   NOOP_DIR,
+  REOPENED_DIR,
 ];
 
 export function isBuildGraphStatePath(path, extraDirs = []) {

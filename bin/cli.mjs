@@ -102,6 +102,7 @@ import {
   RECONCILED_DIR,
 } from '../src/db/reconcile.mjs';
 import { NOOP_DIR } from '../src/db/noop.mjs';
+import { writeReopenedRecords, clearReopenedRecord } from '../src/db/reopened.mjs';
 import { runFastpath, loadFastpaths, orphanedFastpathTasks, FASTPATH_DIR } from '../src/db/fastpath.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
@@ -3000,6 +3001,8 @@ async function reopenCommand(args) {
     return;
   }
 
+  await writeReopenedRecords(result.reopenedIds);
+
   console.log(
     `${green(bold('Reopened.'))} ${bold(result.reopenedIds.length)} task(s) back to ${bold('planned')}: ${result.reopenedIds.join(', ')}`,
   );
@@ -3013,7 +3016,7 @@ async function reopenCommand(args) {
     }
   }
   console.log(
-    `\n${dim('Hand-committing the fix instead of running it through')} ${bold('hedgehog verify')}${dim('? Reconcile graph state afterward with')} ${bold('hedgehog db rebuild')}${dim('.')}`,
+    `\n${dim('Hand-committing the fix instead of running it through')} ${bold('hedgehog verify')}${dim('? Credit each reopened task afterward with')} ${bold('hedgehog reconcile confirm <task-id> --reason "<why>"')}${dim('.')}`,
   );
 }
 
@@ -3882,6 +3885,7 @@ async function reconcileCommand(args) {
       db.close();
     }
 
+    await clearReopenedRecord(result.record.task);
     const file = `${RECONCILED_DIR}/${result.record.task.toLowerCase()}.json`;
     console.log(`  ${green('complete')}  ${bold(result.record.task)} ${dim('(reconciled, not verified)')}`);
     console.log(`  ${green('recorded')}  ${file}`);
@@ -4001,6 +4005,7 @@ async function fastpathCommand(args) {
     db.close();
   }
 
+  for (const taskId of result.record.tasks) await clearReopenedRecord(taskId);
   const file = `${FASTPATH_DIR}/${result.record.intent.toLowerCase()}.json`;
   console.log(
     `  ${green('complete')}  ${bold(result.record.intent)} ${dim(`(${result.record.tasks.length} task(s), fast-pathed, not per-layer verified)`)}`,

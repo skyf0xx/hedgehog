@@ -42,6 +42,7 @@ import {
 } from './reconcile.mjs';
 import { loadNotes, NOTES_DIR } from './notes.mjs';
 import { loadNoopRecords, orphanedNoopRecords, NOOP_DIR } from './noop.mjs';
+import { loadReopenedIds, REOPENED_DIR } from './reopened.mjs';
 import { loadFastpaths, orphanedFastpathTasks, fastpathNote, FASTPATH_DIR } from './fastpath.mjs';
 import {
   loadAbandoned,
@@ -547,6 +548,19 @@ function replayNoopRecords(db, records) {
   return replayed;
 }
 
+// Replays `.hedgehog/reopened/*.json` (reopened.mjs): a task `hedgehog
+// reopen` sent back still has its original commit or no-op record, which
+// the replays above credit as complete. Runs after every completion
+// source so the reopen wins until the task verifies again.
+function replayReopened(db, reopenedIds) {
+  const setPlanned = db.prepare(
+    "UPDATE tasks SET status = 'planned', blocked_reason = NULL WHERE id = ? AND status = 'complete'",
+  );
+  let replayed = 0;
+  for (const taskId of reopenedIds) replayed += setPlanned.run(taskId).changes;
+  return replayed;
+}
+
 // Rebuilds `db` from scratch: schema, then every committed intent
 // replayed in dependency order, then planTasks to re-derive tasks +
 // dependencies, then git history to reconcile which tasks already
@@ -574,6 +588,7 @@ export async function rebuildDb(
     reconciledDir = RECONCILED_DIR,
     notesDir = NOTES_DIR,
     noopDir = NOOP_DIR,
+    reopenedDir = REOPENED_DIR,
     fastpathDir = FASTPATH_DIR,
     abandonedDir = ABANDONED_DIR,
     // `hedgehog merge <id>`'s own rebuild call (bin/cli.mjs#mergeCommand):
@@ -600,6 +615,7 @@ export async function rebuildDb(
   const reconciliations = await loadReconciliations(reconciledDir);
   const notesByTask = await loadNotes(notesDir);
   const noopRecords = await loadNoopRecords(noopDir);
+  const reopenedIds = await loadReopenedIds(reopenedDir);
   const fastpaths = await loadFastpaths(fastpathDir);
   const abandonments = await loadAbandoned(abandonedDir);
 
@@ -664,6 +680,7 @@ export async function rebuildDb(
   const orphanedNoop = orphanedNoopRecords(db, noopRecords);
   const tasksFastpathed = replayFastpaths(db, fastpaths);
   const orphanedFastpath = orphanedFastpathTasks(db, fastpaths);
+  const tasksReopened = replayReopened(db, reopenedIds);
 
   // After every task-status recovery path above (history-matched commits,
   // then reconciliation) — either can close an intent's last open task,
@@ -700,6 +717,7 @@ export async function rebuildDb(
     orphanedNoop,
     tasksFastpathed,
     orphanedFastpath,
+    tasksReopened,
     orphanedNotes,
     abandonmentsReplayed,
     orphanedAbandonments,
