@@ -1,6 +1,6 @@
 // `.hedgehog/noop/<task-id>.json` — the committed record behind a task
 // verify.mjs closes `complete` without a git commit, because its scope had
-// nothing left to touch before verify_command even ran.
+// nothing to touch (whether or not verify_command ran — see verify.mjs).
 //
 // A completed task is normally recoverable on `hedgehog db rebuild`
 // because its own commit's subject matches its `commit_message`
@@ -9,9 +9,10 @@
 // hand-written commit that doesn't match — this file is the committed
 // source rebuild.mjs replays instead.
 //
-// One file per task, written once: a task closes as a no-op at most once,
-// the same reason reconcile.mjs's record refuses to overwrite rather than
-// growing like notes.mjs's does.
+// One file per task. A task reopened by `hedgehog reopen` can close as a
+// no-op again; that rewrite refreshes the same record's `verified_at`
+// rather than adding a second one. A file at that path naming a different
+// task is refused.
 
 import { readdir, readFile, mkdir, writeFile, rename, rm } from 'node:fs/promises';
 
@@ -72,19 +73,29 @@ export async function loadNoopRecords(noopDir = NOOP_DIR) {
 
 // Writes one no-op record via temp file + rename, so a crash mid-write
 // never leaves a half-written file for loadNoopRecords to trip on —
-// reconcile.mjs#writeReconciledFile's pattern, applied to the same
-// one-shot-per-task shape.
+// reconcile.mjs#writeReconciledFile's pattern, one file per task.
 //
-// Refuses to overwrite silently: a task closes no-op once, and a second
-// attempt for the same id is a wrong id or a re-run worth stopping for,
-// not a second distinct fact.
+// An existing record for the same task is replaced (a re-verification
+// after `hedgehog reopen`); an existing file that is unreadable or names a
+// different task is refused.
 export async function writeNoopFile(record, noopDir = NOOP_DIR) {
   const path = noopFilePath(record.task, noopDir);
+  let existing;
   try {
-    await readFile(path, 'utf8');
-    throw new Error(`${path} already exists — ${record.task} is already recorded as a no-op completion.`);
+    existing = await readFile(path, 'utf8');
   } catch (err) {
     if (!err || err.code !== 'ENOENT') throw err;
+  }
+  if (existing !== undefined) {
+    let existingTask;
+    try {
+      existingTask = validateNoop(JSON.parse(existing), path).task;
+    } catch (err) {
+      throw new Error(`${path} already exists and is not a valid no-op record: ${err.message}`, { cause: err });
+    }
+    if (existingTask !== record.task.toUpperCase()) {
+      throw new Error(`${path} already exists and records ${existingTask}, not ${record.task}.`);
+    }
   }
 
   await mkdir(noopDir, { recursive: true });
@@ -102,6 +113,15 @@ export async function writeNoopFile(record, noopDir = NOOP_DIR) {
 // No-op-record task ids matching no row in `tasks` — same read-side
 // hygiene as reconcile.mjs#orphanedReconciliations: a dead record must
 // stay discoverable rather than silently completing nothing forever.
+export async function hasNoopRecord(taskId, noopDir = NOOP_DIR) {
+  try {
+    await readFile(noopFilePath(taskId, noopDir), 'utf8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function orphanedNoopRecords(db, records) {
   const known = new Set(db.prepare('SELECT id FROM tasks').all().map((r) => r.id));
   return [...records.keys()].filter((taskId) => !known.has(taskId)).sort();
