@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { parse } from '../src/hosts/frontmatter.mjs';
 import { AGENT_CAPABILITY } from '../src/hosts/capabilities.mjs';
+import { HOSTS } from '../src/hosts/index.mjs';
 import { loadCore, lintCore } from '../src/db/core.mjs';
 import { loadRegistry } from '../src/registry/index.mjs';
 import { parseCoreManifest } from '../src/registry/manifest.mjs';
@@ -84,9 +85,9 @@ const coreNames = new Set(cores.map((c) => c.name));
 
 // ── 2b. Registry entries are well-formed: every required field present,
 //    names unique, and flags unique among the cores that carry one
-//    (`authored` has none — it's chosen during planning, not passed to
-//    `init`, so a missing flag there is correct, not a gap). ─────────────
-const CORE_REQUIRED_FIELDS = ['name', 'package', 'version', 'language', 'repository', 'selects_when'];
+//    (`authored` and `adopted` have none — they're chosen during planning, not
+//    passed to `init`, so a missing flag there is correct, not a gap). ─────────────
+const CORE_REQUIRED_FIELDS = ['name', 'package', 'version', 'repository', 'selects_when'];
 const seenCoreNames = new Set();
 const seenFlags = new Set();
 for (const core of cores) {
@@ -98,6 +99,12 @@ for (const core of cores) {
   if (core.name) {
     if (seenCoreNames.has(core.name)) fail(`src/registry/cores.json: duplicate core name "${core.name}"`);
     seenCoreNames.add(core.name);
+  }
+  if (typeof core.version === 'string' && /^\^0\./.test(core.version.trim())) {
+    fail(
+      `src/registry/cores.json: core "${core.name}" pins "${core.version}", a 0.x caret ` +
+        `range that never reaches the next minor — use the major-line form ("0.x")`,
+    );
   }
   if (core.flag != null) {
     if (seenFlags.has(core.flag)) fail(`src/registry/cores.json: duplicate flag "${core.flag}"`);
@@ -122,12 +129,27 @@ for (const core of cores) {
 // being indistinguishable from "checked and clean" (#343).
 const coreOwned = new Set();
 const coreAgents = new Set();
+const workspaceCores = [];
 let siblingsCompared = 0;
 let siblingsSkipped = 0;
 for (const core of cores) {
   const fixturePath = join(ROOT, `repro/fixtures/cores/${core.name}.manifest.yaml`);
-  const fixture = await readFile(fixturePath, 'utf8');
-  const manifest = parseCoreManifest(fixture, `${core.name}.manifest.yaml`);
+  const fixture = await readFile(fixturePath, 'utf8').catch(() => null);
+  if (fixture === null) {
+    fail(
+      `repro/fixtures/cores/${core.name}.manifest.yaml: missing — copy the manifest of ` +
+        `core "${core.name}" there so the cross-reference checks can see what it ships`,
+    );
+    continue;
+  }
+  let manifest;
+  try {
+    manifest = parseCoreManifest(fixture, `${core.name}.manifest.yaml`);
+  } catch (err) {
+    fail(`repro/fixtures/cores/${core.name}.manifest.yaml: ${err.message}`);
+    continue;
+  }
+  if (manifest.workspace) workspaceCores.push(core.name);
 
   // Selection prose has one owner, src/registry/cores.json — the planner
   // reads it in Phase 0, before any package is fetched. A manifest copy
@@ -154,6 +176,43 @@ for (const core of cores) {
       `repro/fixtures/cores/${core.name}.manifest.yaml: differs from ${siblingPath} — ` +
         `copy the core's manifest over the fixture so it speaks for what that core ships`,
     );
+  }
+}
+
+// ── 2b-docs. Hand-written core and host lists name every registered core
+//    and every host. Each one drifts silently when a core or host is
+//    added, so the lists are held to the registry and the host table. ──
+{
+  const read = (rel) => readFile(join(ROOT, rel), 'utf8').catch(() => null);
+  const coreDocs = ['CLAUDE.md', 'SECURITY.md', 'ARCHITECTURE.md', 'AUTHORING-CORES.md', 'hooks/session-start'];
+  for (const rel of coreDocs) {
+    const text = await read(rel);
+    if (text === null) {
+      fail(`${rel}: missing, but it must name every core in src/registry/cores.json`);
+      continue;
+    }
+    for (const core of cores) {
+      if (!text.includes(core.name)) fail(`${rel}: does not mention core "${core.name}" from src/registry/cores.json`);
+    }
+  }
+  const hostDocs = ['CLAUDE.md', 'ARCHITECTURE.md', 'README.md', 'README.zh-CN.md'];
+  for (const rel of hostDocs) {
+    const text = await read(rel);
+    if (text === null) {
+      fail(`${rel}: missing, but it must name every host in src/hosts/index.mjs`);
+      continue;
+    }
+    const lower = text.toLowerCase();
+    for (const [key, host] of Object.entries(HOSTS)) {
+      if (!lower.includes(String(host.label).toLowerCase()) && !lower.includes(key)) {
+        fail(`${rel}: does not mention host "${host.label}" (${key}) from src/hosts/index.mjs`);
+      }
+    }
+  }
+  for (const [key, host] of Object.entries(HOSTS)) {
+    if (!host.label) fail(`src/hosts/index.mjs: host "${key}" has no label`);
+    const dispatch = await read(`src/hosts/${key}/DISPATCH.md`);
+    if (dispatch === null) fail(`src/hosts/${key}/DISPATCH.md: missing for host "${key}"`);
   }
 }
 
@@ -209,8 +268,7 @@ let registryChecksSkipped = 0;
         fail(
           `src/registry/cores.json: core "${core.name}" is pinned to "${core.version}", ` +
             `which resolves to ${resolved || 'nothing'} — but ${core.package}'s latest ` +
-            `published version is ${latest}. Widen the pin (e.g. ">=X.0.0 <Y.0.0" spanning ` +
-            `the current major) so a future release of that core doesn't require a new ` +
+            `published version is ${latest}. Use the major-line form (e.g. "1.x", "0.x") so a future release of that core doesn't require a new ` +
             `hedgehog release just to reach it.`,
         );
       }
@@ -290,7 +348,13 @@ const allEntries = [
   ...agents.map((a) => ({ label: `src/agents/${a.file}`, text: a.text })),
   ...skills.map((s) => ({ label: `src/skills/${s.dir}/SKILL.md`, text: s.text })),
 ];
-const MENTION = /`(hedgehog-[a-z-]+|landing-[a-z-]+|nx-[a-z-]+|backend-eng|front-end-eng|layer-eng|planner|bootstrap|reviewer|tweaker|ux-planner|link-workspace-packages|conventional-commits)`/g;
+const coreAgentAlternation = [...coreAgents].map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+const MENTION = new RegExp(
+  '`(hedgehog-[a-z-]+|landing-[a-z-]+|nx-[a-z-]+|planner|bootstrap|reviewer|tweaker|link-workspace-packages|conventional-commits' +
+    (coreAgentAlternation ? `|${coreAgentAlternation}` : '') +
+    ')`',
+  'g',
+);
 for (const { label, text } of allEntries) {
   for (const m of text.matchAll(MENTION)) {
     const ref = m[1];
@@ -321,13 +385,7 @@ for (const { label, text } of allEntries) {
 //    loads" step each one runs against a real generated file. If either
 //    core ever grows a fixed starter workspace the way the other five
 //    have, add its `.core.yaml` fixture here in the same change. ───────
-const CORE_YAML_FIXTURES = [
-  'full-stack-app',
-  'landing-page',
-  'pwa-app',
-  'deepseek-harness',
-  'copywriting',
-];
+const CORE_YAML_FIXTURES = workspaceCores;
 let coreYamlFixturesLoaded = 0;
 for (const core of CORE_YAML_FIXTURES) {
   const path = join(ROOT, `repro/fixtures/cores/${core}.core.yaml`);
