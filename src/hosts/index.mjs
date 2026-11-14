@@ -157,8 +157,8 @@ export const HOSTS = {
 };
 
 // One install flag per host, named for the tool a user is asking to use.
-// Mirrors CORE_FLAGS in bin/cli.mjs: the public flag and the internal
-// name are allowed to diverge so the CLI surface can stay stable.
+// The public flag and the internal name are allowed to diverge so the CLI
+// surface can stay stable.
 export const HOST_FLAGS = {
   '--claude': 'claude',
   '--cursor': 'cursor',

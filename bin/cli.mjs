@@ -7,6 +7,8 @@
 //   npx @skyf0xx/hedgehog init --ts-full-stack-app     scaffold the full-stack-app core now
 //   npx @skyf0xx/hedgehog init --pwa-app               scaffold the pwa-app core now
 //   npx @skyf0xx/hedgehog init --landing-page          scaffold the landing-page core now
+//   npx @skyf0xx/hedgehog init --copywriting           install the copywriting core now
+//   npx @skyf0xx/hedgehog init --deepseek-harness      install the deepseek-harness core now
 //   npx @skyf0xx/hedgehog init --cursor                install for Cursor (default: Claude Code)
 //   npx @skyf0xx/hedgehog init --all-hosts             install for every supported coding agent
 //   npx @skyf0xx/hedgehog init --force                 overwrite files that already exist
@@ -184,7 +186,7 @@ const PKG_VERSION = JSON.parse(
 // deliberately so the CLI's public surface stays stable while cores are
 // renamed or added underneath it. Derived from src/registry/cores.json,
 // which owns the core → package → flag table: adding a core means adding
-// one entry there and nothing here. A core with no flag (`authored`) is
+// one entry there and nothing here. A core with no flag (`authored`, `adopted`) is
 // absent from this map on purpose; it is chosen during planning, never
 // off a fixed list at install time.
 async function coreFlags() {

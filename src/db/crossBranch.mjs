@@ -53,7 +53,7 @@
 // blocked", the safe direction: a cross-worktree dependency this module
 // can't resolve stays exactly as blocked as it already was, never
 // incorrectly unblocked. The module-axis case — the overwhelmingly common
-// one, since it's what `full-stack-app`/`pwa-app`/`landing-page` compile —
+// one, since it's what `full-stack-app`/`pwa-app`/`deepseek-harness` compile —
 // has a `commit_message` unique to each task by construction (the layer's
 // `commit` template interpolates `{module}`) and is fully solved.
 import { execSync } from 'node:child_process';

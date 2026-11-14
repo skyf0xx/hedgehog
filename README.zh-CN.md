@@ -253,6 +253,24 @@ gemini extensions install https://github.com/skyf0xx/hedgehog
 git clone https://github.com/skyf0xx/hedgehog ~/.cursor/plugins/local/hedgehog
 ```
 
+### OpenCode
+
+``` bash
+npx @skyf0xx/hedgehog init --host=opencode
+```
+
+### Windsurf
+
+``` bash
+npx @skyf0xx/hedgehog init --host=windsurf
+```
+
+### GitHub Copilot
+
+``` bash
+npx @skyf0xx/hedgehog init --host=copilot
+```
+
 然后打开一个项目，描述你想构建的内容，并提及 `hedgehog`。
 
 在没有预热过 pnpm 缓存的新项目上，首次安装可能需要几分钟。

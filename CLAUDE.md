@@ -225,16 +225,14 @@ from there — a change to a core's workspace, agents, or skills is a
 release of that package, not of this one. `src/registry/cores.json` names
 the version range `init` resolves for each, so widening a core's range is
 the one edit here that a core release calls for — and a core's version
-bump is not, on its own, sufficient for `init`/`update` to reach it: a
-caret range only resolves within the pinned major (or, below `1.0.0`,
-within the pinned minor — `^0.1.0` never resolves to `0.2.0` even after
-`0.2.0` ships), so a core crossing that boundary needs its range in
-`cores.json` widened and a new `hedgehog` release cut, or every consumer
-stays pinned to the old version with no error anywhere (`npm run check`
-catches this — it queries each core's actual latest published version
-against its pinned range and fails on a mismatch — but the range still
-has to be widened by hand, not just left for the next check run to
-complain about). Each core repo carries
+bump within its major line needs no edit here: every entry uses the
+major-line form (`"1.x"`, `"0.x"`), which resolves to the newest release
+on that line. A core crossing a major boundary needs its range moved to
+the new line and a new `hedgehog` release cut, or every consumer stays
+pinned to the old line with no error anywhere (`npm run check` catches
+this — it queries each core's actual latest published version against its
+pinned range and fails on a mismatch — but the range still has to be moved
+by hand, not just left for the next check run to complain about). Each core repo carries
 its own `.github/workflows/publish.yml`, structured the same way as this
 repo's: a version bump to that core's own `package.json`, committed and
 merged to that repo's own `main`, is the trigger — the workflow diffs the
@@ -248,8 +246,12 @@ of places that enumerate cores by hand rather than reading the registry,
 and each one drifts silently if skipped — no error surfaces, the text just
 goes stale. Sweep all of them in the same PR as the registry change:
 `skills/hedgehog/SKILL.md`, `hooks/session-start`'s gate text, `CLAUDE.md`,
-`SECURITY.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, and the
-code comments in `src/registry/` and `src/db/`. `hooks/session-start` is
+`SECURITY.md`, `ARCHITECTURE.md`, `AUTHORING-CORES.md`, `CONTRIBUTING.md`,
+`src/agents/planner.md`, `src/agents/bootstrap.md`, `src/agents/tweaker.md`,
+`src/skills/hedgehog-planning-intake/SKILL.md`, and the
+code comments in `src/registry/` and `src/db/`. `npm run check` fails when
+`CLAUDE.md`, `SECURITY.md`, `ARCHITECTURE.md`, `AUTHORING-CORES.md`, or
+`hooks/session-start` omits a registered core name. `hooks/session-start` is
 easy to miss because it isn't under `skills/`, but it ships as part of the
 plugin payload and needs the same release as everything else in this list.
 
