@@ -250,9 +250,9 @@ async function namedCore(args) {
 //
 // `core` is `null` on a deferred install (plain `init`, no explicit
 // flag): the payload is the shared agents/skills/build-graph only, with
-// which core applies left for `planner` to decide. `bootstrap` lands the
-// core workspace and fills the CLAUDE.md section for whichever core
-// `planner` picks — the first time either way. An explicit flag
+// which core applies left for `planner` to decide. `bootstrap` runs
+// `hedgehog core install` for whichever core `planner` picks, which lands
+// the same corePayload and fills the instructions file's section. An explicit flag
 // (`--ts-full-stack-app`, `--pwa-app`, `--landing-page`) is a confirmed choice, so it
 // scaffolds that workspace immediately, at install time.
 //
@@ -293,8 +293,8 @@ function plan(core, host = DEFAULT_HOST, { hostOnly = false } = {}) {
     return [
       ...base,
       // The shell with its {{CORE_SECTION}} placeholder left unfilled —
-      // whichever bootstrap-core skill runs first fills it in for the
-      // core planner actually picked. {{HOST_DISPATCH}} is filled now:
+      // `hedgehog core install` fills it in for the core planner
+      // actually picked. {{HOST_DISPATCH}} is filled now:
       // which host this is doesn't depend on the core.
       {
         type: 'merge',
@@ -622,8 +622,8 @@ async function writePlannedFile(f) {
         // Brownfield: hand-written content that predates Hedgehog, with
         // no shell markers at all, on the coreless deferred path (no
         // `include` — there's no core section yet to fill in). Nothing
-        // to merge in here; the file is untouched until `hedgehog-adopt`
-        // later appends its own core section via appendCoreSection
+        // to merge in here; the file is untouched until `hedgehog core
+        // install` appends the core section via appendCoreSection
         // (src/hosts/claude-md-merge.mjs). Overwriting it with the
         // greenfield shell, or even just filling {{HOST_DISPATCH}} into
         // it, would assert a fresh-install shape onto a repo that isn't
@@ -633,7 +633,7 @@ async function writePlannedFile(f) {
     }
     if (out === null) out = await readFile(join(PKG_ROOT, f.merge.shell), 'utf8');
     // A deferred install has no core yet, so {{CORE_SECTION}} stays put
-    // for whichever bootstrap-core skill runs first to fill in. The host
+    // for `hedgehog core install` to fill in. The host
     // is always known at install time, so {{HOST_DISPATCH}} never is.
     if (f.merge.include) {
       const section = await readFile(
@@ -725,9 +725,20 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog init --pwa-app            scaffold the pwa-app core now
   npx @skyf0xx/hedgehog init --landing-page       scaffold the landing-page core now
   npx @skyf0xx/hedgehog cores list                every core this release can install
-  npx @skyf0xx/hedgehog core record-adopted       land the adopted core's agents/skills and record
-                                                   this project as adopted (hedgehog-adopt calls this
-                                                   after writing .hedgehog/core.yaml; not for other cores)
+  npx @skyf0xx/hedgehog core install <name>       install a core into a project whose init named none:
+                                                   its agents, skills, vendored shelves and workspace for
+                                                   every installed host, its section in each host's
+                                                   instructions file, and the record 'update' reads;
+                                                   refuses copywriting (use init --copywriting) and a
+                                                   different recorded core; reports a recorded one as
+                                                   installed [--force reinstalls it and overwrites
+                                                   existing workspace files]
+  npx @skyf0xx/hedgehog core record-adopted       same as 'core install adopted' (hedgehog-adopt calls it)
+  npx @skyf0xx/hedgehog core check [path]         load and lint a core.yaml (default: this project's);
+                                                   exits 1 on an error, prints warnings; reads only
+  npx @skyf0xx/hedgehog core show [--json]        print this project's core wherever it lives — path, id,
+                                                   pattern, and each layer's depends_on, scope, verify,
+                                                   verify_radius, exclusive, once and commit; reads only
   npx @skyf0xx/hedgehog init --cursor             install for Cursor (default: Claude Code)
   npx @skyf0xx/hedgehog init --host=claude,gemini install for several coding agents at once
   npx @skyf0xx/hedgehog init --all-hosts          install for every supported coding agent
@@ -899,6 +910,10 @@ const GITIGNORE_ENTRIES = [
 ];
 
 async function ensureGitignore(root = DEST_ROOT) {
+  return mergeGitignore(root, GITIGNORE_ENTRIES);
+}
+
+async function mergeGitignore(root, entries) {
   const path = join(root, '.gitignore');
   let existing = '';
   try {
@@ -908,12 +923,30 @@ async function ensureGitignore(root = DEST_ROOT) {
   }
 
   const lines = existing.split('\n').map((l) => l.trim());
-  const missing = GITIGNORE_ENTRIES.filter((e) => !lines.includes(e));
+  const missing = [...new Set(entries.map((e) => e.trim()))].filter((e) => !lines.includes(e));
   if (missing.length === 0) return { path, added: [] };
 
   const prefix = existing === '' || existing.endsWith('\n') ? '' : '\n';
   await writeFile(path, `${existing}${prefix}${missing.join('\n')}\n`);
   return { path, added: missing };
+}
+
+// Same declared-binary check `status` runs, moved up to install time for
+// a core that ships a workspace (root core.yaml lands with it — see
+// resolveCorePath). Catching "this core needs terraform" here means the
+// agent following "Next steps" sees it before ever running a verify
+// command, rather than discovering it as an exit 127 mid-build.
+async function printMissingRequirements() {
+  const installedCorePath = await resolveCorePath();
+  if (!installedCorePath) return;
+  try {
+    const lines = formatMissingRequirements(coreMissingRequirements(await loadCore(installedCorePath)));
+    if (lines.length) console.log(lines.join('\n') + '\n');
+  } catch {
+    // Unparseable this early is surfaced by the next `hedgehog status`
+    // instead — every file is already written, so failing the run over a
+    // report-only check would be the wrong call.
+  }
 }
 
 // `core` is the fetched core — `{ manifest, root, version }` — or null on
@@ -939,9 +972,8 @@ async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, global
   // too, but only when the existing file is a brownfield one: hand-written
   // content with no {{PROJECT_NAME}} shell marker. That file was never a
   // Hedgehog shell to overwrite — writePlannedFile leaves it untouched,
-  // for hedgehog-adopt's own merge step to append its delimited core
-  // section into later (src/hosts/claude-md-merge.mjs), once a core is
-  // actually known. A file still carrying {{PROJECT_NAME}} (a previous
+  // for `hedgehog core install` to append its delimited core section into
+  // later (src/hosts/claude-md-merge.mjs), once a core is actually known. A file still carrying {{PROJECT_NAME}} (a previous
   // deferred init's untouched shell) is not brownfield content and keeps
   // hitting the ordinary conflict/--force path below.
   const conflicts = [];
@@ -1011,24 +1043,7 @@ async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, global
     )}\n`,
   );
 
-  // Same declared-binary check `status` runs, moved up to install time for
-  // a core that ships a workspace (root core.yaml lands with it — see
-  // resolveCorePath). Catching "this core needs terraform" here means the
-  // agent following "Next steps" sees it before ever running a verify
-  // command, rather than discovering it as an exit 127 mid-build.
-  const installedCorePath = await resolveCorePath();
-  if (installedCorePath) {
-    try {
-      const installedCoreDef = await loadCore(installedCorePath);
-      const missing = coreMissingRequirements(installedCoreDef);
-      const lines = formatMissingRequirements(missing);
-      if (lines.length) console.log(lines.join('\n') + '\n');
-    } catch {
-      // Unparseable this early is surfaced by the next `hedgehog status`
-      // instead — init has already written every file successfully, so
-      // failing the run over a report-only check would be the wrong call.
-    }
-  }
+  await printMissingRequirements();
 
   console.log('Next steps:');
   // This install itself just fetched globalInstall.latest to run, so the
@@ -1318,45 +1333,75 @@ async function resolveInstalledCore() {
   }
 }
 
-// `hedgehog core record-adopted` — the record path for `hedgehog-adopt`
-// (shipped in @skyf0xx/hedgehog-core-adopted), which brings the
-// discipline to an existing repo by writing `.hedgehog/core.yaml` and
-// `.hedgehog/adoption.md` directly. That path has no `init` step and so
-// never fetches the `adopted` package or calls `recordCore` — a no-flag
-// `init` (what the offer skill actually runs before adoption) installs
-// only the shared engine payload, never a core's own agents/skills, and
-// `bootstrap` (the only other place a core package gets fetched) is
-// explicitly skipped for adoption. Left alone, `hedgehog-authored-loop`
-// and `layer-eng` — the skill and agent adoption hands off to — would
-// never land on disk, and even if they did by some other means, `update`
-// would have nothing telling it they're there: `resolveInstalledCore`
-// falls through to `detectUnrecordedCore`, which only looks for a root
-// `core.yaml` (the shipped-core workspace marker) and finds nothing for
-// an adopted repo's `.hedgehog/core.yaml`, so it would read as "no core
-// yet" and update would silently rewrite `.claude/agents`/`.claude/skills`
-// down to just the shared payload, deleting the adopted package's files
-// with nothing put back.
+// `hedgehog core install <name>` — lands a registry core into a project
+// whose `init` named none, which is the default path: planner picks the
+// core at planning intake and `bootstrap` runs this as its first step.
+// It plans the same writes `init` plans for a core (corePayload, every
+// recorded host, the shared parts with the first), fills the core's
+// section into each host's instructions file, and records the core so
+// `update` refreshes it from then on.
 //
-// This command is both fixes at once: it fetches the `adopted` package
-// and lands its agents/skills for every host this project already has
-// installed (never its workspace or vendor_skills — root workspace is
-// the one thing adoption must never touch), plus a local copy of its
-// `CLAUDE.core.md` at `.hedgehog/CLAUDE.core.md` — `hedgehog-adopt`'s own
-// Confirm & Lock step reads that file from there to merge into root
-// `CLAUDE.md`, since a no-flag `init` never ran the normal
-// `{{CORE_SECTION}}` merge this project's core would otherwise get — then
-// records the core the same as any other, naming `adopted`, so `update`
-// refreshes it correctly from here on. Idempotent and safe to re-run —
-// e.g. from a later `hedgehog-adopt` pass adding new change-work — since
-// it always overwrites from the current package rather than merging.
-async function recordAdoptedCommand() {
-  const entry = await resolveCore(ADOPTED_CORE_NAME);
-  if (!entry) {
+// Workspace files that already exist are a conflict, the same as on
+// `init`, except `.gitignore`: a coreless `init` always wrote one, so the
+// core's lines are appended to it rather than replacing it.
+//
+// A core with no workspace is installed into an existing repo, so a
+// host's instructions file that is absent stays absent: those cores
+// extend a project's instructions, they never originate them.
+//
+// `recordAdopted` serves `core record-adopted`, the alias published
+// `hedgehog-adopt` releases call mid-skill. Those releases read the
+// section back from `.hedgehog/CLAUDE.core.md` and make their own commit,
+// so the alias writes that copy, re-runs over its own record, and prints
+// no commit step.
+async function coreInstallCommand(name, { force = false, recordAdopted = false } = {}) {
+  if (!name) {
+    console.error(`${red('No core named.')}\n\nUsage: hedgehog core install <name> [--force]\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (!(await exists(join(DEST_ROOT, '.hedgehog')))) {
     console.error(
-      `${red('adopted core not in this release.')} This Hedgehog release's registry has no\n` +
-        `entry named "adopted" — nothing to install. Update Hedgehog and retry.\n`,
+      `${red('No Hedgehog install found here.')} ${bold('.hedgehog/')} does not exist — run ${bold('hedgehog init')} first.\n`,
     );
     process.exitCode = 1;
+    return;
+  }
+  const entry = await resolveCore(name);
+  if (!entry) {
+    console.error(
+      `${red('Unknown core:')} ${name}\n\nAvailable cores: ${(await availableCores()).join(', ')}\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  // Copywriting installs only into a scratch directory, which `init
+  // --copywriting` creates before anything else runs (see ORIGDIR above).
+  if (entry.name === 'copywriting') {
+    console.error(
+      `${red('copywriting does not install into an existing project.')} Its drafts live in a\n` +
+        `scratch directory that ${bold('hedgehog init --copywriting')} creates; run that instead.\n` +
+        'Nothing was changed.\n',
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const record = await installedCore(DEST_ROOT);
+  if (record && record.name !== entry.name) {
+    console.error(
+      `\n${red(bold('A different core is already installed:'))} ${bold(record.name)}\n\n` +
+        `This project is recorded as ${bold(record.name)} (${bold('.hedgehog/core.json')}). Installing\n` +
+        `${bold(entry.name)} over it would mix two cores' agents, skills and layers in one\n` +
+        `project. Nothing was changed.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  if (record && !force && !recordAdopted) {
+    console.log(
+      `${green(bold('Already installed:'))} ${bold(record.name)} ${dim(`(${record.version ?? 'unknown version'})`)}\n\n` +
+        `Run ${bold('hedgehog update')} to refresh its agents and skills. Nothing was changed.\n`,
+    );
     return;
   }
 
@@ -1370,45 +1415,222 @@ async function recordAdoptedCommand() {
   }
 
   const targets = await installedHosts(DEST_ROOT);
-  let written = 0;
-  for (const host of targets) {
-    const h = HOSTS[host];
-    for (const payloadEntry of corePayload(core, h, { hostOnly: true })) {
+  const gitignoreDest = join(DEST_ROOT, '.gitignore');
+  const files = [];
+  let gitignoreSrc = null;
+  for (const [i, host] of targets.entries()) {
+    for (const payloadEntry of corePayload(core, HOSTS[host], { hostOnly: i > 0 })) {
+      const workspace = payloadEntry.to === '.';
       for (const f of await plannedFiles(payloadEntry)) {
-        await writePlannedFile(f);
-        written++;
-        console.log(`  ${green('install')}  ${relative(DEST_ROOT, f.dest)}`);
+        if (workspace && f.dest === gitignoreDest) gitignoreSrc = f.src;
+        else files.push({ ...f, workspace });
       }
     }
   }
 
-  const templateFile = (
-    await plannedFiles({
+  const conflicts = [];
+  for (const f of files) {
+    if (f.workspace && (await exists(f.dest))) conflicts.push(f.dest);
+  }
+  if (conflicts.length && !force) {
+    console.error(`\n${red(bold(`Refusing to overwrite existing files with ${entry.name}'s workspace.`))}\n`);
+    for (const c of conflicts) console.error(`  ${yellow('exists')}  ${relative(DEST_ROOT, c)}`);
+    console.error(`\nRe-run with ${bold('--force')} to overwrite, or move these aside first.\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  let written = 0;
+  for (const f of files) {
+    const already = await exists(f.dest);
+    await writePlannedFile(f);
+    written++;
+    console.log(`  ${already ? yellow('overwrite') : green('install')}  ${relative(DEST_ROOT, f.dest)}`);
+  }
+
+  if (gitignoreSrc) {
+    const lines = (await readFile(gitignoreSrc, 'utf8')).split('\n').filter((l) => l.trim() !== '');
+    const gitignore = await mergeGitignore(DEST_ROOT, lines);
+    if (gitignore.added.length) {
+      written++;
+      console.log(`  ${green('update')}  .gitignore ${dim(`(${gitignore.added.length} entries)`)}`);
+    }
+  }
+
+  const bootstrapFiles = new Set();
+  for (const host of targets) {
+    const rel = HOSTS[host].bootstrapFile;
+    if (bootstrapFiles.has(rel)) continue;
+    bootstrapFiles.add(rel);
+    const outcome = await fillCoreSection(core, host, {
+      createMissing: Boolean(core.manifest.workspace),
+    });
+    if (outcome === 'absent') {
+      console.log(`  ${dim('skip')}  ${rel} ${dim('(absent)')}`);
+      continue;
+    }
+    if (outcome !== 'keep') written++;
+    console.log(`  ${outcome === 'keep' ? dim('keep') : green(outcome)}  ${rel}`);
+  }
+
+  if (recordAdopted) {
+    const [copy] = await plannedFiles({
       type: 'file',
       root: core.root,
       from: core.manifest.template,
       to: '.hedgehog/CLAUDE.core.md',
-    })
-  )[0];
-  await writePlannedFile(templateFile);
-  written++;
-  console.log(`  ${green('install')}  ${relative(DEST_ROOT, templateFile.dest)}`);
+    });
+    await writePlannedFile(copy);
+    written++;
+    console.log(`  ${green('install')}  ${relative(DEST_ROOT, copy.dest)}`);
+  }
 
   await recordCore(DEST_ROOT, { name: core.manifest.name, version: core.version });
 
   console.log(
-    `\n${green(bold('Adopted core recorded.'))} ${dim(
-      `${written} file(s) written for ${targets.map((h) => HOSTS[h].label).join(', ')}`,
+    `\n${green(bold(`Core installed: ${core.manifest.name}`))} ${dim(
+      `(${core.version}) — ${written} file(s) written for ${targets.map((h) => HOSTS[h].label).join(', ')}`,
     )}\n`,
   );
+  await printMissingRequirements();
+  if (core.engineAdvisory) console.log(`${yellow(core.engineAdvisory)}\n`);
+  if (!recordAdopted) {
+    console.log('Next steps:');
+    const commit = `Commit the files listed above as ${bold(`chore: install ${core.manifest.name} core`)}`;
+    if (core.manifest.workspace) {
+      // Same order as `init`'s: the install writes the commit gate's hooks,
+      // so the commit that lands the workspace is already gated.
+      console.log(`  1. ${bold('pnpm install')} ${dim('(before the commit, so the commit gate is in place)')}`);
+      console.log(`  2. ${commit}\n`);
+    } else {
+      console.log(`  1. ${commit}\n`);
+    }
+  }
   console.log(
     dim(
-      'hedgehog-authored-loop and layer-eng are now on disk and this project is\n' +
-        'recorded as adopted — `hedgehog update` will keep them current alongside\n' +
-        "the shared engine payload, and will never treat this project's core as a\n" +
-        'name it gets to change.\n',
+      `${core.manifest.name}'s agents and skills are recorded in .hedgehog/core.json, so\n` +
+        '`hedgehog update` keeps them current alongside the shared payload.\n',
     ),
   );
+}
+
+// Fills `core`'s CLAUDE section into one host's instructions file: into
+// `{{CORE_SECTION}}` while the shell still carries it, otherwise through
+// appendCoreSection, which replaces an existing marked section in place
+// and appends to a hand-written file that has none. A missing file is
+// written from the shell, the same way `init` writes it, when
+// `createMissing` is set, and left absent otherwise.
+async function fillCoreSection(core, host, { createMissing }) {
+  const merge = plan(core, host, { hostOnly: true }).find((e) => e.type === 'merge');
+  const dest = join(DEST_ROOT, merge.to);
+  if (!(await exists(dest))) {
+    if (!createMissing) return 'absent';
+    await writePlannedFile({ dest, merge });
+    return 'create';
+  }
+  const existing = await readFile(dest, 'utf8');
+  const section = await readFile(join(core.root, core.manifest.template), 'utf8');
+  let out = existing.includes('{{CORE_SECTION}}')
+    ? existing.replaceAll('{{CORE_SECTION}}', wrapSection(section))
+    : appendCoreSection(existing, section);
+  if (out.includes('{{HOST_DISPATCH}}')) {
+    const dispatch = await readFile(join(PKG_ROOT, merge.dispatch), 'utf8');
+    out = out.replaceAll('{{HOST_DISPATCH}}', dispatch.trimEnd());
+  }
+  if (out === existing) return 'keep';
+  await writeFile(dest, out);
+  return 'update';
+}
+
+// `hedgehog core check [path]` — load and lint a core.yaml without
+// touching the build graph. A load error exits 1; lint warnings print and
+// leave the exit code at 0, the same split `status` reports.
+async function coreCheckCommand(pathArg) {
+  const corePath = pathArg ? resolve(DEST_ROOT, pathArg) : await resolveCorePath();
+  if (!corePath) {
+    console.error(
+      `${red('No core definition found.')} Expected ${bold(AUTHORED_CORE_PATH)} or a root ${bold('core.yaml')}.\n` +
+        `Pass a path to check another file: ${bold('hedgehog core check <path>')}\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const label = relative(DEST_ROOT, corePath) || corePath;
+  if (!(await exists(corePath))) {
+    console.error(`${red('Not found:')} ${label}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  let core;
+  try {
+    core = await loadCore(corePath);
+  } catch (err) {
+    console.error(`${red('invalid')}  ${bold(label)}\n  ${red('error')} ${err.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const warnings = lintCore(core);
+  for (const warning of warnings) console.log(`  ${yellow('warning')} ${warning}`);
+  console.log(
+    `${green('valid')}  ${bold(label)}  ${dim(
+      `core ${core.id}, ${core.layers.length} layer(s), ${warnings.length} warning(s)`,
+    )}`,
+  );
+}
+
+// `hedgehog core show [--json]` — the resolved core, wherever it lives
+// (`.hedgehog/core.yaml` or a root `core.yaml`), so a skill cites one
+// command instead of a file path that differs between cores.
+async function coreShowCommand(args) {
+  const corePath = await resolveCorePath();
+  if (!corePath) {
+    console.error(
+      `${red('No core definition found.')} Expected ${bold(AUTHORED_CORE_PATH)} or a root ${bold('core.yaml')}.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const label = relative(DEST_ROOT, corePath) || corePath;
+  let core;
+  try {
+    core = await loadCore(corePath);
+  } catch (err) {
+    console.error(`${red('CORE')}  ${bold(label)} is invalid: ${err.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const view = {
+    path: label,
+    id: core.id,
+    pattern: core.pattern ?? null,
+    layers: core.layers.map((l) => ({
+      id: l.id,
+      depends_on: l.depends_on,
+      scope: l.scope,
+      verify: l.verify,
+      verify_radius: l.verify_radius,
+      exclusive: l.exclusive,
+      once: l.once,
+      commit: l.commit,
+    })),
+  };
+  if (args.includes('--json')) {
+    console.log(JSON.stringify(view, null, 2));
+    return;
+  }
+  console.log(`${dim('core')}     ${bold(view.id)}`);
+  console.log(`${dim('path')}     ${view.path}`);
+  console.log(`${dim('pattern')}  ${view.pattern ?? dim('unset')}`);
+  for (const l of view.layers) {
+    console.log(`\n${bold(l.id)}`);
+    console.log(`  ${dim('depends_on')}     ${l.depends_on ?? '—'}`);
+    console.log(`  ${dim('scope')}          ${l.scope.join(', ')}`);
+    console.log(`  ${dim('verify')}         ${l.verify}`);
+    console.log(`  ${dim('verify_radius')}  ${l.verify_radius ? l.verify_radius.join(', ') : dim('scope')}`);
+    console.log(`  ${dim('exclusive')}      ${l.exclusive ? 'yes' : 'no'}`);
+    if (l.once) console.log(`  ${dim('once')}           yes`);
+    console.log(`  ${dim('commit')}         ${l.commit}`);
+  }
 }
 
 async function dbRebuildCommand() {
@@ -1417,7 +1639,7 @@ async function dbRebuildCommand() {
     console.error(
       `${red('No core definition found.')} Expected ${bold(AUTHORED_CORE_PATH)} or a root ${bold('core.yaml')}.\n` +
         `A no-flag \`hedgehog init\` installs no core — planner picks one at planning\n` +
-        `intake. Install one now with \`hedgehog init --core <name>\` (see \`hedgehog\n` +
+        `intake. Install one now with \`hedgehog core install <name>\` (see \`hedgehog\n` +
         `cores list\`), or run planning intake to have it chosen for you.\n`,
     );
     process.exitCode = 1;
@@ -1688,7 +1910,7 @@ async function planCommand(args = []) {
     console.error(
       `${red('No core definition found.')} Expected ${bold(AUTHORED_CORE_PATH)} or a root ${bold('core.yaml')}.\n` +
         `A no-flag \`hedgehog init\` installs no core — planner picks one at planning\n` +
-        `intake. Install one now with \`hedgehog init --core <name>\` (see \`hedgehog\n` +
+        `intake. Install one now with \`hedgehog core install <name>\` (see \`hedgehog\n` +
         `cores list\`), or run planning intake to have it chosen for you.\n`,
     );
     process.exitCode = 1;
@@ -4451,19 +4673,37 @@ function engineNote(engine) {
   return `${engine} ${dim(`— CLI is ${PKG_VERSION}`)}`;
 }
 
-// `hedgehog core record-adopted` — see recordAdoptedCommand for why this
-// exists. `cores` (plural) lists the registry; `core` (singular) acts on
-// this project's own core, so the two don't collide despite the name.
+// `cores` (plural) lists the registry; `core` (singular) acts on this
+// project's own core, so the two don't collide despite the name.
+// `record-adopted` is the name published `hedgehog-adopt` releases call.
 async function coreCommand(args) {
-  const sub = args[0];
-  if (sub !== 'record-adopted') {
-    console.error(
-      `${red('Unknown core subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog core record-adopted\n`,
-    );
-    process.exitCode = 1;
+  const [sub, ...rest] = args;
+  const positional = rest.find((a) => !a.startsWith('-'));
+  if (sub === 'install') {
+    const force = rest.includes('--force') || rest.includes('-f');
+    await coreInstallCommand(positional, { force });
     return;
   }
-  await recordAdoptedCommand();
+  if (sub === 'record-adopted') {
+    await coreInstallCommand(ADOPTED_CORE_NAME, { recordAdopted: true });
+    return;
+  }
+  if (sub === 'check') {
+    await coreCheckCommand(positional);
+    return;
+  }
+  if (sub === 'show') {
+    await coreShowCommand(rest);
+    return;
+  }
+  console.error(
+    `${red('Unknown core subcommand:')} ${sub ?? '(none)'}\n\n` +
+      'Usage: hedgehog core install <name> [--force]\n' +
+      '       hedgehog core check [path]\n' +
+      '       hedgehog core show [--json]\n' +
+      '       hedgehog core record-adopted\n',
+  );
+  process.exitCode = 1;
 }
 
 // Wraps prose to `width`, indenting every line after the first so it sits

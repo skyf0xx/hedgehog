@@ -1,48 +1,32 @@
 ---
 name: hedgehog-planning-intake
-description: Use on any core for first-run planning intake — Phase 0 runs the vendored BMAD-METHOD planning shelf, shared by every core, and Phase 1 (mining `04-prd.md` into intent records plus the Add-ons/sync-and-remote-entities decision) is full-stack-app's and pwa-app's shared procedure — identical mechanics, a different decision at step 5/8. Phase 0 also defines compressed intake, the path a user's explicit "just build it" choice takes on full-stack-app, pwa-app, authored, and copywriting cores: one batched round of questions in place of the shelf, writing a thinned archive at the same paths so Phase 1 (or, on copywriting, that core's own mining step), `ux-planner`, and the Re-entry pass all keep their documented source. Also use for the Re-entry pass, which mines new scope into additional intents without re-running the shelf, on any core with a module axis to add an intent to (full-stack-app, pwa-app, authored) — landing-page has none, so its own new-scope path runs through `hedgehog-landing-loop`'s Correction Protocol instead. Invoked by the `planner` agent, which decides the path; don't run standalone. landing-page runs this skill's Phase 0 on first run, then mines the same archive through `hedgehog-landing-loop`'s own planning-intake section, that core's counterpart to this skill's Phase 1. copywriting runs this skill's Phase 0 the same way (full or compressed), then mines the same archive through `hedgehog-copywriting-loop`'s own planning-intake section into a what/audience/register brief — no module axis, so its own new-scope path runs through that loop's Correction Protocol rather than the Re-entry pass below. An authored core runs this skill's Phase 0, then `hedgehog-core-design`, then this skill's Phase 1 mining against the designed layer sequence. A brownfield adoption (`hedgehog-adopt`) never runs this skill's shelf at all — the drivers BMAD elicits are already settled facts of a repo that already exists.
+description: Use when `planner` runs first-run planning intake on a core whose intake opens with the vendored BMAD-METHOD shelf, or chooses compressed intake after a user asks not to be asked questions, or adds new scope to a full-stack-app, pwa-app, or authored project that already has intents (the Re-entry pass). Holds the shared shelf (Phase 0), its archive layout, compressed intake, and the PRD-to-intent mining (Phase 1). Invoked by `planner`, which decides the path; don't run standalone.
 ---
 
 # Hedgehog Planning Intake
 
 Turns a person's description of a problem into planning material, by
-running the vendored BMAD-METHOD planning shelf (Phase 0, shared by
-every core) and mining its output. On full-stack-app and pwa-app that
-mining is this skill's own Phase 1, into intent records written via
-`hedgehog intent
-add`; on landing-page it's `hedgehog-landing-loop`'s planning-intake
-section, into a subject/audience/job statement; on copywriting it's
-`hedgehog-copywriting-loop`'s planning-intake section, into a
-what/audience/register brief. This is the mechanics
-`planner` calls once its Phase 0 core-selection check has picked a core —
+running the vendored BMAD-METHOD planning shelf (Phase 0) and mining its
+output. `planner`'s "Per-core intake" names, for every core, which parts
+of this skill run, which core skill mines the archive instead of Phase 1,
+and where new scope goes later. This skill holds the fixed procedures;
 the interpretive judgment (which Feature becomes which intent, Confirm &
-Lock either way) belongs to `planner`; this skill (Phase 0, and Phase 1 on
-full-stack-app and pwa-app), `hedgehog-landing-loop` (landing-page's own
-mining), and `hedgehog-copywriting-loop` (copywriting's own mining) are
-the fixed procedures that judgment runs inside.
+Lock either way) belongs to `planner`.
 
-That shelf run is a **first run**, once per project. When new scope
-enters play later on a core with a module axis (full-stack-app, pwa-app,
-authored), `planner` runs the **Re-entry pass** at the end of this file
-instead: it reads the existing archive as context and elicits only what's
-new, adding intents to a graph that keeps everything already built.
-Landing-page has no module axis for this pass to add an intent to; its
-own new-scope path runs through `hedgehog-landing-loop`'s Correction
-Protocol post-build entry instead — see that skill, not this one.
-
-## Phase 0 — BMAD elicitation (every core, first run only)
+## Phase 0 — BMAD elicitation (first run only)
 
 Phase 0 and Phase 1 below are the **first run** — a project whose build
-graph holds no intents yet. When the graph already holds intents, run the
-**Re-entry pass** at the end of this file instead; the shelf does not run
-twice on one project.
+graph holds no intents yet. The shelf runs once per project: new scope
+later goes where `planner`'s "Per-core intake" sends it (the **Re-entry
+pass** at the end of this file, on the cores it covers), never through
+the shelf again. deepseek-harness is the exception: its intake can run
+the shelf once per plugin, and `hedgehog-dsh-loop`'s Planning intake
+governs each run's archive.
 
 Run Phase 0 in the session already talking to the user, never as a
 detached subagent — every skill below can drop into Facilitator or
 Creative Partner mode, a live multi-turn conversation a subagent has no
-channel to hold (`planner.md` states the same constraint). Applies
-regardless of which core invoked this Phase — `hedgehog-landing-loop`
-runs it in full too.
+channel to hold. This applies whichever core's intake invoked it.
 
 Check `uv` is on PATH before anything else — every skill in the shelf
 below shells out to it (`uv run {bmad-root}/scripts/*.py`) for its
@@ -57,9 +41,9 @@ Don't fall back to a reduced or headless shelf run on this failure;
 that's a silent behavior change of exactly the kind this check exists
 to prevent.
 
-State the BMAD attribution, then run the vendored shelf in full
-sequence — on a first run there is no per-project skip logic and no
-reduced default set:
+State the BMAD attribution `planner`'s Phase 1 gives, then run the
+vendored shelf in full sequence — on a first run there is no per-project
+skip logic and no reduced default set:
 
 1. `bmad-forge-idea` (`vendor-skills/BMAD/core-skills/bmad-forge-idea`) —
    pressure-test the idea through persona-driven interrogation before
@@ -83,8 +67,8 @@ Any skill may itself invoke `bmad-advanced-elicitation`
 points — that's expected, let it run.
 
 **Full-shelf carve-out on copywriting.** This core has no module axis —
-`hedgehog-copywriting-loop`'s mining step (its planning-intake section,
-step 2) draws only from `02-brief.md` and `03-prfaq.md`, never
+`hedgehog-copywriting-loop`'s mining step (in its planning-intake
+section) draws only from `02-brief.md` and `03-prfaq.md`, never
 `04-prd.md` or `05-ux-spec/`. On a full run, stop the shelf after
 `bmad-prfaq` (step 4) — or after `bmad-deep-recon` (step 7) where the
 piece genuinely needs market/competitive/user-voice research — and skip
@@ -111,24 +95,88 @@ Write each skill's output to `.hedgehog/BMAD/`, per the fixed layout:
 
 Every file/folder carries a one-line attribution header. `00-manifest.md`
 states the source repo, pinned version (`vendor-skills/BMAD/ATTRIBUTION.md` has
-the pinned commit), date, which intake mode ran (`full`, below, or
-`compressed`), and which skills ran.
+the pinned commit), date, which intake mode ran (`full`, above, or
+`compressed`, below), and which skills ran.
 
 ### Compressed intake (full-stack-app, pwa-app, authored core, copywriting)
 
 A user who opens with "just build it" — no clarifying questions — is
 asking for something Phase 0's live elicitation can't give them.
-`planner` surfaces that conflict rather than resolving it silently (see
-that agent), and **compressed intake is the defined path when the user
-chooses it**. It is never the default and never offered as the
-easier option: it runs only on an explicit choice, after the conflict has
-been named.
+`planner` surfaces that conflict rather than resolving it silently, and
+**compressed intake is the defined path when the user chooses it**. It is
+never the default and never offered as the easier option: it runs only
+on an explicit choice, after the conflict has been named.
 
 Compressed intake replaces the shelf with **one batched round of
 questions covering only what can't be inferred from the user's brief**,
-then writes the archive below directly. Everything else about intake is
-unchanged — Phase 1 mining, Confirm & Lock, and the Add-ons gate all run
-exactly as they do on a full run, against the archive this mode writes.
+then writes a thinned archive at the same paths a full run uses. It
+writes exactly the files this core's archive readers (see "Who reads the
+archive" below) read, and nothing else: a file that isn't written is named as not-run in `00-manifest.md`,
+never left as an empty placeholder. Everything else about intake is
+unchanged — mining, Confirm & Lock, and any boolean gate all run exactly
+as they do on a full run, against the archive this mode writes.
+
+**What the round covers and what the archive holds, per core:**
+
+- **full-stack-app, pwa-app, authored core** — what the round covers
+  differs by core:
+  - full-stack-app and pwa-app: the boolean decision. Auth, Queue, and
+    Mobile (full-stack-app) or sync and remote entities (pwa-app) must
+    each be *answered*, inferred from a concrete trigger in the user's
+    brief or asked directly in that one round, per the gate `planner`'s
+    "The Add-ons decision" states. Compressed intake compresses BMAD's
+    elicitation, never that gate.
+  - authored core: there is no boolean decision. The round covers the
+    drivers `hedgehog-core-design` designs from and the brief leaves
+    open: the system shape, the ecosystem the target users already work
+    in, the deployment target, and any hard constraint on stack or
+    platform.
+
+  All three write the same archive:
+
+  ```
+  .hedgehog/BMAD/
+    00-manifest.md        # mode: compressed, date, what the batched round covered
+    04-prd.md             # §3 Glossary and §4 Features only, mined from the brief
+    05-ux-spec/
+      EXPERIENCE.md       # flows and behaviour, where the brief states them
+  ```
+
+  - **`04-prd.md`** carries the load: Phase 1 below reads §3 Glossary and
+    §4 Features, so compressed intake writes exactly those two sections,
+    derived from the brief plus the batched answers, in the shape that
+    mining table expects. Not a full BMAD PRD — the minimum shape Phase 1
+    can walk.
+  - **`05-ux-spec/EXPERIENCE.md`** only where the brief actually states
+    flows or behaviour ("a list you can filter", "mark done inline"). No
+    `DESIGN.md`: visual identity is what a compressed brief is least
+    likely to state, and inventing one is exactly the improvisation this
+    mode exists to prevent. `ux-planner` reads whichever of the two the
+    archive holds, and treats an absent file as its cue to ask (see that
+    agent).
+
+  On an authored core, `hedgehog-core-design` reads this archive to pick
+  a stack and derive layers. A compressed PRD is thinner input for that
+  than a full shelf run, so say so plainly at that skill's own Confirm &
+  Lock — the architecture is being designed from a brief rather than
+  from elicited drivers, and that's the user's call to accept there.
+- **copywriting** — the round covers exactly what
+  `hedgehog-copywriting-loop`'s mining step needs and can't infer from
+  the request: what's being written (the concrete piece), the audience,
+  and the register — three questions, or fewer where the request already
+  answers one. There is no boolean gate on this core. A short, low-stakes
+  piece (a single UI microcopy string, a one-off product-announcement
+  paragraph) is the case this mode fits. The archive:
+
+  ```
+  .hedgehog/BMAD/
+    00-manifest.md   # mode: compressed, date, what the batched round asked
+    02-brief.md      # what's being written + audience, from the brief + batched round
+    03-prfaq.md      # register, from the brief + batched round
+  ```
+
+  That mining step reads these two files exactly as it does on a full
+  run, so a thinned archive changes only how much material informed it.
 
 Not available on landing-page: that core's whole chain is a traceability
 audit rooted in a subject statement mined from BMAD's material, so
@@ -136,114 +184,43 @@ compressing the elicitation removes the thing the chain audits against.
 A "just build it" landing-page request is a conflict to surface, not a
 mode to switch into.
 
-**The Add-ons decision (or, on pwa-app, the sync/remote-entities
-decision) is what the batched round is for.** Auth, Queue, and Mobile
-(full-stack-app) or sync and remote entities (pwa-app) must each be
-*answered*: inferred from a concrete
-trigger in the user's brief, or asked directly in that one round.
-Compressed intake compresses BMAD's elicitation, never `planner`'s gate;
-a boolean left as a guess is the same error here as on a full run.
-
-**On copywriting**, the batched round covers exactly what
-`hedgehog-copywriting-loop`'s own mining step needs and can't infer from
-the user's request: what's being written (the concrete piece), the
-audience, and the register. There's no Add-ons-shaped decision here —
-copywriting has no module axis and no boolean gate, so the round is
-smaller than full-stack-app's or pwa-app's: three questions, or fewer
-where the request already answers one. A short, low-stakes piece (a
-single UI microcopy string, a one-off product-announcement paragraph) is
-the case this mode exists for — the acceptance criterion this issue
-names is a batched round in place of the full shelf for exactly that
-shape of request, not a lighter version of the shelf itself.
-
-Write a thinned archive at the same paths `hedgehog-copywriting-loop`'s
-mining step (its planning-intake section, step 2) already reads —
-`02-brief.md` and `03-prfaq.md`, not the PRD or UX spec, since
-copywriting's mining draws from those two, never `04-prd.md`:
-
-```
-.hedgehog/BMAD/
-  00-manifest.md   # mode: compressed, date, what the batched round asked
-  02-brief.md      # what's being written + audience, from the brief + batched round
-  03-prfaq.md      # register, from the brief + batched round
-```
-
-`01-brainstorming.md`, `04-prd.md`, `05-ux-spec/`, and `06-research.md`
-are not written, for the same reason full-stack-app's compressed intake
-skips its own unused files: `00-manifest.md` naming them as not-run is
-the record. `hedgehog-copywriting-loop`'s mining step reads whichever
-files the archive holds exactly as it does on a full run — it draws from
-`02-brief.md` and `03-prfaq.md` either way, so a thinned archive changes
-nothing about how that step runs, only how much material informed it.
-
-Write the manifest and the PRD always, and the experience spec where the
-brief gives it something to say — at the same path and in the same
-layout:
-
-```
-.hedgehog/BMAD/
-  00-manifest.md        # mode: compressed, date, what the batched round covered
-  04-prd.md             # §3 Glossary and §4 Features only, mined from the brief
-  05-ux-spec/
-    EXPERIENCE.md       # flows and behaviour, where the brief states them
-```
-
-- **`04-prd.md`** carries the load: Phase 1 below reads §3 Glossary and
-  §4 Features, so compressed intake writes exactly those two sections,
-  derived from the brief plus the batched answers, in the shape that
-  mining table expects. Not a full BMAD PRD — the minimum shape Phase 1
-  can walk.
-- **`05-ux-spec/EXPERIENCE.md`** only where the brief actually states
-  flows or behaviour ("a list you can filter", "mark done inline"). No
-  `DESIGN.md`: visual identity is what a compressed brief is least
-  likely to state, and inventing one is exactly the improvisation this
-  mode exists to prevent. `ux-planner` reads whichever of the two the
-  archive holds, and treats an absent file as its cue to ask (see that
-  agent).
-- **`01-brainstorming.md`, `02-brief.md`, `03-prfaq.md`, and
-  `06-research.md` are not written.** Those exist on a full run to
-  produce a good PRD; compressed intake reaches the PRD by a different
-  route. `00-manifest.md` naming them as not-run is the record — an
-  empty placeholder file is not.
-
 `00-manifest.md` states `mode: compressed`, the date, which files were
 written and which weren't, what the batched round asked, and which
-add-ons were answered directly versus triggered by the brief. That
+booleans were answered directly versus triggered by the brief. That
 manifest is the single record of how this project was planned: **the
-archive exists on every core after intake, whichever mode ran**, so an
-absent `.hedgehog/BMAD/` means intake never ran, not that a compressed
-path was taken.
+archive exists after intake whichever mode ran**, so an absent
+`.hedgehog/BMAD/` means intake never ran (or ran on a path with no
+archive: deepseek-harness's mechanical path, adopted), not that a
+compressed path was taken.
 
-On an authored core, `hedgehog-core-design` reads this archive to pick a
-stack and derive layers. A compressed PRD is thinner input for that than
-a full shelf run, so say so plainly at that skill's own Confirm & Lock —
-the architecture is being designed from a brief rather than from elicited
-drivers, and that's the user's call to accept there.
+### Who reads the archive
 
 `.hedgehog/BMAD/` is archival and immutable once written, on every core.
-Nothing in `hedgehog-loop`'s day-to-day operation, `hedgehog-bootstrap`,
-or `reviewer` reads this folder live — `planner` reads it exactly once,
-right after the shelf completes, to mine it (this skill's Phase 1 below
-on full-stack-app and pwa-app; `hedgehog-landing-loop`'s planning-intake
-section on
-landing-page). After that it's historical record only, the same
-relationship the commit log has to a merged PR.
+Its readers are exactly these:
 
-## Phase 1 — Mining (full-stack-app, pwa-app)
+- the mining pass, once, right after the shelf completes — Phase 1 below,
+  or the core skill that replaces it (`hedgehog-landing-loop`,
+  `hedgehog-copywriting-loop`, `hedgehog-dsh-loop`'s BMAD path);
+- `hedgehog-core-design`, on an authored core, before Phase 1;
+- `ux-planner` (full-stack-app), which reads `05-ux-spec/` once per
+  module;
+- `landing-builder` (landing-page), which reads `04-prd.md`'s
+  Features/FRs and `05-ux-spec/` at the stages its own file names;
+- `landing-copywriter` (landing-page), which reads `04-prd.md`'s
+  Hero/Core Claim feature at Stage 4, where it exists;
+- the Re-entry pass below, as context for new scope.
 
-landing-page's counterpart to this Phase 1 is
-`hedgehog-landing-loop`'s own planning-intake section, run once Phase 0
-above completes: it mines the same `.hedgehog/BMAD/` archive into a
-subject/audience/job statement, in place of the intents this Phase 1
-produces.
+No core loop's day-to-day operation, no bootstrap skill, and no
+`reviewer` read it.
+
+## Phase 1 — Mining (full-stack-app, pwa-app, authored core)
 
 Read `.hedgehog/BMAD/04-prd.md` only — §3 Glossary and §4 Features.
-Nothing else in `.hedgehog/BMAD/` is read again: brainstorming, brief,
-PR-FAQ, and deep-recon existed to produce a good PRD, and the UX spec is
-read later, once per module, by `ux-planner`, not by this mining pass.
-This is the same read on either intake mode — a compressed archive writes
-those two sections directly, so mining has its documented source
-whichever mode ran.
+Brainstorming, brief, PR-FAQ, and deep-recon existed to produce a good
+PRD and are not read again here, and the UX spec is read later by its
+own readers (above), not by this mining pass. This is the same read on
+either intake mode — a compressed archive writes those two sections
+directly, so mining has its documented source whichever mode ran.
 Mining is mechanical, not interpretive — one graph row per PRD element,
 per this table:
 
@@ -290,10 +267,9 @@ Procedure:
    holding the foreign key depends on the intent for the entity it
    references. A relationship entirely inside one Feature's entities
    produces no row — it's already the same intent.
-5. **Run this core's Add-ons-equivalent decision** (`planner`'s own
-   judgment call): full-stack-app's "The Add-ons decision" (Auth, Queue,
-   Mobile), or pwa-app's "The sync/remote-entities decision" (sync,
-   remote entities) — see that agent.
+5. **Run this core's boolean decision**, where it has one: `planner`'s
+   "The Add-ons decision" (full-stack-app) or "The sync/remote-entities
+   decision" (pwa-app).
 6. **Run Confirm & Lock** (below) before writing anything.
 7. **Write each intent via `hedgehog intent add`** — one invocation per
    Feature: `--acceptance` per row from step 2, `--rule` per row from step
@@ -301,14 +277,16 @@ Procedure:
    <path.json>` batch matching the same shape (`{ id, goal, outcome,
    rules, acceptance, depends_on, priority }`). This is Phase 1's only
    write to the build graph.
-8. **Write `.hedgehog/addons.yaml`** with the decision from step 5.
+8. **Write `.hedgehog/addons.yaml`** with the decision from step 5, on a
+   core that had one (full-stack-app, pwa-app). An authored core writes
+   no `addons.yaml`.
 9. **Fill root `CLAUDE.md`'s `{{PROJECT_NAME}}` and `{{PROJECT_SUMMARY}}`
    placeholders**, first run only, then delete the installer's HTML
    comment block at the top of that file. Leave every other line
    untouched.
 
-This is the first-run sequence. New scope entering play later runs the
-**Re-entry pass** below, which has its own steps.
+`planner`'s Workflow steps 7–9 cover what follows: when `hedgehog plan`
+runs, the commit, and the `bootstrap` handoff.
 
 ## Confirm & Lock (first run)
 
@@ -320,9 +298,9 @@ stops being true, so it's a hard stop, not a recap in passing.
 
 - Each intent about to be added: `id`, `goal`, `outcome`, its
   `requirements` (rule/acceptance), and its `depends_on` list.
-- This core's Add-ons-equivalent decision, each boolean explicitly on or
-  off with the one-line reason (Auth / Queue / Mobile on full-stack-app;
-  sync / remote entities on pwa-app).
+- This core's boolean decision, where it has one, each boolean
+  explicitly on or off with the one-line reason (Auth / Queue / Mobile on
+  full-stack-app; sync / remote entities on pwa-app).
 - Which intake mode ran, and on a full run which BMAD skills ran — or,
   on a compressed run, what the batched round asked and what was inferred
   from the brief without asking. Either way, where the output lives
@@ -345,15 +323,12 @@ confirmation view.
 
 ## Re-entry pass — new scope on an existing project (full-stack-app, pwa-app, authored core)
 
-Runs when `planner`'s Workflow step 2 finds intents already in the graph,
-on a core with a module axis to add an intent to: new scope entering play
-on a project that's already been built or is mid-build. Landing-page has
-no module axis — its equivalent runs through
-`hedgehog-landing-loop`'s Correction Protocol post-build entry, not this
-pass. Adding one module is not a reason to re-interview a project from
-scratch, so **the BMAD shelf does not run again** and `.hedgehog/BMAD/`
-is not rewritten — it's read as context, exactly the historical-record
-relationship Phase 0 describes.
+Runs when `planner`'s Workflow step 2 finds intents already in the graph
+on one of these cores: new scope entering play on a project that's
+already been built or is mid-build. `planner`'s "Per-core intake" routes
+new scope on every other core. Adding one module is not a reason to
+re-interview a project from scratch, so **the BMAD shelf does not run
+again** and `.hedgehog/BMAD/` is not rewritten — it's read as context.
 
 This works because the graph is append-only by construction:
 `hedgehog plan` only compiles intents still `proposed`/`planned`, and
@@ -407,12 +382,10 @@ their commits.
    and nothing else — intents already built are `active`/`complete`, so
    `plan` never even reads them. If it reports compiling something you
    didn't just add, stop: an existing intent was edited by mistake.
-7. **Show `hedgehog status` in full**, then hand to this core's loop
-   skill; `hedgehog next` now emits the first task of the new work.
-
-`planner` commits this pass as `chore(planning): extend scope` — distinct
-from `chore(planning): intake` on a first run, so the two are
-distinguishable in the log.
+7. **Show `hedgehog status` in full.**
+8. **Commit the pass** per `planner`'s Workflow step 8, then hand to this
+   core's loop skill; `hedgehog next` emits the first task of the new
+   work.
 
 **Dependency direction is forward only.** A new intent may depend on an
 existing one — the edge lands on that intent's last layer, so the new
