@@ -59,7 +59,13 @@ import {
   formatMissingRequirements,
 } from '../src/db/requires.mjs';
 import { whyPath, formatWhy } from '../src/db/why.mjs';
-import { addFriction, listFriction, resolveFriction } from '../src/db/friction.mjs';
+import {
+  addFriction,
+  listFriction,
+  resolveFriction,
+  syncFrictionRecords,
+  carryFrictionRecords,
+} from '../src/db/friction.mjs';
 import { addDebt, listDebt, resolveDebt } from '../src/db/debt.mjs';
 import { addDecision, listDecisions } from '../src/db/decision.mjs';
 import {
@@ -268,7 +274,7 @@ function plan(core, host = DEFAULT_HOST, { hostOnly = false } = {}) {
     // Whatever else this host needs to find the payload — its own rules
     // file, extension manifest, or routing doc. Empty for a host that
     // auto-loads its bootstrap file and registers agents from disk.
-    ...(h.extraEntries ?? []),
+    ...withCore(h.extraEntries ?? [], core),
   ];
 
   // Host-independent: one copy per project however many hosts read it.
@@ -393,8 +399,14 @@ function updatePlan(host = DEFAULT_HOST, core = null) {
     // Derived from the agents and skills above — an agent added, renamed,
     // or redescribed upstream has to be reflected in the index that
     // points at it, so it is regenerated alongside them.
-    ...(h.extraEntries ?? []).filter((e) => e.type === 'generated'),
+    ...withCore((h.extraEntries ?? []).filter((e) => e.type === 'generated'), core),
   ];
+}
+
+// A generated entry indexes the installed core's agents and skills as
+// well as the engine's, so it carries that core to its generator.
+function withCore(entries, core) {
+  return entries.map((e) => (e.type === 'generated' ? { ...e, core } : e));
 }
 
 const exists = (p) =>
@@ -470,13 +482,14 @@ function warnRebuildDrift({ drift }, corePath) {
   );
 }
 
-// Debt, decision, and friction notes are operator- or agent-recorded and
-// have no committed source, so a rebuild carries them across by task id.
-// A note whose task is no longer in the recompiled graph — its intent
-// file was renamed, deleted, or its layer sequence changed — has nowhere
-// to re-attach. Friction notes survive unattached (their task_id is
-// nullable); debt and decision notes are lost, so all three are printed
-// with their text rather than disappearing into a count.
+// A rebuild replays debt and decision notes from `.hedgehog/notes/` and
+// friction from `.hedgehog/friction/`, re-attaching each by task id. A
+// note whose task is no longer in the recompiled graph — its intent file
+// was renamed, deleted, or its layer sequence changed — has nowhere to
+// re-attach. Friction is kept unattached (its task_id is nullable; its
+// record keeps the task, so it re-attaches if the task returns); debt and
+// decision notes are not replayed, so all three are printed with their
+// text rather than disappearing into a count.
 function warnOrphanedNotes({ orphanedNotes }) {
   if (!orphanedNotes || orphanedNotes.length === 0) return;
   console.log(
@@ -656,7 +669,10 @@ async function writePlannedFile(f) {
   // Rendered from the payload rather than copied from it — the routing
   // doc's tables are built from the agents' and skills' own frontmatter.
   if (f.generate) {
-    await writeFile(f.dest, await f.generate({ pkgRoot: PKG_ROOT, projectRoot: DEST_ROOT }));
+    await writeFile(
+      f.dest,
+      await f.generate({ pkgRoot: PKG_ROOT, projectRoot: DEST_ROOT, core: f.core ?? null }),
+    );
     return;
   }
   // A host whose format differs from the canonical one rewrites the file
@@ -675,7 +691,7 @@ async function plannedFiles(entry) {
     return [{ dest: join(DEST_ROOT, entry.to), merge: entry }];
   }
   if (entry.type === 'generated') {
-    return [{ dest: join(DEST_ROOT, entry.to), generate: entry.generate }];
+    return [{ dest: join(DEST_ROOT, entry.to), generate: entry.generate, core: entry.core ?? null }];
   }
   // `root` names the package an entry's sources come from — a fetched
   // core's extraction directory. Engine payload carries none and resolves
@@ -1465,6 +1481,22 @@ async function coreInstallCommand(name, { force = false, recordAdopted = false }
     }
     if (outcome !== 'keep') written++;
     console.log(`  ${outcome === 'keep' ? dim('keep') : green(outcome)}  ${rel}`);
+  }
+
+  // The routing index lists the core's agents and skills, so it is
+  // regenerated once per generated path now that the core is known.
+  const generated = new Map();
+  for (const host of targets) {
+    for (const e of withCore(HOSTS[host].extraEntries ?? [], core)) {
+      if (e.type === 'generated' && !generated.has(e.to)) generated.set(e.to, e);
+    }
+  }
+  for (const e of generated.values()) {
+    for (const f of await plannedFiles(e)) {
+      await writePlannedFile(f);
+      written++;
+      console.log(`  ${green('update')}  ${relative(DEST_ROOT, f.dest)}`);
+    }
   }
 
   if (recordAdopted) {
@@ -3679,7 +3711,12 @@ async function frictionCommand(args) {
     const db = openDb();
     let entries;
     try {
+      await syncFrictionRecords(db);
       entries = listFriction(db, { includeResolved });
+    } catch (err) {
+      console.error(`${red('Failed to list friction:')} ${err.message}\n`);
+      process.exitCode = 1;
+      return;
     } finally {
       db.close();
     }
@@ -4158,6 +4195,20 @@ async function mergeCommand(args) {
     return;
   }
 
+  // Friction logged in the worktree is an untracked file there that verify
+  // never commits; without this it is lost and blocks `git worktree remove`.
+  try {
+    const { carried, skipped } = await carryFrictionRecords(worktree.path, process.cwd());
+    for (const { path, error } of skipped) {
+      console.error(`${yellow('Friction record not carried:')} ${path} — ${error}`);
+    }
+    if (carried.length > 0) {
+      console.log(`  ${green('carried')}  ${carried.length} friction record(s) from the worktree ${dim('— commit them on trunk')}`);
+    }
+  } catch (err) {
+    console.error(`${yellow('Could not carry friction from the worktree:')} ${err.message}\n`);
+  }
+
   printDbTarget();
   const corePath = await resolveCorePath();
   const db = openDb();
@@ -4320,6 +4371,24 @@ async function abandonCommand(args) {
 
   const worktree = hedgehogWorktrees().find((w) => w.intentId === id);
   if (worktree) {
+    // Friction is about the process, not the dropped code, so it is kept.
+    try {
+      const { carried, skipped } = await carryFrictionRecords(worktree.path, process.cwd());
+      for (const { path, error } of skipped) {
+        console.error(`${yellow('Friction record not carried:')} ${path} — ${error}`);
+      }
+      if (carried.length > 0) {
+        const trunkDb = openDb();
+        try {
+          await syncFrictionRecords(trunkDb);
+        } finally {
+          trunkDb.close();
+        }
+        console.log(`  ${green('carried')}  ${carried.length} friction record(s) from the worktree ${dim('— commit them on trunk')}`);
+      }
+    } catch (err) {
+      console.error(`${yellow('Could not carry friction from the worktree:')} ${err.message}\n`);
+    }
     try {
       removeWorktree(worktree.path, { branch: worktree.branch, removeBranch: true });
       console.log(`  ${green('removed')}  ${worktree.path} ${dim(`(and branch ${worktree.branch})`)}`);

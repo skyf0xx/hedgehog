@@ -97,7 +97,8 @@ Don't propose going around the discipline to save a step, and don't treat
 a user's impatience as license to: say what the loop's next step is and
 take it. Where a rule genuinely conflicts with what the user is asking
 for, name the conflict and let them decide — never resolve it by quietly
-taking the faster path.
+taking the faster path. When nothing is in flight, `hedgehog-daily`
+decides whether a change goes through the loop.
 
 {{CORE_SECTION}}
 

@@ -12,7 +12,7 @@
 // what a sibling worktree's DB held, so a note logged there and merged
 // back has nothing for a post-merge rebuild to carry across, and is
 // silently dropped. This file gives both tables the committed source
-// `friction` already has (`.hedgehog/friction/log.md`) and `reconciled`
+// `friction` has (`.hedgehog/friction/*.json`, friction.mjs) and `reconciled`
 // records have (`.hedgehog/reconciled/*.json`), so a rebuild anywhere —
 // worktree or trunk — replays the same notes from the same files.
 //
