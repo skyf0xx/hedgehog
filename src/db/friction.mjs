@@ -247,7 +247,12 @@ export function replayFriction(db, records, { unrecorded = [], priorTasks = new 
   return orphaned;
 }
 
-const RECORD_PATH = new RegExp(`^${FRICTION_DIR.replace(/[.]/g, '\\.')}/[^/]+\\.json$`);
+function isRecordPath(path) {
+  const prefix = `${FRICTION_DIR}/`;
+  if (!path.startsWith(prefix)) return false;
+  const name = path.slice(prefix.length);
+  return !name.includes('/') && name.endsWith('.json');
+}
 
 // Copies the friction records that are untracked or modified in the
 // checkout at `fromRoot` into the one at `toRoot`, then restores
@@ -268,7 +273,7 @@ export async function carryFrictionRecords(fromRoot, toRoot) {
     if (!line.trim()) continue;
     const code = line.slice(0, 2);
     const path = line.slice(3);
-    if (!RECORD_PATH.test(path) || code.includes('D')) continue;
+    if (!isRecordPath(path) || code.includes('D')) continue;
 
     let incoming;
     try {
