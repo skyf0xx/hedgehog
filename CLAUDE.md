@@ -93,8 +93,8 @@ names them; `init` fetches the one a project asks for.
   rules, skill/agent pointers, and context-management guidance). Each
   core package's own `CLAUDE.core.md` fills that shell's
   `{{CORE_SECTION}}` — at install time when `init` names a core, or by
-  the matching bootstrap-core skill when `init` ran naming none and the
-  shell landed with that placeholder still unfilled. `{{HOST_DISPATCH}}`
+  `hedgehog core install` when `init` ran naming none and the shell
+  landed with that placeholder still unfilled. `{{HOST_DISPATCH}}`
   is filled at install time from the chosen host's `DISPATCH.md`.
 - `src/db/` — the SQLite build graph a consuming project's Bootstrap
   initializes at `.hedgehog/hedgehog.db`: schema, intents/tasks, `plan`
