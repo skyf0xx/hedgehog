@@ -3,13 +3,14 @@
 //
 // It is an *index*: every row points at the file that owns the
 // substance. The tables are built from each agent's and skill's own
-// `description` frontmatter, so a new agent or a reworded description
-// shows up here without this file being edited.
+// frontmatter — the engine's, plus the installed core's as its manifest
+// names them — so a new agent or a reworded description shows up here
+// without this file being edited.
 
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse } from './frontmatter.mjs';
-import { capabilityFor, CAPABILITY_GRANT } from './capabilities.mjs';
+import { grantFor } from './capabilities.mjs';
 
 // A description is a full paragraph aimed at a dispatcher deciding
 // whether to invoke this role. The table wants the trigger, so take the
@@ -37,9 +38,38 @@ async function readEntries(dir, filename) {
   return out;
 }
 
-export async function renderAgentsMd({ pkgRoot, hosts }) {
+// The agents and skills a core package contributes, read from the files
+// its manifest names inside the package.
+async function coreEntries({ root, manifest }) {
+  const agents = [];
+  for (const name of manifest.agents) {
+    const { data } = parse(await readFile(join(root, 'agents', `${name}.md`), 'utf8'));
+    if (data.name) agents.push({ ...data, file: `${name}.md` });
+  }
+  const skills = [];
+  for (const name of manifest.skills) {
+    const { data } = parse(await readFile(join(root, 'skills', name, 'SKILL.md'), 'utf8'));
+    if (data.name) skills.push({ ...data, file: `${name}/SKILL.md` });
+  }
+  return { agents, skills };
+}
+
+const byName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+
+/**
+ * @param {{ pkgRoot: string, hosts: object[], core?: { root: string, manifest: object } | null }} opts
+ *   `core` is the installed core package, or null when none is installed.
+ */
+export async function renderAgentsMd({ pkgRoot, hosts, core = null }) {
   const agents = await readEntries(join(pkgRoot, 'src/agents'));
   const skills = await readEntries(join(pkgRoot, 'src/skills'), 'SKILL.md');
+  if (core) {
+    const extra = await coreEntries(core);
+    agents.push(...extra.agents);
+    skills.push(...extra.skills);
+    agents.sort(byName);
+    skills.sort(byName);
+  }
 
   // One project can be set up for several coding agents at once. Paths
   // are quoted per host so whichever one is reading finds its own copy.
@@ -48,7 +78,7 @@ export async function renderAgentsMd({ pkgRoot, hosts }) {
 
   const agentRows = agents
     .map((a) => {
-      const grant = CAPABILITY_GRANT[capabilityFor(a.name)];
+      const grant = grantFor(a);
       return `| \`${a.name}\` | ${firstSentence(a.description)} | ${grant.summary} | \`${a.file}\` |`;
     })
     .join('\n');
@@ -108,8 +138,7 @@ The file is the role — don't summarize it.
 
 If your harness has no subagent mechanism, read the agent's file and
 follow it yourself in this thread, then clear the conversation at the
-next unit boundary (a module's Phase A, a landing page section) and
-recover with \`hedgehog status\`.
+next unit boundary and recover with \`hedgehog status\`.
 
 Either way, honor the "May" column below. Where a harness can't enforce a
 tool grant, the constraint is yours to keep — and \`hedgehog verify\` still

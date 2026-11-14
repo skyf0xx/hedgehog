@@ -15,9 +15,9 @@ Hedgehog is a package of agents and skills, built on an opinionated stack per co
 | Windsurf | `.devin/agents/` | `.devin/skills/` | `AGENTS.md` |
 | GitHub Copilot | `.github/agents/` | `.github/skills/` | `.github/copilot-instructions.md` |
 
-Claude Code reads the canonical files as authored, so its payload is copied verbatim. Hosts that dispatch an untyped subagent carry the role in the prompt instead: `src/hosts/emit.mjs` strips the Claude Code subagent schema (`model`, `color`, `tools`) and restates the tool grant as a line the agent reads, mapped from the capability table in `src/hosts/capabilities.mjs`.
+Claude Code reads the canonical files as authored, so its payload is copied verbatim. Hosts that dispatch an untyped subagent carry the role in the prompt instead: `src/hosts/emit.mjs` strips the Claude Code subagent schema (`model`, `color`, `tools`) and restates the tool grant as a line the agent reads, derived from that agent's own `tools:` frontmatter by `src/hosts/capabilities.mjs`.
 
-Claude Code, Cursor, Gemini CLI, and GitHub Copilot installs also generate `AGENTS.md` at the repo root from the agents' and skills' own `description` frontmatter — an index of what each role is for and when it applies. Coding agents that read `AGENTS.md` work from that index. OpenCode and Windsurf load `AGENTS.md` as their instructions file, so their install writes the discipline shell and dispatch into it directly instead of generating the index.
+Claude Code, Cursor, Gemini CLI, and GitHub Copilot installs also generate `AGENTS.md` at the repo root from the `description` frontmatter of the engine's agents and skills and of the installed core's — an index of what each role is for and when it applies. Coding agents that read `AGENTS.md` work from that index. OpenCode and Windsurf load `AGENTS.md` as their instructions file, so their install writes the discipline shell and dispatch into it directly instead of generating the index.
 
 Tool grants are defense in depth. The enforcement is `hedgehog verify`, which checks the touched files against the task packet's ALLOWED SCOPE and gates the commit — so the ordered steps, scoped file access, and per-layer verification hold on every host regardless of what it granted.
 
