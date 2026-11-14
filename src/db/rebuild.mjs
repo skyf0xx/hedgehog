@@ -21,9 +21,10 @@
 // trunk's graph from what merged, exactly as it would for a fresh clone.
 // No DB row is ever copied between databases.
 //
-// A rebuild READS the permanent record. It never writes it: replay goes
-// through `insertIntentRows`, not `addIntent`, so no intent file is
-// touched even on a failed run. That matters because this path also
+// A rebuild READS the permanent record. Its one write is to a friction
+// record whose task is gone, which replayFriction rewrites with a null
+// task (friction.mjs). Intent replay goes through `insertIntentRows`, not
+// `addIntent`, so no intent file is touched even on a failed run. That matters because this path also
 // fires automatically when the DB is missing (bin/cli.mjs#ensureDb) — a
 // user who never typed `db rebuild` must not be able to lose planning to
 // it.
@@ -599,9 +600,9 @@ export async function rebuildDb(
 ) {
   applySchema(db);
 
-  // Read before the clear, which detaches every row from its task. A row
-  // with no record (logged before records existed and not yet backfilled
-  // by a friction command) has no other source, so it is carried across.
+  // Read before the clear, which detaches every row from its task. A row in
+  // `datetime('now')` form with no record has no other source, so it is
+  // carried across (friction.mjs).
   const frictionRecords = await loadFrictionRecords(frictionDir);
   const unrecordedFriction = frictionRowsWithoutRecords(db, frictionRecords);
 
@@ -688,7 +689,7 @@ export async function rebuildDb(
 
   const orphanedNotes = [
     ...replayNotes(db, notesByTask),
-    ...replayFriction(db, frictionRecords, unrecordedFriction),
+    ...(await replayFriction(db, frictionRecords, unrecordedFriction)),
   ];
 
   // After planTasks and markCompletedTasks, not before: an abandoned
