@@ -43,10 +43,8 @@ it.
 
 Use the `pr-writing` skill for style: brief, info-dense, Simplified
 Technical English, only verified claims. Most of Hedgehog's inbound queue
-is read first by `inbound-triage`, an agent, before a human ever sees it —
-the same register `inbound-triage` uses when it comments back (see that
-skill's "Comment style" section) — so write plainly for both readers at
-once.
+is read first by an agent before a human ever sees it, so write plainly
+for both readers at once.
 
 Fill every field the bug-report template asks for as its own labeled fact
 (symptom, expected behavior, exact repro steps) rather than one collapsed
