@@ -59,7 +59,13 @@ import {
   formatMissingRequirements,
 } from '../src/db/requires.mjs';
 import { whyPath, formatWhy } from '../src/db/why.mjs';
-import { addFriction, listFriction, resolveFriction } from '../src/db/friction.mjs';
+import {
+  addFriction,
+  listFriction,
+  resolveFriction,
+  syncFrictionRecords,
+  carryFrictionRecords,
+} from '../src/db/friction.mjs';
 import { addDebt, listDebt, resolveDebt } from '../src/db/debt.mjs';
 import { addDecision, listDecisions } from '../src/db/decision.mjs';
 import {
@@ -475,13 +481,14 @@ function warnRebuildDrift({ drift }, corePath) {
   );
 }
 
-// Debt, decision, and friction notes are operator- or agent-recorded and
-// have no committed source, so a rebuild carries them across by task id.
-// A note whose task is no longer in the recompiled graph — its intent
-// file was renamed, deleted, or its layer sequence changed — has nowhere
-// to re-attach. Friction notes survive unattached (their task_id is
-// nullable); debt and decision notes are lost, so all three are printed
-// with their text rather than disappearing into a count.
+// A rebuild replays debt and decision notes from `.hedgehog/notes/` and
+// friction from `.hedgehog/friction/`, re-attaching each by task id. A
+// note whose task is no longer in the recompiled graph — its intent file
+// was renamed, deleted, or its layer sequence changed — has nowhere to
+// re-attach. Friction is kept unattached (its task_id is nullable; its
+// record keeps the task, so it re-attaches if the task returns); debt and
+// decision notes are not replayed, so all three are printed with their
+// text rather than disappearing into a count.
 function warnOrphanedNotes({ orphanedNotes }) {
   if (!orphanedNotes || orphanedNotes.length === 0) return;
   console.log(
@@ -3676,7 +3683,12 @@ async function frictionCommand(args) {
     const db = openDb();
     let entries;
     try {
+      await syncFrictionRecords(db);
       entries = listFriction(db, { includeResolved });
+    } catch (err) {
+      console.error(`${red('Failed to list friction:')} ${err.message}\n`);
+      process.exitCode = 1;
+      return;
     } finally {
       db.close();
     }
@@ -4153,6 +4165,20 @@ async function mergeCommand(args) {
     return;
   }
 
+  // Friction logged in the worktree is an untracked file there that verify
+  // never commits; without this it is lost and blocks `git worktree remove`.
+  try {
+    const { carried, skipped } = await carryFrictionRecords(worktree.path, process.cwd());
+    for (const { path, error } of skipped) {
+      console.error(`${yellow('Friction record not carried:')} ${path} — ${error}`);
+    }
+    if (carried.length > 0) {
+      console.log(`  ${green('carried')}  ${carried.length} friction record(s) from the worktree ${dim('— commit them on trunk')}`);
+    }
+  } catch (err) {
+    console.error(`${yellow('Could not carry friction from the worktree:')} ${err.message}\n`);
+  }
+
   printDbTarget();
   const corePath = await resolveCorePath();
   const db = openDb();
@@ -4315,6 +4341,24 @@ async function abandonCommand(args) {
 
   const worktree = hedgehogWorktrees().find((w) => w.intentId === id);
   if (worktree) {
+    // Friction is about the process, not the dropped code, so it is kept.
+    try {
+      const { carried, skipped } = await carryFrictionRecords(worktree.path, process.cwd());
+      for (const { path, error } of skipped) {
+        console.error(`${yellow('Friction record not carried:')} ${path} — ${error}`);
+      }
+      if (carried.length > 0) {
+        const trunkDb = openDb();
+        try {
+          await syncFrictionRecords(trunkDb);
+        } finally {
+          trunkDb.close();
+        }
+        console.log(`  ${green('carried')}  ${carried.length} friction record(s) from the worktree ${dim('— commit them on trunk')}`);
+      }
+    } catch (err) {
+      console.error(`${yellow('Could not carry friction from the worktree:')} ${err.message}\n`);
+    }
     try {
       removeWorktree(worktree.path, { branch: worktree.branch, removeBranch: true });
       console.log(`  ${green('removed')}  ${worktree.path} ${dim(`(and branch ${worktree.branch})`)}`);
