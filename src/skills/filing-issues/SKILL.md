@@ -1,11 +1,15 @@
 ---
 name: filing-issues
-description: Use when filing one or more GitHub issues for planned work — "file an issue for this", "turn this plan into issues", "open a tracking issue". Covers filing everything on skyf0xx/hedgehog regardless of which repo's code changes, whether to split a plan into a tracking issue plus sub-issues, which account files the issue, labels, and acceptance criteria. For how to word an issue, see the pr-writing skill.
+description: Use only when filing a GitHub issue about Hedgehog itself — a defect or gap in the discipline, the CLI, a core, or a host adapter. Covers filing on skyf0xx/hedgehog with the target repo named in the body, whether to split a plan into a tracking issue plus sub-issues, labels, and acceptance criteria. Not for issues about the consuming project's own code; those belong in that project's own tracker. For how to word an issue, see the pr-writing skill.
 ---
 
 # Filing issues
 
-The mechanics of getting planned work into GitHub. `pr-writing` owns how
+The mechanics of getting planned Hedgehog work into GitHub. This skill
+applies only to issues about Hedgehog itself: a defect or gap in the
+discipline, the CLI, a core, or a host adapter. An issue about the
+consuming project's own code belongs in that project's own tracker and is
+outside this skill. `pr-writing` owns how
 an issue is worded — title shape, the Why/What structure, `<details>`
 folding, and style. This skill owns everything before and around that.
 
@@ -42,10 +46,9 @@ A split gets a tracking issue plus sub-issues:
 
 Issues go out as the user's own `gh` session by default.
 
-Some projects have a bot identity for maintainer actions. Use it only
-when the user asks for it by name. A bot voice tuned for short notes
-does not apply to a planned-work issue — write the issue at full length
-and say that is what you are doing.
+Use a different identity only when the user names it. A voice tuned for
+short notes does not apply to a planned-work issue — write the issue at
+full length.
 
 ## Labels
 
@@ -65,8 +68,8 @@ End every issue with a checkbox list a contributor ticks off and a
 reviewer checks against. Each line is one observable outcome, not a
 restatement of the task list.
 
-- Testable by inspection or a command, not by judgment. "`pnpm nx test
-  mobile -- src/{module}/` passes on generated output" — not "the
+- Testable by inspection or a command, not by judgment. "`<the layer's
+  verify command>` passes on generated output" — not "the
   generator works well."
 - Include the things that must *not* change: the existing behavior that
   still has to pass, the version that must not be bumped.
