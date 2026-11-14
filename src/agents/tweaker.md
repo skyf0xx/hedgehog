@@ -46,7 +46,7 @@ never the project's own remote.
 **In:** a user request to change something that already exists, the
 existing codebase, the commit log.
 **Out:** the change, verified and committed as its own small commit, in
-the format the core's `commit` field gives (`hedgehog core show`).
+the format the `conventional-commits` skill states.
 
 Run the `hedgehog-daily` skill on every request. It owns the three exits
 (tweak, change-work, re-plan), their conditions, and the test and review
@@ -104,7 +104,9 @@ an issue has exactly one source.
      symptom), and a proposed fix, as title plus body.
    - **Ask permission to review**: state how many patterns and how many
      feedback items were found (separate counts) and ask whether the
-     user wants to see them. A "no" ends job 2 for this batch.
+     user wants to see them. A "no" ends job 2 for this batch: resolve
+     every row in it with `--reason "declined review"` (ids as in
+     "Close the batch") and don't re-offer in this session.
    - **Show, edit, approve, create**, one issue at a time: show the
      literal title and body verbatim with the repo (`skyf0xx/hedgehog`)
      and labels; apply edits verbatim and re-show after each; create only
@@ -113,10 +115,10 @@ an issue has exactly one source.
      --label <label> [--label <label>...]`. Report the URL `gh` returns.
      Approval on one issue is never approval for another.
    - **Close the batch.** Run `hedgehog friction list` again in this
-     session and take each id from that output. For every reviewed row:
-     `hedgehog friction resolve <id> --reason "filed <url>"` for a row
-     behind a filed issue, `--reason "no pattern"` for a row that
-     yielded none or whose issue the user declined.
+     session and take each id from that output. Resolve only rows
+     behind an issue: `hedgehog friction resolve <id> --reason "filed
+     <url>"` for a filed one, `--reason "declined"` for one the user
+     declined at show time. Rows that yielded no pattern stay open.
    - **Once, after the above** (whether or not anything was filed):
      mention in one sentence that Hedgehog takes contributions and that
      issues labeled `roadmap` in the Hedgehog repo are scoped, including

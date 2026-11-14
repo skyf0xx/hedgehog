@@ -67,6 +67,7 @@ Either condition puts the request here:
 Where the core has a re-entry route, send the request through
 `planner`'s Re-entry routing: the "New scope" line in the core's entry
 under "Per-core intake" names who adds the intents. Where it names none,
+on `copywriting` start a new first run of its loop, and elsewhere
 run `hedgehog intent add` then `hedgehog plan` yourself — without the
 plan step nothing is claimable — and on a finished build, enter the
 Correction Protocol's **Post-build entry** in `hedgehog-orchestrating`.
@@ -88,7 +89,8 @@ Then, in this session, with no subagent dispatched:
 3. Run that layer's own `verify` command from `hedgehog core show`, at the depth
    the next section states.
 4. Commit as one conventional commit, in the format the
-   `conventional-commits` skill states.
+   `conventional-commits` skill states, with the subject style from the
+   layer's `commit` field in `hedgehog core show`.
 
 No `hedgehog intent add`, no `hedgehog plan`, no `hedgehog claim`, no
 subagent. Nothing is written to the build graph.
