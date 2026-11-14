@@ -8,7 +8,9 @@
 // from `.hedgehog/reconciled/*.json` (which tasks a user confirmed as
 // done by work git history cannot credit — reconcile.mjs), or replayable
 // from `.hedgehog/abandoned/*.json` (which intents were deliberately
-// dropped rather than finished — worktree.mjs). What isn't recoverable —
+// dropped rather than finished — worktree.mjs), or replayable from
+// `.hedgehog/notes/*.json` and `.hedgehog/friction/*.json` (debt,
+// decision, and friction notes — notes.mjs, friction.mjs). What isn't recoverable —
 // `verifications.output`, the ephemeral diagnostics of a run that already
 // passed — is an accepted loss; this only reconciles `tasks.status`.
 //
@@ -41,6 +43,12 @@ import {
   RECONCILED_DIR,
 } from './reconcile.mjs';
 import { loadNotes, NOTES_DIR } from './notes.mjs';
+import {
+  loadFrictionRecords,
+  frictionRowsWithoutRecords,
+  replayFriction,
+  FRICTION_DIR,
+} from './friction.mjs';
 import { loadNoopRecords, orphanedNoopRecords, NOOP_DIR } from './noop.mjs';
 import { loadFastpaths, orphanedFastpathTasks, fastpathNote, FASTPATH_DIR } from './fastpath.mjs';
 import {
@@ -85,11 +93,10 @@ function intentExists(db, id) {
 // `.hedgehog/notes/*.json` (replayNotes, below) rather than carried
 // across from the DB's own prior rows — a worktree's own DB never held a
 // sibling worktree's notes, so carrying across only the current DB's rows
-// would silently drop everything logged elsewhere. `friction` keeps its
-// own committed source (`.hedgehog/friction/log.md`, friction.mjs) and is
-// left untouched here — its `task_id` is `ON DELETE SET NULL`, not
-// CASCADE, so its rows outlive this delete unattached rather than being
-// cleared.
+// would silently drop everything logged elsewhere. `friction` is not
+// cleared by this delete (its `task_id` is `ON DELETE SET NULL`); rebuildDb
+// replaces it wholesale from `.hedgehog/friction/*.json` afterwards
+// (friction.mjs#replayFriction).
 //
 // One class of decision row needs no replay from notes.mjs: the
 // provenance note a reconciliation writes (reconcile.mjs). That one has a
@@ -573,6 +580,7 @@ export async function rebuildDb(
     overridesDir = OVERRIDES_DIR,
     reconciledDir = RECONCILED_DIR,
     notesDir = NOTES_DIR,
+    frictionDir = FRICTION_DIR,
     noopDir = NOOP_DIR,
     fastpathDir = FASTPATH_DIR,
     abandonedDir = ABANDONED_DIR,
@@ -590,6 +598,12 @@ export async function rebuildDb(
   } = {},
 ) {
   applySchema(db);
+
+  // Read before the clear, which detaches every row from its task. A row
+  // with no record (logged before records existed and not yet backfilled
+  // by a friction command) has no other source, so it is carried across.
+  const frictionRecords = await loadFrictionRecords(frictionDir);
+  const unrecordedFriction = frictionRowsWithoutRecords(db, frictionRecords);
 
   clearDerivedGraph(db);
 
@@ -672,7 +686,10 @@ export async function rebuildDb(
   // verify.mjs#completeIntentIfDone writes live one task at a time.
   const intentsMarkedComplete = markCompletedIntents(db);
 
-  const orphanedNotes = replayNotes(db, notesByTask);
+  const orphanedNotes = [
+    ...replayNotes(db, notesByTask),
+    ...replayFriction(db, frictionRecords, unrecordedFriction),
+  ];
 
   // After planTasks and markCompletedTasks, not before: an abandoned
   // intent's `.hedgehog/intents/<id>.json` is still on disk (abandonment

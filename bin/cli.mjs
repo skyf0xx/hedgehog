@@ -59,7 +59,12 @@ import {
   formatMissingRequirements,
 } from '../src/db/requires.mjs';
 import { whyPath, formatWhy } from '../src/db/why.mjs';
-import { addFriction, listFriction, resolveFriction } from '../src/db/friction.mjs';
+import {
+  addFriction,
+  listFriction,
+  resolveFriction,
+  backfillFrictionRecords,
+} from '../src/db/friction.mjs';
 import { addDebt, listDebt, resolveDebt } from '../src/db/debt.mjs';
 import { addDecision, listDecisions } from '../src/db/decision.mjs';
 import {
@@ -3429,7 +3434,12 @@ async function frictionCommand(args) {
     const db = openDb();
     let entries;
     try {
+      await backfillFrictionRecords(db);
       entries = listFriction(db, { includeResolved });
+    } catch (err) {
+      console.error(`${red('Failed to list friction:')} ${err.message}\n`);
+      process.exitCode = 1;
+      return;
     } finally {
       db.close();
     }
