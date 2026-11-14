@@ -183,14 +183,15 @@ the tag yourself.**
 
 `.github/workflows/publish.yml` watches every push to `master` that
 changes `package.json`, diffs the version from before the push (however
-many commits it carries) against after, and when it changed: tags
-`v<version>`, runs `npm publish`, and creates the GitHub release, all on
-the runner's own token. It also carries a `workflow_dispatch` trigger for
+many commits it carries) against after, and when it changed: fails
+early if `v<version>` already exists on origin, runs `npm run check`,
+then tags `v<version>`, runs `npm publish`, and creates the GitHub
+release, all on the runner's own token. A failed check leaves no tag. It also carries a `workflow_dispatch` trigger for
 a manual run — there, with no push to read a prior state from, "before"
 is whatever version is currently live on npm, so a manual run still only
 acts when the committed version and the published version actually
 differ. A tag pushed by hand ahead of the merge collides with that
-workflow's own `git push origin "$TAG"` and fails the release (see git
+workflow's existing-tag guard and fails the release (see git
 history around 2026-08-14 for the incident this rule comes from). If a
 tag was pushed by mistake, delete it (`git push origin --delete
 v<version>`) before the PR merges so the workflow can create it fresh,
