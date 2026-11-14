@@ -7,8 +7,8 @@ description: Use when a change request lands on a project that already has `.hed
 
 One gate, three exits, for every change request on a project whose build
 graph already exists. It reads the installed core's layer sequence,
-scope globs and verify commands out of `.hedgehog/core.yaml`, so it is
-the same gate on every core.
+scope globs and verify commands from `hedgehog core show`, so it is the
+same gate on every core.
 
 The gate exists to stop pricing a two-line edit at the cost of the
 largest change the discipline can handle. Routing up is a real decision
@@ -22,9 +22,11 @@ with a real cost, taken on stated conditions — not the safe default.
    names any task, a build is mid-flight: this gate does not run. Read
    the full `hedgehog status` and hand the request back to the core's own
    loop skill, which owns work in progress.
-3. **Read `.hedgehog/core.yaml`.** The layer list is the input to every
-   decision below: each layer's `id`, `scope` globs, `verify` command,
-   `verify_radius` and `exclusive`. Read the file, not a memory of it.
+3. **Run `hedgehog core show`** (`--json` for a parseable form). The
+   layer list is the input to every decision below: each layer's `id`,
+   `scope` globs, `verify` command, `verify_radius`, `exclusive` and
+   `commit` format. Read the output, not a memory of it. The command
+   finds the core definition wherever the installed core keeps it.
 
 ## The three exits
 
@@ -45,9 +47,9 @@ that artifact, then check:
 
 If it holds, this is Re-plan — regardless of how many layers the request
 reaches or whether every file it touches already exists. Route to
-`planner`'s re-entry pass, which adds intents for new work without
-re-running planning from scratch and without disturbing anything already
-built.
+`planner`, which re-enters planning for the project's core per its
+"Per-core intake" entry, without re-running planning from scratch and
+without disturbing anything already built.
 
 Where the contradiction means the request is a different project rather
 than an extension of this one, say so plainly instead of routing. That
@@ -62,8 +64,15 @@ Either condition puts the request here:
 - It reaches more than one of the core's layers.
 - It introduces a file, module, or capability that does not exist yet.
 
-`hedgehog intent add`, then the installed core's own loop, unchanged.
-Nothing about that path changes because this gate ran.
+Where the core has a re-entry route, send the request through
+`planner`'s Re-entry routing: the "New scope" line in the core's entry
+under "Per-core intake" names who adds the intents. Where it names none,
+on `copywriting` start a new first run of its loop, and elsewhere
+run `hedgehog intent add` then `hedgehog plan` yourself — without the
+plan step nothing is claimable — and on a finished build, enter the
+Correction Protocol's **Post-build entry** in `hedgehog-orchestrating`.
+Then the installed core's own loop runs, unchanged. Nothing about that
+path changes because this gate ran.
 
 ### Tweak
 
@@ -77,10 +86,11 @@ Then, in this session, with no subagent dispatched:
 
 1. Read the code it touches. Not a summary of it.
 2. Make the smallest correct edit.
-3. Run that layer's own `verify` command from `core.yaml`, at the depth
+3. Run that layer's own `verify` command from `hedgehog core show`, at the depth
    the next section states.
 4. Commit as one conventional commit, in the format the
-   `conventional-commits` skill states.
+   `conventional-commits` skill states, with the subject style from the
+   layer's `commit` field in `hedgehog core show`.
 
 No `hedgehog intent add`, no `hedgehog plan`, no `hedgehog claim`, no
 subagent. Nothing is written to the build graph.
@@ -101,15 +111,15 @@ re-enters this gate at the change-work exit, having cost one read.
 A tweak inherits the test and review bar of the layer it lands in.
 
 - A layer whose `verify_radius` equals its `scope`: run the layer's
-  `verify` command. No new tests, no `reviewer` pass.
+  `verify` command. No new tests, and no `reviewer` pass beyond the
+  review points the core's loop names for that layer.
 - A layer with a wider `verify_radius`, or `exclusive: true`: the same
   real test bar and `reviewer` pass that layer gets in the loop.
 
-That is the loop's own rule — "Test depth follows verify radius. Review
-follows exclusivity", stated in full in `hedgehog-orchestrating` — applied
-to a layer instead of a compiled task. `verify_radius` and `exclusive`
-are declared on the layer in `core.yaml`, so both are readable on a path
-that compiles no task.
+That is the loop's own rule, stated in full under "Test-depth and review
+rule" in `hedgehog-orchestrating`, applied to a layer instead of a
+compiled task. `verify_radius` and `exclusive` are in `hedgehog core
+show`, so both are readable on a path that compiles no task.
 
 **A tweak landing in a wide-radius or exclusive layer is a signal.**
 Integration layers are where behavior gets proven, so a change reaching
