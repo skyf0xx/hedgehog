@@ -267,7 +267,7 @@ function plan(core, host = DEFAULT_HOST, { hostOnly = false } = {}) {
     // Whatever else this host needs to find the payload — its own rules
     // file, extension manifest, or routing doc. Empty for a host that
     // auto-loads its bootstrap file and registers agents from disk.
-    ...(h.extraEntries ?? []),
+    ...withCore(h.extraEntries ?? [], core),
   ];
 
   // Host-independent: one copy per project however many hosts read it.
@@ -392,8 +392,14 @@ function updatePlan(host = DEFAULT_HOST, core = null) {
     // Derived from the agents and skills above — an agent added, renamed,
     // or redescribed upstream has to be reflected in the index that
     // points at it, so it is regenerated alongside them.
-    ...(h.extraEntries ?? []).filter((e) => e.type === 'generated'),
+    ...withCore((h.extraEntries ?? []).filter((e) => e.type === 'generated'), core),
   ];
+}
+
+// A generated entry indexes the installed core's agents and skills as
+// well as the engine's, so it carries that core to its generator.
+function withCore(entries, core) {
+  return entries.map((e) => (e.type === 'generated' ? { ...e, core } : e));
 }
 
 const exists = (p) =>
@@ -655,7 +661,10 @@ async function writePlannedFile(f) {
   // Rendered from the payload rather than copied from it — the routing
   // doc's tables are built from the agents' and skills' own frontmatter.
   if (f.generate) {
-    await writeFile(f.dest, await f.generate({ pkgRoot: PKG_ROOT, projectRoot: DEST_ROOT }));
+    await writeFile(
+      f.dest,
+      await f.generate({ pkgRoot: PKG_ROOT, projectRoot: DEST_ROOT, core: f.core ?? null }),
+    );
     return;
   }
   // A host whose format differs from the canonical one rewrites the file
@@ -674,7 +683,7 @@ async function plannedFiles(entry) {
     return [{ dest: join(DEST_ROOT, entry.to), merge: entry }];
   }
   if (entry.type === 'generated') {
-    return [{ dest: join(DEST_ROOT, entry.to), generate: entry.generate }];
+    return [{ dest: join(DEST_ROOT, entry.to), generate: entry.generate, core: entry.core ?? null }];
   }
   // `root` names the package an entry's sources come from — a fetched
   // core's extraction directory. Engine payload carries none and resolves
@@ -1464,6 +1473,22 @@ async function coreInstallCommand(name, { force = false, recordAdopted = false }
     }
     if (outcome !== 'keep') written++;
     console.log(`  ${outcome === 'keep' ? dim('keep') : green(outcome)}  ${rel}`);
+  }
+
+  // The routing index lists the core's agents and skills, so it is
+  // regenerated once per generated path now that the core is known.
+  const generated = new Map();
+  for (const host of targets) {
+    for (const e of withCore(HOSTS[host].extraEntries ?? [], core)) {
+      if (e.type === 'generated' && !generated.has(e.to)) generated.set(e.to, e);
+    }
+  }
+  for (const e of generated.values()) {
+    for (const f of await plannedFiles(e)) {
+      await writePlannedFile(f);
+      written++;
+      console.log(`  ${green('update')}  ${relative(DEST_ROOT, f.dest)}`);
+    }
   }
 
   if (recordAdopted) {

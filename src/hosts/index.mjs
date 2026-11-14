@@ -39,14 +39,14 @@ const routingDoc = (host) => ({
   // Indexes every host the project is set up for, not just the one being
   // installed, so adding a second host doesn't strand the first one's
   // paths.
-  generate: async ({ pkgRoot, projectRoot }) => {
+  generate: async ({ pkgRoot, projectRoot, core = null }) => {
     const [{ renderAgentsMd }, { installedHosts }] = await Promise.all([
       import('./routing.mjs'),
       import('./installed.mjs'),
     ]);
     const recorded = projectRoot ? await installedHosts(projectRoot) : [];
     const names = [...new Set([host, ...recorded])];
-    return renderAgentsMd({ pkgRoot, hosts: names.map((n) => HOSTS[n]) });
+    return renderAgentsMd({ pkgRoot, hosts: names.map((n) => HOSTS[n]), core });
   },
 });
 
