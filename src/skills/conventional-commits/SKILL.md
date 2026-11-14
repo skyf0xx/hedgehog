@@ -10,8 +10,8 @@ ordered for review, using the commit subjects of the installed core.
 
 The installed core owns the build steps: each layer in `.hedgehog/core.yaml`
 declares a `commit` subject, and `hedgehog core show` prints the layer
-sequence with those subjects in build order. `hedgehog verify <task-id>`
-commits a task under its layer's subject. Read step names and order from
+sequence with those subjects in build order. `hedgehog verify` (run with
+`--owner <owner>`) commits a task under its layer's subject. Read step names and order from
 there; the names in this skill's examples come from one core
 (`full-stack-app`) and illustrate the shape only.
 
@@ -57,9 +57,10 @@ changes you haven't read.
 ### 2. Group hunks into logical commits
 
 For each hunk, ask: *which build step is this part of, for which module?*
-Group by step first, module second. In a core with `schema` and `repository` layers, a hunk in the `orders`
-schema and a hunk in the `orders` repository are different commits even
-though both are "orders" — different steps.
+Group by step first, module second. In a core with `schema` and
+`repository` layers, a hunk in the `orders` schema and a hunk in the
+`orders` repository are different commits even though both are
+"orders" — different steps.
 
 Group together: a schema change with its migration; a service with its
 unit test (tests land with the step they test, not a trailing "add
@@ -112,11 +113,14 @@ not happen, so amending would rewrite the wrong thing (see Hard rules).
 <type>(<scope>): <subject>
 ```
 
-- **type**: `feat` for build steps; also `fix`, `chore`, `docs`,
-  `refactor`, `style`, `test`, `build`, `ci`, `perf` as needed.
-- **scope**: the domain module name (`orders`, `users`, ...) for a build
-  step, or an infra area (`db`, `contracts`, `auth`, `hooks`, `api`,
-  `worker`, `web`, `mobile`, `config`) for bootstrap/tooling commits.
+- **type** and **scope** for a build step are taken whole from the
+  layer's `commit` string (for example `feat({module})`,
+  `chore({module})` or `test({module})`, whichever the core declares).
+  For other commits, type is `fix`, `chore`, `docs`, `refactor`,
+  `style`, `test`, `build`, `ci` or `perf` as needed, and scope is the
+  domain module name (`orders`, `users`, ...) or an infra area (example
+  from one core: `db`, `contracts`, `auth`, `hooks`, `api`, `worker`,
+  `web`, `mobile`, `config`).
 - **subject** for a build step: the layer's `commit` subject from the
   installed core's `core.yaml`, with `{module}` filled in (`full-stack-app`
   example: `schema`, `contract`, `repository`, `service`, `api`), matching

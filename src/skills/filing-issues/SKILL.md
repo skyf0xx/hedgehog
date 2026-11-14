@@ -1,6 +1,6 @@
 ---
 name: filing-issues
-description: Use only when filing a GitHub issue about Hedgehog itself — a defect or gap in the discipline, the CLI, a core, or a host adapter. Covers filing on skyf0xx/hedgehog with the target repo named in the body, whether to split a plan into a tracking issue plus sub-issues, labels, and acceptance criteria. Not for issues about the consuming project's own code; those belong in that project's own tracker. For how to word an issue, see the pr-writing skill.
+description: Use only when filing a GitHub issue about Hedgehog itself — a defect or gap in the discipline, the CLI, a core, or a host adapter — such as "file an issue for this", "turn this plan into issues", "open a tracking issue" when the issue is about Hedgehog. Covers filing on skyf0xx/hedgehog with the target repo named in the body, whether to split a plan into a tracking issue plus sub-issues, labels, and acceptance criteria. Not for issues about the consuming project's own code; those belong in that project's own tracker. For how to word an issue, see the pr-writing skill.
 ---
 
 # Filing issues
@@ -48,7 +48,7 @@ Issues go out as the user's own `gh` session by default.
 
 Use a different identity only when the user names it. A voice tuned for
 short notes does not apply to a planned-work issue — write the issue at
-full length.
+full length and say that is what you are doing.
 
 ## Labels
 

@@ -78,11 +78,12 @@ Check what the gate structurally cannot:
 
 ## Workflow
 
-1. Find the review point and what is built from the graph: `hedgehog
-   status` for which tasks are complete and in flight, and `hedgehog why
-   <path>` for the task and intent behind a file. Use `git diff` only for
-   the content under review, from the commit that closed the previous
-   phase or layer.
+1. Read what is built from the graph: `hedgehog status` for which tasks
+   are complete and in flight, and `hedgehog why <path>` for the task and
+   intent behind a file. Find the review point in git: `git log` for the
+   commit whose subject is the closing layer's `commit` string (from
+   `hedgehog core show` or the core's `core.yaml`) at the previous phase
+   or layer, then `git diff` from there for the content under review.
 2. Read the full unit, not just the diff — the whole phase or layer plus
    the interfaces it sits between. Boundary violations are invisible from
    a diff alone.
