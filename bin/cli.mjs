@@ -101,8 +101,8 @@ import {
   formatReconciliations,
   RECONCILED_DIR,
 } from '../src/db/reconcile.mjs';
-import { NOOP_DIR } from '../src/db/noop.mjs';
-import { writeReopenedRecords, clearReopenedRecord } from '../src/db/reopened.mjs';
+import { NOOP_DIR, loadNoopRecords } from '../src/db/noop.mjs';
+import { writeReopenedRecords, clearReopenedRecord, REOPENED_DIR } from '../src/db/reopened.mjs';
 import { runFastpath, loadFastpaths, orphanedFastpathTasks, FASTPATH_DIR } from '../src/db/fastpath.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
@@ -2955,6 +2955,24 @@ async function retryCommand(args) {
 // a complete task does, transitively, for everything built on top of it
 // — that's consequential enough to need the caller to say so explicitly
 // rather than default to it.
+// Whether each reopened task's earlier close ran its verify command: a
+// passed verifications row, a no-op record's `verify_ran`, or otherwise a
+// commit close. A reconciled or fast-pathed task closed with no verify
+// run. See src/db/reopened.mjs for how verify uses the answer.
+async function reopenedRecordsFor(db, taskIds) {
+  const noopRecords = await loadNoopRecords();
+  const reconciled = await loadReconciliations();
+  const fastpathed = new Set([...(await loadFastpaths()).values()].flatMap((r) => r.tasks));
+  const passed = db.prepare("SELECT 1 FROM verifications WHERE task_id = ? AND status = 'passed'");
+  return taskIds.map((task) => {
+    let verifyRan;
+    if (passed.get(task) !== undefined) verifyRan = true;
+    else if (noopRecords.has(task)) verifyRan = noopRecords.get(task).verify_ran;
+    else verifyRan = !reconciled.has(task) && !fastpathed.has(task);
+    return { task, verify_ran: verifyRan };
+  });
+}
+
 async function reopenCommand(args) {
   await ensureDb();
 
@@ -2985,8 +3003,10 @@ async function reopenCommand(args) {
 
   const db = openDb();
   let result;
+  let reopenedRecords = [];
   try {
     result = reopenTask(db, taskId);
+    if (result.reopened) reopenedRecords = await reopenedRecordsFor(db, result.reopenedIds);
   } finally {
     db.close();
   }
@@ -3003,12 +3023,15 @@ async function reopenCommand(args) {
     return;
   }
 
-  await writeReopenedRecords(result.reopenedIds);
+  await writeReopenedRecords(reopenedRecords);
 
   console.log(
     `${green(bold('Reopened.'))} ${bold(result.reopenedIds.length)} task(s) back to ${bold('planned')}: ${result.reopenedIds.join(', ')}`,
   );
   console.log(`  ${dim('claim the fix with')}  hedgehog claim ${taskId} --owner <owner>`);
+  console.log(
+    `  ${bold('Commit')} ${REOPENED_DIR}/ ${dim('— it keeps these tasks open across `hedgehog db rebuild` until each verifies again.')}`,
+  );
   if (result.stillInFlight.length > 0) {
     console.log(
       `\n${yellow(bold('Downstream, not reopened'))} (not complete — nothing shipped yet to invalidate):`,

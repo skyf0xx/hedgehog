@@ -9,6 +9,10 @@
 // hand-written commit that doesn't match — this file is the committed
 // source rebuild.mjs replays instead.
 //
+// `verify_ran` says whether verify_command ran on that close. A reopened
+// task re-runs its command on an empty re-verification only when an
+// earlier close ran it (reopened.mjs).
+//
 // One file per task. A task reopened by `hedgehog reopen` can close as a
 // no-op again; that rewrite refreshes the same record's `verified_at`
 // rather than adding a second one. A file at that path naming a different
@@ -41,7 +45,10 @@ function validateNoop(record, path) {
     throw new Error(`${path}: no-op record "${task}" requires a "verified_at" timestamp (string)`);
   }
 
-  return { task, commit_message: commitMessage, verified_at: verifiedAt };
+  // Absent on a record from a close that never ran verify_command.
+  const verifyRan = record.verify_ran === true;
+
+  return { task, commit_message: commitMessage, verified_at: verifiedAt, verify_ran: verifyRan };
 }
 
 // Every *.json in `noopDir`, validated, as a Map from task id to its
@@ -110,18 +117,22 @@ export async function writeNoopFile(record, noopDir = NOOP_DIR) {
   return record;
 }
 
+// The validated record for `taskId`, or null when it has none.
+export async function loadNoopRecord(taskId, noopDir = NOOP_DIR) {
+  const path = noopFilePath(taskId, noopDir);
+  let raw;
+  try {
+    raw = await readFile(path, 'utf8');
+  } catch (err) {
+    if (err?.code === 'ENOENT') return null;
+    throw err;
+  }
+  return validateNoop(JSON.parse(raw), path);
+}
+
 // No-op-record task ids matching no row in `tasks` — same read-side
 // hygiene as reconcile.mjs#orphanedReconciliations: a dead record must
 // stay discoverable rather than silently completing nothing forever.
-export async function hasNoopRecord(taskId, noopDir = NOOP_DIR) {
-  try {
-    await readFile(noopFilePath(taskId, noopDir), 'utf8');
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export function orphanedNoopRecords(db, records) {
   const known = new Set(db.prepare('SELECT id FROM tasks').all().map((r) => r.id));
   return [...records.keys()].filter((taskId) => !known.has(taskId)).sort();

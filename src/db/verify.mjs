@@ -76,8 +76,8 @@ import { reapExpiredLeases, pathFingerprint } from './claim.mjs';
 import { ensureTaskColumns } from './schema.mjs';
 import { composeScope } from './overrides.mjs';
 import { FASTPATH_DIR } from './fastpath.mjs';
-import { writeNoopFile, hasNoopRecord } from './noop.mjs';
-import { hasReopenedRecord, clearReopenedRecord } from './reopened.mjs';
+import { writeNoopFile, loadNoopRecord } from './noop.mjs';
+import { reopenedAfterCheckRan, clearReopenedRecord } from './reopened.mjs';
 import { isEngineStatePath as isEngineStatePathShared } from './engineState.mjs';
 
 // The build graph file, the commit lock, the star-prompt state file, and
@@ -453,22 +453,24 @@ function claimForVerify(db, taskId, owner) {
 // own edits: an `exclusive` layer (a join whose workspace-wide check is
 // the only gate that sees cross-module breakage), a layer that declares a
 // `verify_radius` wider than its scope, or a re-verification of a task
-// that has closed `complete` before (`hedgehog reopen`, or a once-layer
-// reopened by `hedgehog plan`). The prior-completion signals are a
-// passed verifications row, a no-op record, and a reopen record; the two
-// records are committed, so the answer survives `hedgehog db rebuild`.
+// whose earlier close ran this command (`hedgehog reopen`, or a once-layer
+// reopened by `hedgehog plan`). The earlier-run signals are a passed
+// verifications row, a no-op record with `verify_ran`, and a reopen record
+// with `verify_ran`; the records are committed, so the answer survives
+// `hedgehog db rebuild`.
 //
-// A plain layer seeing its scope untouched for the first time is the one
-// case that skips the command: its module is outside this intent, and its
-// command may have nothing to run against (a test filter matching no
-// files exits nonzero).
+// Every other untouched layer skips the command, including a reopened one
+// that first closed as an empty no-op: its module is outside this intent,
+// and its command may have nothing to run against (a test filter matching
+// no files exits nonzero).
 async function checksBeyondOwnEdits(db, task) {
   if (task.exclusive || task.verify_radius != null) return true;
   const passed = db
     .prepare("SELECT 1 FROM verifications WHERE task_id = ? AND status = 'passed'")
     .get(task.id);
   if (passed !== undefined) return true;
-  return (await hasNoopRecord(task.id)) || (await hasReopenedRecord(task.id));
+  if ((await loadNoopRecord(task.id))?.verify_ran) return true;
+  return reopenedAfterCheckRan(task.id);
 }
 
 // Moves a task still `verifying` to `blocked` / `verification_failed`,
@@ -498,7 +500,12 @@ function blockIfStillVerifying(db, taskId) {
 // one happened, and clears any reopen record.
 async function closeAsNoop(db, task, verification) {
   const verifiedAt = new Date().toISOString();
-  await writeNoopFile({ task: task.id, commit_message: task.commit_message, verified_at: verifiedAt });
+  await writeNoopFile({
+    task: task.id,
+    commit_message: task.commit_message,
+    verified_at: verifiedAt,
+    verify_ran: verification !== null,
+  });
 
   let unlocked;
   let completedIntent;
@@ -565,19 +572,23 @@ async function closeAsNoop(db, task, verification) {
 // caller's behavior unchanged.
 export async function verifyTask(db, taskId, owner, overrides = new Map()) {
   const task = claimForVerify(db, taskId, owner);
+  const progress = { committed: false };
   try {
-    return await verifyClaimed(db, task, owner, overrides);
+    return await verifyClaimed(db, task, owner, overrides, progress);
   } catch (err) {
     if (!blockIfStillVerifying(db, task.id)) throw err;
+    const committedNote = progress.committed
+      ? ' Its commit already landed and stays in git history, so `hedgehog db rebuild` credits it.'
+      : '';
     throw new Error(
-      `${err.message}\n\nTask ${task.id} is now \`blocked\` (verification_failed). ` +
+      `${err.message}\n\nTask ${task.id} is now \`blocked\` (verification_failed).${committedNote} ` +
         `Fix the cause, then \`hedgehog retry ${task.id}\` returns it to \`planned\`.`,
       { cause: err },
     );
   }
 }
 
-async function verifyClaimed(db, task, owner, overrides) {
+async function verifyClaimed(db, task, owner, overrides, progress) {
   const taskId = task.id;
   const scopeGlobs = JSON.parse(composeScope({ scope_globs: task.scope_globs }, taskId, overrides).scope_globs);
   // Gate 1 runs inside the commit lock: the diff has to see a working
@@ -683,8 +694,10 @@ async function verifyClaimed(db, task, owner, overrides) {
   } catch (err) {
     rollbackToBuilding(db, task.id);
     throw new Error(
-      `Task ${task.id} passed verification but its commit failed, so nothing was ` +
-        `recorded. The task is back to \`building\`, still leased to ${owner} — fix ` +
+      `Task ${task.id} passed verification but its commit failed, so the build ` +
+        `graph recorded nothing. If git created the commit before the failure, it is ` +
+        `already in history (check \`git log -1\`). The task is back to \`building\`, ` +
+        `still leased to ${owner} — fix ` +
         `the cause (a rejecting git hook, commit signing, or git identity), then ` +
         `re-run \`hedgehog verify ${task.id} --owner ${owner}\`, or hand it back ` +
         `with \`hedgehog release ${task.id} --owner ${owner}\`.\n\n${err.message}`,
@@ -693,6 +706,7 @@ async function verifyClaimed(db, task, owner, overrides) {
   }
 
   if (commitSha === null) return closeAsNoop(db, task, { exitCode, output });
+  progress.committed = true;
 
   let unlocked;
   let completedIntent;

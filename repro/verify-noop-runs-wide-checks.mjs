@@ -6,7 +6,7 @@
 // plain layer seeing its scope untouched for the first time still closes
 // as a no-op without running its command, even one that would fail.
 
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { makeProject, addIntent, cli, taskStatuses, openGraph, cleanup, check, checkContains, report } from './_lib.mjs';
@@ -115,6 +115,11 @@ try {
   checkContains('the CLI says the check ran', join_.stdout, 'verify command passed; nothing in scope to commit');
   check('no commit for either no-op', before, head(dir));
   check('no-op record written for the join', true, existsSync(join(dir, '.hedgehog/noop/sassy-join.json')));
+  check(
+    'the join no-op record says the command ran',
+    true,
+    JSON.parse(readFileSync(join(dir, '.hedgehog/noop/sassy-join.json'), 'utf8')).verify_ran,
+  );
 } finally {
   cleanup(dir);
 }

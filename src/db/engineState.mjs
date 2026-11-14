@@ -4,9 +4,9 @@
 // state file, and every directory a build-graph command writes its own
 // committed record into (`friction add`, `override add`, `intent add`/
 // `db rebuild`, `reconcile confirm`, `debt add`/`decision add`, a no-op
-// completion, a `reopen`, a fast-path). None of these is ever a layer's own work, so
-// a path under one of them is never attributable to whatever task or
-// intent happened to be active when it changed.
+// completion, a `reopen`, a fast-path). None of these is ever a layer's
+// own work, so a path under one of them is never attributable to whatever
+// task or intent happened to be active when it changed.
 //
 // verify.mjs's scope gate and fastpath.mjs's scope check both need
 // exactly this predicate; this module exists so it has one definition

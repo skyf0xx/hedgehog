@@ -1,15 +1,23 @@
-// `.hedgehog/reopened/<task-id>.json` — the committed record of a task
-// `hedgehog reopen` sent back to `planned` that has not verified again yet.
+// `.hedgehog/reopened/<task-id>.json` — the record of a task `hedgehog
+// reopen` sent back to `planned` that has not verified again yet. The
+// engine writes these files; the user commits them with the rest of
+// `.hedgehog/`.
 //
 // A reopened task keeps its original commit (or no-op record) in history,
 // so without this record `hedgehog db rebuild` would mark it `complete`
 // again from that commit mid-correction. rebuild.mjs replays these records
 // after every completion source, forcing each named task back to
-// `planned`. verify.mjs also reads the record as proof the task is a
-// re-verification, so its verify command runs even with nothing in scope,
-// and removes it once the task closes `complete` again.
+// `planned`. verify.mjs removes the record once the task closes
+// `complete` again.
+//
+// `verify_ran` records whether the task's earlier close ran its verify
+// command (a commit close, or a no-op close that ran the check). Only then
+// does an empty re-verification run the command again. A layer that first
+// closed as an empty no-op may have a command with nothing to run against
+// (a test filter matching no files exits nonzero), so it closes as an
+// empty no-op again.
 
-import { readdir, mkdir, writeFile, rename, rm, access } from 'node:fs/promises';
+import { readdir, readFile, mkdir, writeFile, rename, rm } from 'node:fs/promises';
 
 export const REOPENED_DIR = '.hedgehog/reopened';
 
@@ -17,15 +25,17 @@ function reopenedFilePath(taskId, reopenedDir) {
   return `${reopenedDir}/${taskId.toLowerCase()}.json`;
 }
 
-export async function writeReopenedRecords(taskIds, reopenedDir = REOPENED_DIR) {
-  if (taskIds.length === 0) return;
+// `entries`: `[{ task, verify_ran }]`, one per reopened task.
+export async function writeReopenedRecords(entries, reopenedDir = REOPENED_DIR) {
+  if (entries.length === 0) return;
   await mkdir(reopenedDir, { recursive: true });
   const reopenedAt = new Date().toISOString();
-  for (const task of taskIds) {
+  for (const { task, verify_ran: verifyRan } of entries) {
     const path = reopenedFilePath(task, reopenedDir);
     const tempPath = `${path}.tmp-${process.pid}`;
+    const record = { task, verify_ran: verifyRan === true, reopened_at: reopenedAt };
     try {
-      await writeFile(tempPath, `${JSON.stringify({ task, reopened_at: reopenedAt }, null, 2)}\n`);
+      await writeFile(tempPath, `${JSON.stringify(record, null, 2)}\n`);
       await rename(tempPath, path);
     } catch (err) {
       await rm(tempPath, { force: true }).catch(() => {});
@@ -47,10 +57,17 @@ export async function loadReopenedIds(reopenedDir = REOPENED_DIR) {
   );
 }
 
-export async function hasReopenedRecord(taskId, reopenedDir = REOPENED_DIR) {
+// True when `taskId` has a reopen record whose earlier close ran its
+// verify command.
+export async function reopenedAfterCheckRan(taskId, reopenedDir = REOPENED_DIR) {
+  let raw;
   try {
-    await access(reopenedFilePath(taskId, reopenedDir));
-    return true;
+    raw = await readFile(reopenedFilePath(taskId, reopenedDir), 'utf8');
+  } catch {
+    return false;
+  }
+  try {
+    return JSON.parse(raw).verify_ran === true;
   } catch {
     return false;
   }

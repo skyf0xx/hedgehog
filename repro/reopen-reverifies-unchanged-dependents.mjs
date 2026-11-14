@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // Reproduction: `hedgehog reopen <task> --confirm` sends complete
-// dependents back through claim and verify, and that re-verification runs
-// each dependent's verify_command even when the dependent has nothing in
-// scope to change. A dependent that first closed as a no-op can be
-// verified again rather than being stuck in `verifying`. A `db rebuild`
-// mid-correction keeps the reopened tasks open instead of crediting them
-// from their original commits.
+// dependents back through claim and verify. A dependent whose earlier
+// close ran its verify_command runs it again even with nothing in scope to
+// change. A dependent that first closed as an empty no-op (command never
+// ran) re-closes as an empty no-op: its command here fails the way a test
+// filter matching no files does, and it must neither run nor block, nor
+// leave the task stuck in `verifying`. A `db rebuild` mid-correction keeps
+// the reopened tasks open instead of crediting them from their original
+// commits.
 
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -27,7 +29,7 @@ layers:
   - id: smoke
     depends_on: api
     scope: ["tests/{module}/**"]
-    verify: "echo run >> smoke.log"
+    verify: "echo run >> smoke.log; false"
     commit: "test({module}): smoke"
 `;
 
@@ -43,6 +45,7 @@ const claimAndVerify = (dir, taskId) => {
 };
 const ALL = ['SASSY-API', 'SASSY-SCHEMA', 'SASSY-SMOKE'];
 const statuses = (dir) => ALL.map((id) => taskStatuses(dir)[id]);
+const record = (dir, sub, id) => JSON.parse(readFileSync(join(dir, `.hedgehog/${sub}/${id.toLowerCase()}.json`), 'utf8'));
 
 const dir = makeProject(CORE, { git: true });
 try {
@@ -65,6 +68,9 @@ try {
   const reopen = cli(dir, ['reopen', 'SASSY-SCHEMA', '--confirm']);
   checkContains('reopen reports the chain', reopen.stdout, 'SASSY-SCHEMA, SASSY-API, SASSY-SMOKE');
   check('reopen records written', true, ALL.every((id) => existsSync(join(dir, `.hedgehog/reopened/${id.toLowerCase()}.json`))));
+  checkContains('reopen tells the user to commit the records', reopen.stdout, '.hedgehog/reopened/');
+  check('api closed with a commit, so its check ran', true, record(dir, 'reopened', 'SASSY-API').verify_ran);
+  check('smoke closed as an empty no-op, so its check never ran', false, record(dir, 'reopened', 'SASSY-SMOKE').verify_ran);
 
   cli(dir, ['db', 'rebuild']);
   check('a rebuild mid-correction keeps the reopened tasks open', [false, false, false], statuses(dir).map((s) => s === 'complete'));
@@ -81,9 +87,11 @@ try {
   checkContains('the CLI says the check ran', api.stdout, 'verify command passed; nothing in scope to commit');
 
   const smoke = claimAndVerify(dir, 'SASSY-SMOKE');
-  check('the dependent that first closed as a no-op verifies again', 'complete', taskStatuses(dir)['SASSY-SMOKE']);
-  check('and runs its verify command', 1, runs(dir, 'smoke.log'));
+  check('the empty dependent re-closes as a no-op', 'complete', taskStatuses(dir)['SASSY-SMOKE']);
+  check('without running its zero-files-fails command', 0, runs(dir, 'smoke.log'));
   check('verify did not fail', 0, smoke.status);
+  checkContains('the CLI reports an empty no-op', smoke.stdout, 'nothing in scope to verify or commit');
+  check('its no-op record says the command did not run', false, record(dir, 'noop', 'SASSY-SMOKE').verify_ran);
 
   cli(dir, ['db', 'rebuild']);
   check('after the correction, a rebuild credits every task', ['complete', 'complete', 'complete'], statuses(dir));
@@ -91,4 +99,4 @@ try {
   cleanup(dir);
 }
 
-report('a reopened dependent re-runs its verify command, and the reopen survives a rebuild');
+report('a reopened dependent re-runs a check that ran before, an empty one stays empty, and the reopen survives a rebuild');
