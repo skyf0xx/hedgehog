@@ -1,5 +1,5 @@
 // Merges a core's CLAUDE.md section into a project's root instructions
-// file, for the one path where that file is not a Hedgehog shell: a
+// file, including the case where that file is not a Hedgehog shell: a
 // repo adopted onto existing, hand-written content that has no
 // {{CORE_SECTION}} placeholder at all.
 //
@@ -9,14 +9,12 @@
 // ever wrote, since it always starts from src/templates/CLAUDE.md. An
 // adopted repo's CLAUDE.md predates Hedgehog entirely and carries no
 // such marker, so that replacement has nothing to replace. This module
-// is the one place that gap is closed: appending a delimited section
-// instead of substituting into one.
+// closes that gap: appending a delimited section instead of substituting
+// into one.
 //
-// Referenced by name (not substance) from hedgehog-adopt's own SKILL.md
-// in the @skyf0xx/hedgehog-core-adopted package — that skill invokes
-// `appendCoreSection` the same way it already invokes `loadCore` from
-// src/db/core.mjs, via `node -e "import('<path-to-hedgehog-install>/
-// src/hosts/claude-md-merge.mjs')..."`.
+// Engine-internal. `hedgehog core install` (and its `core record-adopted`
+// alias) runs this merge for every installed host's instructions file, so
+// a core's skills call that command rather than importing this module.
 
 const MARKER_START = '<!-- hedgehog:core-section start -->';
 const MARKER_END = '<!-- hedgehog:core-section end -->';
@@ -44,15 +42,14 @@ export function wrapSection(section) {
 // Appends `section` to `existingContent` as a clearly delimited block,
 // never touching a byte of what's already there. Idempotent: if a
 // marked section is already present, its content is replaced in place
-// (so a later `hedgehog-adopt` re-run, or a core switch, updates the
+// (so a later `hedgehog core install` re-run updates the
 // section without duplicating it) rather than appending a second copy.
 //
-// This is the merge path for a CLAUDE.md hedgehog-adopt's Step 5 finds
-// with no {{CORE_SECTION}} placeholder — the file predates Hedgehog and
-// was never written from src/templates/CLAUDE.md. Every file that shell
-// ever produced already has the placeholder, so that case always goes
-// through writePlannedFile's ordinary substitution instead; this
-// function is never called on that path.
+// This is the merge path for an instructions file `hedgehog core install`
+// finds with no {{CORE_SECTION}} placeholder: either the file predates
+// Hedgehog, or its placeholder was already filled and the marked section
+// is replaced in place. A file still carrying the placeholder goes
+// through substitution instead.
 export function appendCoreSection(existingContent, section) {
   const block = wrapSection(section);
   const markerRe = new RegExp(

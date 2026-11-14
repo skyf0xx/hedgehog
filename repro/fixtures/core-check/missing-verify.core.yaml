@@ -1,0 +1,5 @@
+id: broken-fixture
+layers:
+  - id: schema
+    scope: ["libs/schema/**"]
+    commit: "feat: schema"
