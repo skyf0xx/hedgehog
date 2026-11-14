@@ -34,6 +34,15 @@ names them; `init` fetches the one a project asks for.
     on `full-stack-app`. Invoked by `planner`; `landing-page` runs this
     skill's shelf too, then mines the same archive through
     `hedgehog-landing-loop`'s own planning-intake section instead.
+  - `hedgehog-orchestrating` — the core-neutral build loop, read at the
+    start of every session on a project with a build graph: the claim →
+    dispatch → verify cycle, the intent check, debt and decisions, the
+    test-depth and review rule, the Friction log, the Correction Protocol
+    and its Post-build entry, the Stop Condition, the graph exits, and
+    when to clear context. A core's own loop skill supplies only what is
+    core-specific (which agent builds which layer, in-layer conventions,
+    the review checklist) and names these sections rather than restating
+    them.
   - `hedgehog-daily` — the shared triage gate for a change request on a
     project that already has a build graph and nothing in flight. Reads
     the installed core's layer sequence, scope globs and verify commands
