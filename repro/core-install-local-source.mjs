@@ -13,16 +13,19 @@
 //      and records the core in .hedgehog/core.json;
 //   2. installing a different core over a recorded one is refused and
 //      changes nothing;
-//   3. re-installing the same core refuses on its existing workspace
-//      files and succeeds with --force;
+//   3. installing the recorded core again reports it as installed and
+//      changes nothing; --force reinstalls it;
 //   4. `core record-adopted` on a two-host project with a hand-written
 //      CLAUDE.md appends the section there, fills the other host's shell,
-//      lands agents for both hosts, keeps .hedgehog/CLAUDE.core.md, and
-//      stays idempotent on a re-run.
+//      lands agents for both hosts, keeps .hedgehog/CLAUDE.core.md,
+//      prints no commit step, and stays idempotent on a re-run;
+//   5. a core with no workspace leaves an absent instructions file absent;
+//   6. existing workspace files, copywriting, a fetch failure and an
+//      engine-range failure are each refused with the tree untouched.
 //
 // Run: node repro/core-install-local-source.mjs
 
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { check, checkContains, finish, hedgehog, run, REPO_ROOT } from './papercuts-lib.mjs';
@@ -82,6 +85,18 @@ fixturePackage(
   },
 );
 
+// A core written against an engine line far ahead of this CLI.
+fixturePackage(
+  'hedgehog-core-deepseek-harness',
+  '@skyf0xx/hedgehog-core-deepseek-harness',
+  `name: deepseek-harness\nflag: --deepseek-harness\nlanguage: typescript\nengine: "^${Number(engineMajor) + 90}.0.0"\ntemplate: CLAUDE.core.md\nagents: [harness-eng]\nskills: [hedgehog-dsh-loop]\n`,
+  {
+    'agents/harness-eng.md': agent('harness-eng'),
+    'skills/hedgehog-dsh-loop/SKILL.md': skill('hedgehog-dsh-loop'),
+    'CLAUDE.core.md': '## DSH fixture section\n',
+  },
+);
+
 const env = { HEDGEHOG_CORE_SOURCE: source, HEDGEHOG_CORE_NO_CACHE: '1' };
 
 function project() {
@@ -92,6 +107,30 @@ function project() {
 }
 
 const read = (dir, rel) => readFileSync(join(dir, rel), 'utf8');
+
+// Every file under `dir` but .git, with its content, for a before/after
+// comparison.
+function snapshot(dir, rel = '') {
+  const out = {};
+  for (const name of readdirSync(join(dir, rel))) {
+    if (rel === '' && name === '.git') continue;
+    const child = rel ? `${rel}/${name}` : name;
+    if (statSync(join(dir, child)).isDirectory()) Object.assign(out, snapshot(dir, child));
+    else out[child] = readFileSync(join(dir, child), 'utf8');
+  }
+  return out;
+}
+
+function checkUntouched(label, dir, before) {
+  const after = snapshot(dir);
+  const changed = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter(
+    (k) => before[k] !== after[k],
+  );
+  check(`${label}: tree untouched`, changed.length === 0, {
+    expected: 'no file added, removed or changed',
+    actual: changed.join(', '),
+  });
+}
 const count = (haystack, needle) => haystack.split(needle).length - 1;
 
 try {
@@ -124,6 +163,11 @@ try {
     expected: 'one .hedgehog/hedgehog.db line',
     actual: gitignore,
   });
+  check('core install does not suggest git add -A', !install.all.includes('git add -A'), {
+    expected: 'no git add -A',
+    actual: install.all,
+  });
+  checkContains('core install names the commit', install.all, 'Commit the files listed above');
   const record = JSON.parse(read(a, '.hedgehog/core.json'));
   check('core is recorded', record.core === 'landing-page', { expected: 'landing-page', actual: record.core });
 
@@ -136,10 +180,13 @@ try {
     actual: read(a, '.hedgehog/core.json'),
   });
 
-  // ── 3. same core again: workspace conflict, then --force ──────────────
+  // ── 3. same core again: already installed, then --force ──────────────
+  const beforeAgain = snapshot(a);
   const again = hedgehog(a, ['core', 'install', 'landing-page'], env);
-  check('re-install refuses on workspace files', again.status === 1, { expected: 'exit 1', actual: `${again.status}\n${again.all}` });
-  checkContains('conflict lists core.yaml', again.all, 'core.yaml');
+  check('re-install reports installed', again.status === 0, { expected: 'exit 0', actual: `${again.status}\n${again.all}` });
+  checkContains('re-install says already installed', again.all, 'Already installed');
+  checkContains('re-install points at update', again.all, 'hedgehog update');
+  checkUntouched('re-install', a, beforeAgain);
   const forced = hedgehog(a, ['core', 'install', 'landing-page', '--force'], env);
   check('re-install with --force succeeds', forced.status === 0, { expected: 'exit 0', actual: `${forced.status}\n${forced.all}` });
   check('section not duplicated', count(read(a, 'CLAUDE.md'), 'LANDING-SECTION-BODY') === 1, {
@@ -172,12 +219,60 @@ try {
     actual: read(b, '.hedgehog/core.json'),
   });
 
+  check('record-adopted prints no commit step', !/git add|Commit the files/.test(adopted.all), {
+    expected: 'no commit step',
+    actual: adopted.all,
+  });
+
   const rerun = hedgehog(b, ['core', 'record-adopted'], env);
   check('record-adopted re-run exits 0', rerun.status === 0, { expected: 'exit 0', actual: `${rerun.status}\n${rerun.all}` });
   check('re-run keeps one section', count(read(b, 'CLAUDE.md'), 'ADOPTED-SECTION-BODY') === 1, {
     expected: 'one section',
     actual: String(count(read(b, 'CLAUDE.md'), 'ADOPTED-SECTION-BODY')),
   });
+
+  // ── 5. no workspace: an absent instructions file stays absent ─────────
+  const c = project();
+  hedgehog(c, ['init', '--host=claude,cursor'], env);
+  rmSync(join(c, 'CLAUDE.md'));
+  const adoptedC = hedgehog(c, ['core', 'record-adopted'], env);
+  check('record-adopted without CLAUDE.md exits 0', adoptedC.status === 0, {
+    expected: 'exit 0',
+    actual: `${adoptedC.status}\n${adoptedC.all}`,
+  });
+  check('absent CLAUDE.md stays absent', !existsSync(join(c, 'CLAUDE.md')), {
+    expected: 'no CLAUDE.md',
+    actual: 'CLAUDE.md created',
+  });
+  checkContains('present HEDGEHOG.md still gains the section', read(c, 'HEDGEHOG.md'), 'ADOPTED-SECTION-BODY');
+
+  // ── 6. refusals leave the tree untouched ──────────────────────────────
+  const d = project();
+  hedgehog(d, ['init'], env);
+  writeFileSync(join(d, 'package.json'), '{ "name": "users-own" }\n');
+  let before = snapshot(d);
+  const conflict = hedgehog(d, ['core', 'install', 'landing-page'], env);
+  check('existing workspace file refused', conflict.status === 1, { expected: 'exit 1', actual: `${conflict.status}\n${conflict.all}` });
+  checkContains('conflict lists package.json', conflict.all, 'package.json');
+  checkUntouched('workspace conflict', d, before);
+
+  before = snapshot(d);
+  const copy = hedgehog(d, ['core', 'install', 'copywriting'], env);
+  check('copywriting refused', copy.status === 1, { expected: 'exit 1', actual: `${copy.status}\n${copy.all}` });
+  checkContains('copywriting refusal points at init --copywriting', copy.all, 'hedgehog init --copywriting');
+  checkUntouched('copywriting', d, before);
+
+  before = snapshot(d);
+  const missing = hedgehog(d, ['core', 'install', 'pwa-app'], env);
+  check('fetch failure refused', missing.status === 1, { expected: 'exit 1', actual: `${missing.status}\n${missing.all}` });
+  checkContains('fetch failure says unavailable', missing.all, 'Core unavailable');
+  checkUntouched('fetch failure', d, before);
+
+  before = snapshot(d);
+  const ahead = hedgehog(d, ['core', 'install', 'deepseek-harness'], env);
+  check('engine-range failure refused', ahead.status === 1, { expected: 'exit 1', actual: `${ahead.status}\n${ahead.all}` });
+  checkContains('engine-range failure names the engine line', ahead.all, 'This core needs Hedgehog');
+  checkUntouched('engine-range failure', d, before);
 } finally {
   for (const dir of projects) rmSync(dir, { recursive: true, force: true });
   rmSync(source, { recursive: true, force: true });

@@ -287,8 +287,8 @@ function plan(core, host = DEFAULT_HOST, { hostOnly = false } = {}) {
     return [
       ...base,
       // The shell with its {{CORE_SECTION}} placeholder left unfilled —
-      // whichever bootstrap-core skill runs first fills it in for the
-      // core planner actually picked. {{HOST_DISPATCH}} is filled now:
+      // `hedgehog core install` fills it in for the core planner
+      // actually picked. {{HOST_DISPATCH}} is filled now:
       // which host this is doesn't depend on the core.
       {
         type: 'merge',
@@ -626,7 +626,7 @@ async function writePlannedFile(f) {
     }
     if (out === null) out = await readFile(join(PKG_ROOT, f.merge.shell), 'utf8');
     // A deferred install has no core yet, so {{CORE_SECTION}} stays put
-    // for whichever bootstrap-core skill runs first to fill in. The host
+    // for `hedgehog core install` to fill in. The host
     // is always known at install time, so {{HOST_DISPATCH}} never is.
     if (f.merge.include) {
       const section = await readFile(
@@ -722,14 +722,16 @@ ${bold('Usage')}
                                                    its agents, skills, vendored shelves and workspace for
                                                    every installed host, its section in each host's
                                                    instructions file, and the record 'update' reads;
-                                                   refuses when a different core is recorded
-                                                   [--force overwrites existing workspace files]
+                                                   refuses copywriting (use init --copywriting) and a
+                                                   different recorded core; reports a recorded one as
+                                                   installed [--force reinstalls it and overwrites
+                                                   existing workspace files]
   npx @skyf0xx/hedgehog core record-adopted       same as 'core install adopted' (hedgehog-adopt calls it)
   npx @skyf0xx/hedgehog core check [path]         load and lint a core.yaml (default: this project's);
                                                    exits 1 on an error, prints warnings; reads only
   npx @skyf0xx/hedgehog core show [--json]        print this project's core wherever it lives — path, id,
                                                    pattern, and each layer's depends_on, scope, verify,
-                                                   verify_radius, exclusive and commit; reads only
+                                                   verify_radius, exclusive, once and commit; reads only
   npx @skyf0xx/hedgehog init --cursor             install for Cursor (default: Claude Code)
   npx @skyf0xx/hedgehog init --host=claude,gemini install for several coding agents at once
   npx @skyf0xx/hedgehog init --all-hosts          install for every supported coding agent
@@ -1336,10 +1338,16 @@ async function resolveInstalledCore() {
 // `init`, except `.gitignore`: a coreless `init` always wrote one, so the
 // core's lines are appended to it rather than replacing it.
 //
-// `adoptedTemplateCopy` serves `core record-adopted`, the alias published
-// `hedgehog-adopt` releases call: they read the section back from
-// `.hedgehog/CLAUDE.core.md`, so the alias keeps writing that copy.
-async function coreInstallCommand(name, { force = false, adoptedTemplateCopy = false } = {}) {
+// A core with no workspace is installed into an existing repo, so a
+// host's instructions file that is absent stays absent: those cores
+// extend a project's instructions, they never originate them.
+//
+// `recordAdopted` serves `core record-adopted`, the alias published
+// `hedgehog-adopt` releases call mid-skill. Those releases read the
+// section back from `.hedgehog/CLAUDE.core.md` and make their own commit,
+// so the alias writes that copy, re-runs over its own record, and prints
+// no commit step.
+async function coreInstallCommand(name, { force = false, recordAdopted = false } = {}) {
   if (!name) {
     console.error(`${red('No core named.')}\n\nUsage: hedgehog core install <name> [--force]\n`);
     process.exitCode = 1;
@@ -1360,6 +1368,17 @@ async function coreInstallCommand(name, { force = false, adoptedTemplateCopy = f
     process.exitCode = 1;
     return;
   }
+  // Copywriting installs only into a scratch directory, which `init
+  // --copywriting` creates before anything else runs (see ORIGDIR above).
+  if (entry.name === 'copywriting') {
+    console.error(
+      `${red('copywriting does not install into an existing project.')} Its drafts live in a\n` +
+        `scratch directory that ${bold('hedgehog init --copywriting')} creates; run that instead.\n` +
+        'Nothing was changed.\n',
+    );
+    process.exitCode = 1;
+    return;
+  }
   const record = await installedCore(DEST_ROOT);
   if (record && record.name !== entry.name) {
     console.error(
@@ -1369,6 +1388,13 @@ async function coreInstallCommand(name, { force = false, adoptedTemplateCopy = f
         `project. Nothing was changed.\n`,
     );
     process.exitCode = 1;
+    return;
+  }
+  if (record && !force && !recordAdopted) {
+    console.log(
+      `${green(bold('Already installed:'))} ${bold(record.name)} ${dim(`(${record.version ?? 'unknown version'})`)}\n\n` +
+        `Run ${bold('hedgehog update')} to refresh its agents and skills. Nothing was changed.\n`,
+    );
     return;
   }
 
@@ -1429,12 +1455,18 @@ async function coreInstallCommand(name, { force = false, adoptedTemplateCopy = f
     const rel = HOSTS[host].bootstrapFile;
     if (bootstrapFiles.has(rel)) continue;
     bootstrapFiles.add(rel);
-    const outcome = await fillCoreSection(core, host);
+    const outcome = await fillCoreSection(core, host, {
+      createMissing: Boolean(core.manifest.workspace),
+    });
+    if (outcome === 'absent') {
+      console.log(`  ${dim('skip')}  ${rel} ${dim('(absent)')}`);
+      continue;
+    }
     if (outcome !== 'keep') written++;
     console.log(`  ${outcome === 'keep' ? dim('keep') : green(outcome)}  ${rel}`);
   }
 
-  if (adoptedTemplateCopy) {
+  if (recordAdopted) {
     const [copy] = await plannedFiles({
       type: 'file',
       root: core.root,
@@ -1455,15 +1487,17 @@ async function coreInstallCommand(name, { force = false, adoptedTemplateCopy = f
   );
   await printMissingRequirements();
   if (core.engineAdvisory) console.log(`${yellow(core.engineAdvisory)}\n`);
-  console.log('Next steps:');
-  const commit = `git add -A && git commit -m "chore: install ${core.manifest.name} core"`;
-  if (core.manifest.workspace) {
-    // Same order as `init`'s: the install writes the commit gate's hooks,
-    // so the commit that lands the workspace is already gated.
-    console.log(`  1. ${bold('pnpm install')} ${dim('(before the commit, so the commit gate is in place)')}`);
-    console.log(`  2. ${bold(commit)}\n`);
-  } else {
-    console.log(`  1. ${bold(commit)}\n`);
+  if (!recordAdopted) {
+    console.log('Next steps:');
+    const commit = `Commit the files listed above as ${bold(`chore: install ${core.manifest.name} core`)}`;
+    if (core.manifest.workspace) {
+      // Same order as `init`'s: the install writes the commit gate's hooks,
+      // so the commit that lands the workspace is already gated.
+      console.log(`  1. ${bold('pnpm install')} ${dim('(before the commit, so the commit gate is in place)')}`);
+      console.log(`  2. ${commit}\n`);
+    } else {
+      console.log(`  1. ${commit}\n`);
+    }
   }
   console.log(
     dim(
@@ -1477,11 +1511,13 @@ async function coreInstallCommand(name, { force = false, adoptedTemplateCopy = f
 // `{{CORE_SECTION}}` while the shell still carries it, otherwise through
 // appendCoreSection, which replaces an existing marked section in place
 // and appends to a hand-written file that has none. A missing file is
-// written from the shell, the same way `init` writes it.
-async function fillCoreSection(core, host) {
+// written from the shell, the same way `init` writes it, when
+// `createMissing` is set, and left absent otherwise.
+async function fillCoreSection(core, host, { createMissing }) {
   const merge = plan(core, host, { hostOnly: true }).find((e) => e.type === 'merge');
   const dest = join(DEST_ROOT, merge.to);
   if (!(await exists(dest))) {
+    if (!createMissing) return 'absent';
     await writePlannedFile({ dest, merge });
     return 'create';
   }
@@ -4605,7 +4641,7 @@ async function coreCommand(args) {
     return;
   }
   if (sub === 'record-adopted') {
-    await coreInstallCommand(ADOPTED_CORE_NAME, { adoptedTemplateCopy: true });
+    await coreInstallCommand(ADOPTED_CORE_NAME, { recordAdopted: true });
     return;
   }
   if (sub === 'check') {
