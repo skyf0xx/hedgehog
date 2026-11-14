@@ -11,10 +11,9 @@
 //
 // Operator-recorded notes are the deliberate exception: `debt` has a
 // committed source (`.hedgehog/notes/*.json`, notes.mjs) replayed after
-// the clear; `friction` keeps its own separate committed log
-// (`.hedgehog/friction/log.md`) and is left untouched by the clear. Both
-// are only reported as orphaned when the recompiled graph has no such
-// task.
+// the clear; `friction` has its own (`.hedgehog/friction/*.json`,
+// friction.mjs), replayed the same way. Both are only reported as
+// orphaned when the recompiled graph has no such task.
 
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
