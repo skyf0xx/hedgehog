@@ -106,7 +106,7 @@ A tweak inherits the test and review bar of the layer it lands in.
   real test bar and `reviewer` pass that layer gets in the loop.
 
 That is the loop's own rule — "Test depth follows verify radius. Review
-follows exclusivity", stated in full in the core's loop skill — applied
+follows exclusivity", stated in full in `hedgehog-orchestrating` — applied
 to a layer instead of a compiled task. `verify_radius` and `exclusive`
 are declared on the layer in `core.yaml`, so both are readable on a path
 that compiles no task.

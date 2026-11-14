@@ -1,0 +1,14 @@
+id: check-fixture
+pattern: layered
+layers:
+  - id: schema
+    scope: ["libs/schema/**"]
+    verify: "true"
+    commit: "feat: schema"
+  - id: api
+    depends_on: schema
+    scope: ["apps/api/**"]
+    verify: "true"
+    verify_radius: ["apps/api/**", "libs/schema/**"]
+    exclusive: true
+    commit: "feat: api"

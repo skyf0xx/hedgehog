@@ -25,7 +25,7 @@ Tool grants are defense in depth. The enforcement is `hedgehog verify`, which ch
 
 `src/agents/` and `src/skills/` above are shared by every core. Each core's own build agents, skills, and (for `full-stack-app`, `pwa-app`, `landing-page`, `copywriting`, and `deepseek-harness`) pre-built workspace ship in that core's own npm package rather than in this repo.
 
-`src/registry/cores.json` is the fixed table naming every core: its npm package, the version range `init` resolves, its install flag, its GitHub repository, and the `selects_when` prose `planner` reads aloud in Phase 0 to choose one. `init` resolves the requested core against that table (`src/registry/index.mjs`), then fetches the package with `npm pack` and extracts it (`src/registry/fetch.mjs`), caching the extraction at `~/.hedgehog/cores/<name>/<version>/` so a repeat install on the same version needs no network. The extracted package carries a `hedgehog-core.yaml` manifest at its root (`src/registry/manifest.mjs`) naming which agents, skills, vendored shelves, workspace, and CLAUDE.md section it contributes; the installer writes those into the consuming project alongside the shared agents and skills above. `installed.mjs` records which core and version a project installed, so `update` refreshes that core from the same package rather than re-resolving the registry.
+`src/registry/cores.json` is the fixed table naming every core: its npm package, the version range `init` resolves, its install flag, its GitHub repository, and the `selects_when` prose `planner` reads aloud in Phase 0 to choose one. `init` resolves the requested core against that table (`src/registry/index.mjs`), then fetches the package with `npm pack` and extracts it (`src/registry/fetch.mjs`), caching the extraction at `~/.hedgehog/cores/<name>/<version>/` so a repeat install on the same version needs no network. The extracted package carries a `hedgehog-core.yaml` manifest at its root (`src/registry/manifest.mjs`) naming which agents, skills, vendored shelves, workspace, and CLAUDE.md section it contributes; the installer writes those into the consuming project alongside the shared agents and skills above. `installed.mjs` records which core and version a project installed, so `update` refreshes that core from the same package rather than re-resolving the registry. A project whose `init` named no core gets its core from `hedgehog core install <name>` (`bootstrap`'s first step, and `hedgehog-adopt`'s through the `core record-adopted` alias): the same fetch and the same planned writes, for every host recorded in `.hedgehog/hosts.json`, with the core's section filled into each host's instructions file (`{{CORE_SECTION}}`, or `src/hosts/claude-md-merge.mjs`'s appended block on a hand-written file) and the core recorded.
 
 `authored` carries no install flag — `hedgehog-core-design` chooses it during planning intake rather than a user passing it to `init`, then designs its layer sequence and writes `.hedgehog/core.yaml` directly instead of fetching a pre-built workspace.
 
@@ -218,7 +218,12 @@ consumer that reads a compiled task's layer-derived fields) and the prose
 that reads the same file (`hedgehog-daily`, `tweaker`, `reviewer`, and the
 two writers, `hedgehog-core-design` in the `authored` core and
 `hedgehog-adopt` in the `adopted` core). A change to any field's meaning,
-default, or allowed values updates this table in the same commit.
+default, or allowed values updates this table in the same commit. A
+shipped core keeps the file at the repo root as `core.yaml`; every
+command resolves `.hedgehog/core.yaml` first and the root file second.
+`hedgehog core show [--json]` prints the resolved file's fields and
+`hedgehog core check [path]` loads and lints one, so prose reads the
+core through those commands rather than a path.
 
 Two fields are named loosely elsewhere and are clarified here once: a
 layer's identifier field is `id`, never `name` — the parser has no `name`

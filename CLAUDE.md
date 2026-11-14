@@ -34,6 +34,15 @@ names them; `init` fetches the one a project asks for.
     on `full-stack-app`. Invoked by `planner`; `landing-page` runs this
     skill's shelf too, then mines the same archive through
     `hedgehog-landing-loop`'s own planning-intake section instead.
+  - `hedgehog-orchestrating` — the core-neutral build loop, read at the
+    start of every session on a project with a build graph: the claim →
+    dispatch → verify cycle, the intent check, debt and decisions, the
+    test-depth and review rule, the Friction log, the Correction Protocol
+    and its Post-build entry, the Stop Condition, the graph exits, and
+    when to clear context. A core's own loop skill supplies only what is
+    core-specific (which agent builds which layer, in-layer conventions,
+    the review checklist) and names these sections rather than restating
+    them.
   - `hedgehog-daily` — the shared triage gate for a change request on a
     project that already has a build graph and nothing in flight. Reads
     the installed core's layer sequence, scope globs and verify commands
@@ -93,8 +102,8 @@ names them; `init` fetches the one a project asks for.
   rules, skill/agent pointers, and context-management guidance). Each
   core package's own `CLAUDE.core.md` fills that shell's
   `{{CORE_SECTION}}` — at install time when `init` names a core, or by
-  the matching bootstrap-core skill when `init` ran naming none and the
-  shell landed with that placeholder still unfilled. `{{HOST_DISPATCH}}`
+  `hedgehog core install` when `init` ran naming none and the shell
+  landed with that placeholder still unfilled. `{{HOST_DISPATCH}}`
   is filled at install time from the chosen host's `DISPATCH.md`.
 - `src/db/` — the SQLite build graph a consuming project's Bootstrap
   initializes at `.hedgehog/hedgehog.db`: schema, intents/tasks, `plan`
@@ -117,9 +126,15 @@ names them; `init` fetches the one a project asks for.
   This is the live source of truth every loop skill and its agents query
   and mutate for what's next and what's done.
 - `bin/cli.mjs` — the `hedgehog` CLI installed by `npx @skyf0xx/hedgehog`:
-  `init` (installer), `core record-adopted` (lands the `adopted` core's
-  agents/skills and records them for `hedgehog-adopt`, which has no `init`
-  step of its own to call from), and the subcommands (`status`, `next`,
+  `init` (installer); `core install <name>` (lands a core into a project
+  whose `init` named none — agents, skills, vendored shelves and workspace
+  for every installed host, the core's section in each host's
+  instructions file, and the record `update` reads; `bootstrap` runs it
+  first, and `core record-adopted` is its alias for `adopted`); `core
+  check [path]` (loads and lints a `core.yaml`); `core show [--json]`
+  (prints the resolved core's layers, whether it lives at `core.yaml` or
+  `.hedgehog/core.yaml` — what a skill cites instead of a path); and the
+  subcommands (`status`, `next`,
   `verify`, `claim`, `intent add`, `plan`, `friction add`/`list`, …) that
   read and write `src/db/`'s build graph.
 - `src/hosts/` — one entry per coding agent Hedgehog installs into
@@ -130,7 +145,7 @@ names them; `init` fetches the one a project asks for.
   per-agent grant; `routing.mjs` generates the root `AGENTS.md` index
   from the agents' and skills' own frontmatter; `claude-md-merge.mjs`
   safely merges a core's CLAUDE.md section into a repo's hand-written
-  root instructions file (adoption case). `version.mjs` owns
+  root instructions file (adoption case), run by `core install`. `version.mjs` owns
   payload-staleness detection: `init` and `update` stamp the version they
   wrote into `.hedgehog/version.json`, and that stamp is compared against
   the newest published release. See
