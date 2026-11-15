@@ -22,6 +22,7 @@ import {
   commitTaskSubject,
   rebuildFromScratch,
   taskStatuses,
+  openGraph,
   cleanup,
   check,
   checkContains,
@@ -48,6 +49,17 @@ layers:
     commit: "test({module}): smoke"
 `;
 
+function intentStatuses(dir) {
+  const db = openGraph(dir);
+  try {
+    return Object.fromEntries(
+      db.prepare('SELECT id, status FROM intents ORDER BY id').all().map(({ id, status }) => [id, status]),
+    );
+  } finally {
+    db.close();
+  }
+}
+
 const dir = makeProject(CORE, { git: true });
 try {
   addIntent(dir, 'sassy');
@@ -62,6 +74,11 @@ try {
     { 'SASSY-API': 'complete', 'SASSY-SCHEMA': 'complete', 'SASSY-SMOKE': 'complete' },
     taskStatuses(dir),
   );
+
+  check('completed intent is complete before correction', 'complete', intentStatuses(dir).sassy);
+  addIntent(dir, 'other');
+  check('plan another intent exits 0', 0, cli(dir, ['plan']).status);
+  check('other intent starts active', 'active', intentStatuses(dir).other);
 
   // Reopen refuses without --confirm, and changes nothing.
   const unconfirmed = cli(dir, ['reopen', 'SASSY-SCHEMA']);
@@ -86,10 +103,20 @@ try {
   const reopened = cli(dir, ['reopen', 'SASSY-SCHEMA', '--confirm']);
   check('reopen --confirm exits 0', 0, reopened.status);
   checkContains('reopen reports the transition', reopened.stdout, 'Reopened');
+  checkContains('reopen names the reactivated intent', reopened.stdout, 'Intents reactivated: sassy');
+  check('reopen reactivates only the completed intent', { other: 'active', sassy: 'active' }, intentStatuses(dir));
   check(
     'the fixed layer and every complete dependent go back to planned',
     { 'SASSY-API': 'planned', 'SASSY-SCHEMA': 'planned', 'SASSY-SMOKE': 'planned' },
     taskStatuses(dir),
+  );
+
+  check('rebuild after reopen exits 0', 0, rebuildFromScratch(dir).status);
+  check('rebuild preserves active intent statuses', { other: 'active', sassy: 'active' }, intentStatuses(dir));
+  check(
+    'rebuild preserves reopened tasks',
+    { 'SASSY-API': 'planned', 'SASSY-SCHEMA': 'planned', 'SASSY-SMOKE': 'planned' },
+    Object.fromEntries(Object.entries(taskStatuses(dir)).filter(([id]) => id.startsWith('SASSY-'))),
   );
 
   // The loop closes normally from here: claim, verify, and the chain is
@@ -107,6 +134,14 @@ try {
     { 'SASSY-SCHEMA': 'complete', 'SASSY-API': 'ready' },
     { 'SASSY-SCHEMA': taskStatuses(dir)['SASSY-SCHEMA'], 'SASSY-API': taskStatuses(dir)['SASSY-API'] },
   );
+
+  check('intent remains active while downstream work is open', 'active', intentStatuses(dir).sassy);
+  check('claim reopened API exits 0', 0, cli(dir, ['claim', 'SASSY-API', '--owner', 'ag1']).status);
+  check('verify reopened API exits 0', 0, cli(dir, ['verify', 'SASSY-API', '--owner', 'ag1']).status);
+  check('claim reopened smoke exits 0', 0, cli(dir, ['claim', 'SASSY-SMOKE', '--owner', 'ag1']).status);
+  check('verify reopened smoke exits 0', 0, cli(dir, ['verify', 'SASSY-SMOKE', '--owner', 'ag1']).status);
+  check('intent completes again after all tasks verify', 'complete', intentStatuses(dir).sassy);
+  check('unrelated active intent remains unchanged', 'active', intentStatuses(dir).other);
 
   // A no-op reopen: reopening a task that isn't complete refuses cleanly.
   const reopenAgain = cli(dir, ['reopen', 'SASSY-API', '--confirm']);

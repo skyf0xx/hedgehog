@@ -3036,6 +3036,9 @@ async function reopenCommand(args) {
   console.log(
     `${green(bold('Reopened.'))} ${bold(result.reopenedIds.length)} task(s) back to ${bold('planned')}: ${result.reopenedIds.join(', ')}`,
   );
+  if (result.reopenedIntentIds.length > 0) {
+    console.log(`  ${bold('Intents reactivated:')} ${result.reopenedIntentIds.join(', ')}`);
+  }
   console.log(`  ${dim('claim the fix with')}  hedgehog claim ${taskId} --owner <owner>`);
   console.log(
     `  ${bold('Commit')} ${REOPENED_DIR}/ ${dim('— it keeps these tasks open across `hedgehog db rebuild` until each verifies again.')}`,
