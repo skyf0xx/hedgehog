@@ -7,7 +7,6 @@
 //
 //   name: <core name>                  matches its registry entry
 //   flag: <cli flag> | null            null when the core has no install flag
-//   language: <scalar>
 //   engine: "^<major>.<minor>.<patch>" which CLI versions can install it
 //   workspace: workspace/              omitted by a core that scaffolds nothing
 //   template: CLAUDE.core.md           fills the CLAUDE.md shell's core section
@@ -30,7 +29,7 @@
 import { isNewer } from '../hosts/version.mjs';
 
 const LIST_KEYS = new Set(['agents', 'skills', 'vendor_skills']);
-const REQUIRED_KEYS = ['name', 'language', 'template'];
+const REQUIRED_KEYS = ['name', 'template'];
 
 // The one range form a manifest's `engine` may take: a caret range over a
 // three-part version. Caret is the whole vocabulary on purpose — a core

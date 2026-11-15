@@ -2,11 +2,11 @@
 // definition into `tasks` + `dependencies` rows. See BUILD_GRAPH.md,
 // "1. Intents become tasks" and "2. Readiness comes from dependencies".
 //
-// full-stack-app and pwa-app: one task per layer per intent (an intent is
-// a domain module — see the core definition's `{module}` placeholder).
-// landing-page, copywriting, deepseek-harness, and authored (whether
-// designed from scratch or adopted onto an existing repo): one task per
-// phase/layer, no module axis. All are the same operation — walk a core
+// Module-axis cores (full-stack-app, pwa-app, deepseek-harness): one task
+// per layer per intent (an intent is a domain module or plugin — see the
+// core definition's `{module}` placeholder). landing-page, copywriting, and
+// authored (whether designed from scratch or adopted onto an existing
+// repo): one task per phase/layer, no module axis. All are the same operation — walk a core
 // definition's layer chain once per intent — because a linear chain is
 // the degenerate case of the layer graph (spec: MVP scope item 5).
 //

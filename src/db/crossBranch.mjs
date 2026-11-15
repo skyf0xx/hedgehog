@@ -34,7 +34,7 @@
 // reconcile.mjs) treats "not in the index" as "can't determine — leave
 // blocked", the safe direction: a cross-worktree dependency this module
 // can't resolve stays blocked, never incorrectly unblocked. The
-// module-axis case, which `full-stack-app`/`pwa-app`/`landing-page`
+// module-axis case, which `full-stack-app`/`pwa-app`/`deepseek-harness`
 // compile, has a `commit_message` unique to each task by construction
 // (the layer's `commit` template interpolates `{module}`).
 import { git } from './git.mjs';
