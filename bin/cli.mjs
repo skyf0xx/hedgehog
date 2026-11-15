@@ -15,14 +15,14 @@
 //   npx @skyf0xx/hedgehog update                       refresh the installed agents + skills
 //   npx @skyf0xx/hedgehog --help
 
-import { cp, mkdir, access, readdir, stat, rm, readFile, writeFile, mkdtemp } from 'node:fs/promises';
+import { cp, mkdir, readdir, stat, rm, readFile, writeFile, mkdtemp } from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
-import { constants, existsSync, realpathSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
-import { dbInit, DB_PATH, dbAbsPath, openDb, openDbAt } from '../src/db/init.mjs';
+import { dbInit, DB_PATH, dbAbsPath, openDb, openDbAt, exists } from '../src/db/init.mjs';
 import { loadCore, lintCore, isModuleAxis, matchesGlob } from '../src/db/core.mjs';
 import { planTasks, CORE_INTENT_ID } from '../src/db/plan.mjs';
 import { addIntent, INTENTS_DIR, intentFilePath } from '../src/db/intent.mjs';
@@ -33,6 +33,7 @@ import {
   stalledTasks,
   taskPacket,
   taskStatusLine,
+  BLOCKED_REASON_LABELS,
 } from '../src/db/next.mjs';
 import { verifyTask } from '../src/db/verify.mjs';
 import {
@@ -53,6 +54,7 @@ import {
   formatBrief,
 } from '../src/db/status.mjs';
 import { boundaryState, formatBoundary, formatPosition, formatHandoff } from '../src/db/boundary.mjs';
+import { GRAPH_PIDFILE_PATH } from '../src/db/engineState.mjs';
 import { commitGateStatus, formatCommitGate } from '../src/db/gate.mjs';
 import { detectDrift, recompileTasks, formatRecompile } from '../src/db/drift.mjs';
 import {
@@ -131,12 +133,6 @@ import { fetchCore, cachedCore, cachedVersions, cachedEngine } from '../src/regi
 import { recordCore, installedCore, ADOPTED_CORE_NAME } from '../src/registry/installed.mjs';
 
 const AUTHORED_CORE_PATH = '.hedgehog/core.yaml';
-
-const BLOCKED_REASON_LABELS = {
-  verification_failed: 'verification failed',
-  scope_violation: 'scope violation',
-  lease_expired: 'lease expired',
-};
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, '..');
@@ -398,12 +394,6 @@ function updatePlan(host = DEFAULT_HOST, core = null) {
 function withCore(entries, core) {
   return entries.map((e) => (e.type === 'generated' ? { ...e, core } : e));
 }
-
-const exists = (p) =>
-  access(p, constants.F_OK).then(
-    () => true,
-    () => false,
-  );
 
 // Printed by every command that writes to the build graph, before it
 // writes. DB_PATH is relative (`.hedgehog/hedgehog.db`), so which
@@ -3460,7 +3450,6 @@ async function boundaryCommand(args) {
   }
 }
 
-const GRAPH_PIDFILE_PATH = '.hedgehog/graph-server.json';
 const GRAPH_SERVER_MODULE = join(PKG_ROOT, 'src/db/graph-server.mjs');
 const GRAPH_TEMPLATE_PATH = join(PKG_ROOT, 'src/templates/graph.html');
 

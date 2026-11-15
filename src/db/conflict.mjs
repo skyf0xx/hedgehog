@@ -1,7 +1,7 @@
 // Conflict predicate between two tasks — the scheduler's basis for which
-// claimed tasks may run together. See hedgehog-persistent-build-graph.md,
-// "Claims" / concurrent execution, for the exclusive/scope/verify ordering
-// and the "verify radius defaults to scope" rule.
+// claimed tasks may run together. See BUILD_GRAPH.md, "6. Multiple agents
+// can work at once", for the exclusive/scope/verify ordering and the
+// "verify radius defaults to scope" rule.
 
 // Path-segment-wise prefix before the first wildcard character. A glob
 // with no wildcard is a literal path and is its own full prefix.

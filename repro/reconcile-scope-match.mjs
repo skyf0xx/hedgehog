@@ -1,19 +1,28 @@
-// `hedgehog reconcile`'s scope comparison agrees with the gate
-// `hedgehog verify` runs.
+// `hedgehog reconcile` and `hedgehog fast-path` judge scope with the same
+// glob syntax the `hedgehog verify` gate does.
 //
 // verify.mjs hands a task's scope globs to git as `:(glob)…` pathspecs
-// and lets git decide what is in scope. reconcile.mjs cannot: its paths
-// already came out of `git log --name-only`, and re-asking git per task
-// per commit would be one subprocess per pair. It matches in-process
-// instead — so the syntax has to be the same syntax, or a task's evidence
-// would be gathered against a different scope than its gate enforces.
+// and lets git decide what is in scope. reconcile.mjs and fastpath.mjs
+// cannot: their paths already came out of `git log --name-only` or
+// `git status`, and re-asking git per task per commit would be one
+// subprocess per pair. Both match in-process through core.mjs's
+// pathInScope instead — so the syntax has to be git's, or a task's
+// evidence would be gathered against a different scope than its gate
+// enforces.
 //
-// The three rules that differ between glob dialects, asserted here:
+// The rules that differ between glob dialects, asserted here:
 //   - `**` spans separators; a single `*` and `?` never do
 //   - a trailing `/**` also matches the directory it names
+//   - `[...]` is a character class
 //   - every other character is a literal, `.` included
+//
+// The bracket cases are also checked against git's own `:(glob)` match.
 
-import { pathInScope } from '../src/db/reconcile.mjs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { pathInScope } from '../src/db/core.mjs';
 import { check, report } from './_lib.mjs';
 
 const CASES = [
@@ -45,6 +54,11 @@ const CASES = [
   ['axbxtxt', ['a.b.txt'], false],
   ['x+y.ts', ['x+y.ts'], true],
 
+  // `[...]` is a character class.
+  ['src/a1.ts', ['src/[ab]1.ts'], true],
+  ['src/b1.ts', ['src/[ab]1.ts'], true],
+  ['src/c1.ts', ['src/[ab]1.ts'], false],
+
   // Any one glob in the list matching is enough.
   ['apps/api/orders/route.ts', ['libs/orders/**', 'apps/api/orders/**'], true],
   ['apps/web/page.tsx', ['libs/orders/**', 'apps/api/orders/**'], false],
@@ -54,4 +68,24 @@ for (const [path, globs, expected] of CASES) {
   check(`${path}  vs  ${globs.join(', ')}`, expected, pathInScope(path, globs));
 }
 
-report("reconcile's scope match implements the same glob syntax the verify gate does");
+const BRACKET_GLOB = 'src/[ab]1.ts';
+const BRACKET_FILES = ['src/a1.ts', 'src/b1.ts', 'src/c1.ts'];
+const repo = mkdtempSync(join(tmpdir(), 'hedgehog-glob-'));
+try {
+  execFileSync('git', ['init', '-q'], { cwd: repo });
+  for (const file of BRACKET_FILES) {
+    mkdirSync(join(repo, dirname(file)), { recursive: true });
+    writeFileSync(join(repo, file), '');
+  }
+  execFileSync('git', ['add', '-A'], { cwd: repo });
+  const byGit = execFileSync('git', ['ls-files', '--', `:(glob)${BRACKET_GLOB}`], { cwd: repo, encoding: 'utf8' })
+    .split('\n')
+    .filter(Boolean)
+    .sort();
+  const inProcess = BRACKET_FILES.filter((file) => pathInScope(file, [BRACKET_GLOB])).sort();
+  check(`${BRACKET_GLOB} selects the same files as git's :(glob)`, byGit.join(', '), inProcess.join(', '));
+} finally {
+  rmSync(repo, { recursive: true, force: true });
+}
+
+report("reconcile's and fast-path's scope match implement the same glob syntax the verify gate does");

@@ -1,15 +1,11 @@
 // `hedgehog status` — graph overview: task counts by status, and the
-// current ready list. See hedgehog-persistent-build-graph.md, "Task
-// lifecycle" for the status set and "The CLI is the only writer" for the
-// `hedgehog status` line.
+// current ready list. See BUILD_GRAPH.md, "3. Tasks have one lifecycle",
+// for the status set.
 //
-// The ready list reuses next.mjs's readiness query rather than
-// reimplementing it: a task is pickable by `hedgehog next` when its
-// status is `planned` or `ready` (plan.mjs inserts `planned`;
-// verify.mjs's unlockReadyDependents sets `ready` directly) and it has
-// no dependency whose status isn't `complete`. `hedgehog status` lists
-// every task meeting that condition, not just the one `hedgehog next`
-// would pick.
+// A task is ready when its status is `planned` or `ready` (plan.mjs
+// inserts `planned`; verify.mjs's unlockReadyDependents sets `ready`
+// directly) and every dependency is complete. `hedgehog status` lists
+// every such task, not just the one `hedgehog next` would pick.
 
 import { listDebt } from './debt.mjs';
 import { detectDrift, formatDrift } from './drift.mjs';
@@ -21,6 +17,7 @@ import { possiblySatisfiedTasks, formatPossiblySatisfied } from './satisfied.mjs
 import { readyTasks, heldBackReason } from './ready.mjs';
 import { worktreeStatus } from './worktree.mjs';
 import { findClaimableTasks } from './claim.mjs';
+import { BLOCKED_REASON_LABELS } from './next.mjs';
 
 // The task lifecycle in order, matching the tasks CHECK constraint in
 // schema.mjs exactly — every status the engine can write, and no others.
@@ -34,19 +31,10 @@ const TASK_STATUSES = [
   'blocked',
 ];
 
-// `exclusive DESC` matches claim.mjs's CLAIMABLE_TASKS_SQL and next.mjs's
-// READY_TASK_SQL, so this list is in the order those two would actually
-// take the work — see claim.mjs for why exclusive sorts first.
-//
-// Reuses claim.mjs#findClaimableTasks rather than a duplicate SQL string —
-// this used to run its own local-DB-only query, which meant `hedgehog
-// status` and `hedgehog claim` could disagree about which tasks are ready
-// the moment a dependency's completing commit exists only cross-branch
-// (crossBranch.mjs): a task the fan-out would happily claim would still
-// show as blocked here. findClaimableTasks already returns exactly the
-// same candidate set `hedgehog claim`'s fan-out and `hedgehog ready` use,
-// merged and re-sorted, so this file no longer needs its own copy of the
-// query.
+// The ready list is claim.mjs#findClaimableTasks, the candidate set
+// `hedgehog claim`, `hedgehog next` and `hedgehog ready` read, in the
+// order they take the work (cross-branch completions included, see
+// crossBranch.mjs; see claim.mjs for why exclusive sorts first).
 
 const IN_FLIGHT_TASKS_SQL = `
   SELECT t.* FROM tasks t
@@ -279,12 +267,6 @@ export async function graphWorktreeStatus(db, opts) {
 // can verify an orchestrating session actually reads the skill this
 // names.
 export const ORCHESTRATING_FOOTER = 'See the hedgehog-orchestrating skill for the claim → dispatch → verify cycle.';
-
-const BLOCKED_REASON_LABELS = {
-  verification_failed: 'verification failed',
-  scope_violation: 'scope violation',
-  lease_expired: 'lease expired',
-};
 
 // Renders a graphStatus() result into a plain-text overview: counts by
 // status (only non-zero ones, in lifecycle order), any declared binary

@@ -1,7 +1,6 @@
 // The global commit lock — serializes the git-mutating section of
 // `verifyTask` (scope diff, staging, commit) across concurrent processes.
-// See hedgehog-persistent-build-graph.md, "Claims" / concurrent
-// execution: two tasks may build concurrently, but git has one working
+// See BUILD_GRAPH.md, "6. Multiple agents can work at once": two tasks may build concurrently, but git has one working
 // tree and one index, so the commit phase itself cannot. `.hedgehog/
 // commit.lock` is gitignored in every core's template — it's a runtime
 // mutex, not project state.

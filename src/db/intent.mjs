@@ -1,7 +1,7 @@
 // `hedgehog intent add` — writes one intent record (`intents` +
 // `requirements` + `intent_dependencies` rows) from either CLI flags or a
 // JSON file matching the intent record shape. See
-// hedgehog-persistent-build-graph.md, "Intent records".
+// BUILD_GRAPH.md, "1. Intents become tasks".
 //
 // The primary human input is compact and outcome-oriented:
 //   { id, goal, outcome, rules: [...], depends_on: [...], priority }
