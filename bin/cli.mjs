@@ -148,10 +148,11 @@ const PKG_ROOT = resolve(__dirname, '..');
 // rather than trusting every caller to cd into a scratch directory first,
 // so it has to run before DEST_ROOT — or anything else computed from
 // `process.cwd()` — is read. The decision comes from the registry because
-// it is made before any core package is fetched.
+// it is made before any core package is fetched; only `init` reads it, so
+// no other command depends on the registry loading.
 const ORIGDIR = process.cwd();
-{
-  const named = await namedCore(process.argv.slice(2));
+if (process.argv[2] === 'init') {
+  const named = await namedCore(process.argv.slice(3));
   const entry = named ? await resolveCore(named) : null;
   if (entry?.install_root === 'scratch') {
     const scratch = await mkdtemp(join(tmpdir(), `hedgehog-${entry.name}-`));
