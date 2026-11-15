@@ -86,7 +86,10 @@ const coreNames = new Set(cores.map((c) => c.name));
 // ── 2b. Registry entries are well-formed: every required field present,
 //    names unique, and flags unique among the cores that carry one
 //    (`authored` and `adopted` have none — they're chosen during planning, not
-//    passed to `init`, so a missing flag there is correct, not a gap). ─────────────
+//    passed to `init`, so a missing flag there is correct, not a gap). The
+//    optional `install_root` must be a value bin/cli.mjs acts on, and
+//    `entry_skill` must be a skill that core's manifest ships. ──────────
+const INSTALL_ROOTS = ['scratch'];
 const CORE_REQUIRED_FIELDS = ['name', 'package', 'version', 'repository', 'selects_when'];
 const seenCoreNames = new Set();
 const seenFlags = new Set();
@@ -109,6 +112,15 @@ for (const core of cores) {
   if (core.flag != null) {
     if (seenFlags.has(core.flag)) fail(`src/registry/cores.json: duplicate flag "${core.flag}"`);
     seenFlags.add(core.flag);
+  }
+  if (core.install_root !== undefined && !INSTALL_ROOTS.includes(core.install_root)) {
+    fail(
+      `src/registry/cores.json: core "${core.name}" has install_root "${core.install_root}" — ` +
+        `must be one of: ${INSTALL_ROOTS.join(', ')}`,
+    );
+  }
+  if (core.entry_skill !== undefined && (typeof core.entry_skill !== 'string' || !core.entry_skill.trim())) {
+    fail(`src/registry/cores.json: core "${core.name}" has an empty entry_skill`);
   }
 }
 
@@ -158,6 +170,12 @@ for (const core of cores) {
     fail(
       `repro/fixtures/cores/${core.name}.manifest.yaml: carries "selects_when", which ` +
         `src/registry/cores.json owns — drop it from the core's manifest`,
+    );
+  }
+  if (core.entry_skill && !manifest.skills.includes(core.entry_skill)) {
+    fail(
+      `src/registry/cores.json: core "${core.name}" names entry_skill "${core.entry_skill}", ` +
+        `which repro/fixtures/cores/${core.name}.manifest.yaml does not list under skills`,
     );
   }
   for (const name of [...manifest.agents, ...manifest.skills]) coreOwned.add(name);
