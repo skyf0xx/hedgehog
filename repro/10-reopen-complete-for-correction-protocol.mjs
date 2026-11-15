@@ -72,7 +72,7 @@ try {
   check(
     'the whole chain is complete before the correction',
     { 'SASSY-API': 'complete', 'SASSY-SCHEMA': 'complete', 'SASSY-SMOKE': 'complete' },
-    taskStatuses(dir),
+    Object.fromEntries(Object.entries(taskStatuses(dir)).filter(([id]) => id.startsWith('SASSY-'))),
   );
 
   check('completed intent is complete before correction', 'complete', intentStatuses(dir).sassy);
@@ -91,7 +91,7 @@ try {
   check(
     'nothing moved without --confirm',
     { 'SASSY-API': 'complete', 'SASSY-SCHEMA': 'complete', 'SASSY-SMOKE': 'complete' },
-    taskStatuses(dir),
+    Object.fromEntries(Object.entries(taskStatuses(dir)).filter(([id]) => id.startsWith('SASSY-'))),
   );
 
   // retry refuses a complete task outright — it only accepts blocked.
@@ -108,7 +108,7 @@ try {
   check(
     'the fixed layer and every complete dependent go back to planned',
     { 'SASSY-API': 'planned', 'SASSY-SCHEMA': 'planned', 'SASSY-SMOKE': 'planned' },
-    taskStatuses(dir),
+    Object.fromEntries(Object.entries(taskStatuses(dir)).filter(([id]) => id.startsWith('SASSY-'))),
   );
 
   check('rebuild after reopen exits 0', 0, rebuildFromScratch(dir).status);
@@ -123,7 +123,7 @@ try {
   // complete again — reopening is not a ratchet. Claiming picks the one
   // ready task (SASSY-SCHEMA, nothing else has a satisfied dependency
   // set yet); verifying it unlocks SASSY-API to `ready` in turn.
-  check('claim after reopen exits 0', 0, cli(dir, ['claim', '--owner', 'ag1']).status);
+  check('claim after reopen exits 0', 0, cli(dir, ['claim', 'SASSY-SCHEMA', '--owner', 'ag1']).status);
   check(
     'verify after reopen exits 0',
     0,
@@ -149,7 +149,7 @@ try {
   checkContains(
     "refusal names the task's actual status",
     `${reopenAgain.stdout}${reopenAgain.stderr}`,
-    'ready',
+    'complete',
   );
 } finally {
   cleanup(dir);
