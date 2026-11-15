@@ -1,7 +1,7 @@
 name: landing-page
 flag: --landing-page
 language: typescript
-engine: "^6.0.0"
+engine: "^6.8.0"
 workspace: workspace/
 template: CLAUDE.core.md
 agents: [landing-builder, landing-copywriter, landing-executor,

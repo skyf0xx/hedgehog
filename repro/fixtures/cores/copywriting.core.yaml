@@ -16,5 +16,13 @@ layers:
   - id: draft
     depends_on: brief
     scope: [".hedgehog/copy/**", "scripts/check-copy/**"]
-    verify: "node scripts/check-copy/index.mjs .hedgehog/copy/final.md"
+    # The universal AI-tell and prose contracts always run. `--brief`
+    # adds the contract for the medium the copy ships into, read from the
+    # brief's `type:` line (and `premium: true` for a tweet on X Premium):
+    # character limits a platform enforces, structural slots the format is
+    # defined by, and claims an ad network bans. A brief with no `type:`
+    # line is gated as `prose`, which adds none of them. See
+    # hedgehog-copywriting-loop's "Copy types" for the values and how the
+    # fields are mined.
+    verify: "node scripts/check-copy/index.mjs .hedgehog/copy/final.md --brief .hedgehog/copy/00-brief.md"
     commit: "feat(copy): draft"
