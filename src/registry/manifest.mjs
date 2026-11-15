@@ -26,6 +26,8 @@
 // here nests, so a hand-rolled parser covers it without a dependency —
 // the same stance src/db/core.mjs takes for core definitions.
 
+import { isNewer } from '../hosts/version.mjs';
+
 const LIST_KEYS = new Set(['agents', 'skills', 'vendor_skills']);
 const REQUIRED_KEYS = ['name', 'template'];
 
@@ -169,10 +171,7 @@ export function assertEngineSatisfies(manifest, engineVersion, source = 'hedgeho
   const [, wantMajor, wantMinor, wantPatch] = range.map(Number);
   const [, haveMajor, haveMinor, havePatch] = installed.map(Number);
 
-  const behind =
-    haveMajor < wantMajor ||
-    (haveMajor === wantMajor &&
-      (haveMinor < wantMinor || (haveMinor === wantMinor && havePatch < wantPatch)));
+  const behind = isNewer(`${wantMajor}.${wantMinor}.${wantPatch}`, `${haveMajor}.${haveMinor}.${havePatch}`);
 
   if (behind) {
     throw new Error(

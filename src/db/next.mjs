@@ -1,37 +1,14 @@
-// `hedgehog next` — readiness query + task-packet assembly for one task.
-// See hedgehog-persistent-build-graph.md, the readiness `SELECT` under
-// "Schema", and "The task packet" / the `hedgehog next` output example.
+// `hedgehog next` — the first claimable task and its task packet. See
+// BUILD_GRAPH.md, "4. Agents claim ready work".
 //
-// Readiness: a task with no dependency whose status isn't `complete`,
-// lowest `priority` then `id`. Pickable status is `planned` OR `ready` —
-// `plan.mjs` inserts new tasks as `planned`, but `verify.mjs`'s
-// unlockReadyDependents sets a dependent's status to `ready` directly
-// once its dependencies complete (see verify.mjs), without ever passing
-// back through `planned`. A task already marked `ready` still has to
-// satisfy the same no-incomplete-dependency condition here — the OR
-// widens which statuses are eligible, it doesn't relax the dependency
-// check itself. Once found, the packet is assembled by querying tasks
-// joined through intents/requirements/task_requirements — never
-// hand-written, never the whole plan.
+// The task is the first of claim.mjs#findClaimableTasks, the same
+// candidate set `hedgehog claim` and `hedgehog status` read, cross-branch
+// completions included. The packet is assembled by querying tasks joined
+// through intents/requirements/task_requirements — never hand-written,
+// never the whole plan.
 
 import { CORE_MODULE } from './plan.mjs';
-
-const READY_TASK_SQL = `
-  SELECT t.* FROM tasks t
-  WHERE t.status IN ('planned', 'ready')
-    AND t.lease_owner IS NULL
-    AND NOT EXISTS (
-      SELECT 1 FROM dependencies d
-      JOIN tasks dep ON dep.id = d.depends_on_task_id
-      WHERE d.task_id = t.id AND dep.status <> 'complete'
-    )
-  ORDER BY t.priority, t.exclusive DESC, t.id
-  LIMIT 1;
-`;
-
-function findReadyTask(db) {
-  return db.prepare(READY_TASK_SQL).get();
-}
+import { findClaimableTasks } from './claim.mjs';
 
 function loadIntent(db, intentId) {
   return db.prepare('SELECT * FROM intents WHERE id = ?').get(intentId);
@@ -147,7 +124,7 @@ function loadInheritedDecisions(db, taskId) {
   }
 }
 
-function loadDirectDependents(db, taskId) {
+export function loadDirectDependents(db, taskId) {
   return db
     .prepare(
       `
@@ -211,10 +188,10 @@ function assemblePacket(db, task) {
   };
 }
 
-// Returns the assembled packet for the one ready task (spec: readiness
-// SELECT), or null if no task is ready.
+// Returns the assembled packet for the first claimable task, or null if
+// no task is ready.
 export function nextTask(db) {
-  const task = findReadyTask(db);
+  const [task] = findClaimableTasks(db);
   if (!task) return null;
   return assemblePacket(db, task);
 }
@@ -250,7 +227,7 @@ export function stalledTasks(db) {
     .all();
 }
 
-const BLOCKED_REASON_LABELS = {
+export const BLOCKED_REASON_LABELS = {
   verification_failed: 'verification failed',
   scope_violation: 'scope violation',
   lease_expired: 'lease expired',

@@ -18,7 +18,6 @@
 // rebuild` replays it from there, alongside overrides and
 // reconciliations.
 
-import { applySchema } from './schema.mjs';
 import { appendNote } from './notes.mjs';
 
 const insertDecision = (db) =>
@@ -39,12 +38,6 @@ function taskExists(db, taskId) {
 // ordering, for the same reason: if the write fails, nothing has been
 // recorded on a fact that would not survive the next rebuild.
 export async function addDecision(db, { taskId, note }, notesDir = undefined) {
-  // Idempotent, and the migration path for a build graph created before
-  // the `decisions` table existed: dbInit only applies the schema to a DB
-  // it just created, so an in-flight project's DB would otherwise have no
-  // table to insert into.
-  applySchema(db);
-
   if (!taskId) throw new Error('decision requires a task id');
   if (!note) throw new Error('decision requires a note');
   if (!taskExists(db, taskId)) throw new Error(`no such task: ${taskId}`);

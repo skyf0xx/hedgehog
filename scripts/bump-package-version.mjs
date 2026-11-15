@@ -29,19 +29,11 @@ const output = execFileSync('npm', ['version', bump, '--no-git-tag-version'], {
 const version = output.trim().replace(/^v/, '');
 
 const FILES = [
-  {
-    path: 'src/hosts/gemini/gemini-extension.json',
-    get: (j) => j.version,
-    set: (j, v) => { j.version = v; },
-  },
-  { path: '.claude-plugin/plugin.json', get: (j) => j.version, set: (j, v) => { j.version = v; } },
-  {
-    path: '.claude-plugin/marketplace.json',
-    get: (j) => j.plugins?.[0]?.version,
-    set: (j, v) => { j.plugins[0].version = v; },
-  },
-  { path: '.cursor-plugin/plugin.json', get: (j) => j.version, set: (j, v) => { j.version = v; } },
-  { path: 'gemini-extension.json', get: (j) => j.version, set: (j, v) => { j.version = v; } },
+  { path: 'src/hosts/gemini/gemini-extension.json', set: (j, v) => { j.version = v; } },
+  { path: '.claude-plugin/plugin.json', set: (j, v) => { j.version = v; } },
+  { path: '.claude-plugin/marketplace.json', set: (j, v) => { j.plugins[0].version = v; } },
+  { path: '.cursor-plugin/plugin.json', set: (j, v) => { j.version = v; } },
+  { path: 'gemini-extension.json', set: (j, v) => { j.version = v; } },
 ];
 
 console.log(`  package.json -> ${version}`);

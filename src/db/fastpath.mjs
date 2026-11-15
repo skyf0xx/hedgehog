@@ -30,19 +30,17 @@
 // match, closed by a committed decision instead — so rebuild.mjs seeds it
 // into the same `reconciledTaskIds`-shaped set reconciliation uses.
 
-import { execFileSync, execSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import { readdir, readFile, mkdir, writeFile, rename, rm } from 'node:fs/promises';
-import { pathInScope, newestGraphCommit, commitsSince } from './reconcile.mjs';
+import { newestGraphCommit, commitsSince } from './reconcile.mjs';
+import { pathInScope } from './core.mjs';
+import { git } from './git.mjs';
 import { isEngineStatePath } from './engineState.mjs';
 
 export const FASTPATH_DIR = '.hedgehog/fastpath';
 
 function fastpathFilePath(intentId, fastpathDir = FASTPATH_DIR) {
   return `${fastpathDir}/${intentId.toLowerCase()}.json`;
-}
-
-function git(args, options = {}) {
-  return execFileSync('git', args, { encoding: 'utf8', ...options });
 }
 
 function validateFastpath(record, path) {

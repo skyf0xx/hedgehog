@@ -54,8 +54,8 @@
 // anything.
 
 import { readdir, readFile, mkdir, writeFile, rename, rm } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
-import { applySchema } from './schema.mjs';
+import { git } from './git.mjs';
+import { pathInScope } from './core.mjs';
 
 export const RECONCILED_DIR = '.hedgehog/reconciled';
 
@@ -76,13 +76,6 @@ export function reconciledNote(record) {
 
 function reconciledFilePath(taskId, reconciledDir = RECONCILED_DIR) {
   return `${reconciledDir}/${taskId.toLowerCase()}.json`;
-}
-
-// Runs git with an argv array and no shell, so a path or a glob reaches
-// git as one literal argument — the same rule verify.mjs#git follows for
-// the same reason.
-function git(args, options = {}) {
-  return execFileSync('git', args, { encoding: 'utf8', ...options });
 }
 
 // Validates one parsed reconciliation record. Throws with the offending
@@ -258,63 +251,6 @@ export function commitsSince(sinceSha) {
   return commits;
 }
 
-// True when `path` matches `glob`.
-//
-// The scope globs compiled onto a task are git pathspec globs
-// (`apps/api/src/orders/**`), and verify.mjs's gate hands them straight
-// to git as `:(glob)…` pathspecs. Here the paths already came out of `git
-// log --name-only`, so there is no second git call to make: the match is
-// done in-process against the same syntax git implements — `**` spans
-// separators, a single `*` and `?` do not, and a trailing `/**` also
-// matches the directory's own path, which is what makes a glob and the
-// directory it names agree.
-//
-// Segment-by-segment rather than character-by-character, so the two `**`
-// forms (a whole segment, versus a `*` pair inside one) can't be confused
-// for each other.
-function globToRegExp(glob) {
-  const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-  // A `*` or `?` inside one path segment never crosses a separator.
-  const segmentPattern = (segment) =>
-    segment
-      .split(/(\*|\?)/)
-      .map((part) => (part === '*' ? '[^/]*' : part === '?' ? '[^/]' : escape(part)))
-      .join('');
-
-  const segments = glob.split('/');
-  let out = '';
-  for (const [i, segment] of segments.entries()) {
-    if (segment === '**') {
-      // `**` and the separator on one side of it are optional together,
-      // so `a/**` also matches `a` and `**/x.ts` also matches `x.ts`.
-      if (i === segments.length - 1) {
-        // Trailing: the separator *before* it goes optional with it —
-        // unless there is nothing before it, and the glob is the bare
-        // `**` that matches everything.
-        out += i === 0 ? '.*' : '(?:/.*)?';
-      } else {
-        // Interior or leading: the separator *after* it goes optional
-        // with it. A preceding literal segment still needs its own
-        // separator written first.
-        if (i > 0) out += '/';
-        out += '(?:.*/)?';
-      }
-      continue;
-    }
-    // Only a preceding literal segment contributes the separator — a
-    // preceding `**` already carried its own.
-    if (i > 0 && segments[i - 1] !== '**') out += '/';
-    out += segmentPattern(segment);
-  }
-
-  return new RegExp(`^${out}$`);
-}
-
-export function pathInScope(path, scopeGlobs) {
-  return scopeGlobs.some((glob) => globToRegExp(glob).test(path));
-}
-
 // Tasks a reconciliation could apply to: `planned` or `ready`, the two
 // statuses `hedgehog next` would still hand out. A `building`/`verifying`
 // task is leased and belongs to whoever holds it; a `blocked` task failed
@@ -416,8 +352,6 @@ export async function writeReconciledFile(record, reconciledDir = RECONCILED_DIR
 // working-tree diff to gate, and no verify_command to run. The difference
 // from verify is exactly what the note records.
 export function applyReconciliation(db, record) {
-  applySchema(db);
-
   const task = db.prepare('SELECT id, status FROM tasks WHERE id = ?').get(record.task);
   if (!task) throw new Error(`no such task: ${record.task}`);
   if (task.status === 'complete') return { taskId: record.task, unlocked: [], alreadyComplete: true };

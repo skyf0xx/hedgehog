@@ -1,8 +1,8 @@
 // `hedgehog why <path>` — walks artifacts → tasks → task_requirements →
 // requirements → intents for a given file path, printing the full
-// provenance chain. See hedgehog-persistent-build-graph.md,
-// "Traceability": artifact → task (with its verification) → requirement
-// → intent.
+// provenance chain. See BUILD_GRAPH.md, "7. Artifacts and Git both
+// record what was built": artifact → task (with its verification) →
+// requirement → intent.
 import { execFileSync } from 'node:child_process';
 
 function loadArtifacts(db, path) {

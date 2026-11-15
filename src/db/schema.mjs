@@ -1,6 +1,5 @@
-// The Hedgehog build graph schema — see hedgehog-persistent-build-graph.md,
-// "SQLite as build state" → Schema, for the source of truth these table
-// definitions mirror verbatim.
+// The Hedgehog build graph schema. BUILD_GRAPH.md, "Schema", describes
+// these tables.
 
 export const SCHEMA_SQL = `
 PRAGMA foreign_keys = ON;
@@ -139,14 +138,8 @@ CREATE TABLE IF NOT EXISTS friction (
 // Columns added to `tasks` after the first schema shipped. `CREATE TABLE
 // IF NOT EXISTS` above is a no-op against a DB created by an earlier
 // version, so a new column has to be ALTERed in explicitly or every
-// statement naming it fails on that DB. Each entry is `[name, ddl]`.
-//
-// The lease columns (lease_owner, lease_expires_at, leased_at) and their
-// siblings (exclusive, verify_radius, blocked_reason) shipped together in
-// the same commit that introduced them to SCHEMA_SQL above, but were
-// never added here — so a graph created before that commit still lacks
-// them today, with every query naming lease_owner failing "no such
-// column" instead of self-healing the way claim_snapshot already does.
+// statement naming it fails on that DB. Each entry is `[name, ddl]`;
+// migration v1 applies them.
 const TASK_COLUMN_MIGRATIONS = [
   ['exclusive', 'exclusive INTEGER NOT NULL DEFAULT 0'],
   ['verify_radius', 'verify_radius TEXT'],
@@ -161,12 +154,8 @@ const TASK_COLUMN_MIGRATIONS = [
 ];
 
 // Brings an already-created `tasks` table up to the current column set.
-// Idempotent and cheap (one PRAGMA), so callers that must not fail on a
-// missing column — claim, which writes the snapshot, and verify, which
-// clears it — can just call it before they touch the table. Requires a
-// writable handle; read-only commands never need it, since a missing
-// column only ever reads back as undefined.
-export function ensureTaskColumns(db) {
+// Idempotent and cheap (one PRAGMA). Requires a writable handle.
+function ensureTaskColumns(db) {
   const existing = new Set(db.prepare('PRAGMA table_info(tasks)').all().map((row) => row.name));
   for (const [name, ddl] of TASK_COLUMN_MIGRATIONS) {
     if (!existing.has(name)) db.exec(`ALTER TABLE tasks ADD COLUMN ${ddl}`);
