@@ -23,7 +23,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { dbInit, DB_PATH, dbAbsPath, openDb, openDbAt, exists } from '../src/db/init.mjs';
-import { loadCore, lintCore, isModuleAxis } from '../src/db/core.mjs';
+import { loadCore, lintCore, isModuleAxis, matchesGlob } from '../src/db/core.mjs';
 import { planTasks, CORE_INTENT_ID } from '../src/db/plan.mjs';
 import { addIntent, INTENTS_DIR, intentFilePath } from '../src/db/intent.mjs';
 import {
@@ -137,37 +137,25 @@ const AUTHORED_CORE_PATH = '.hedgehog/core.yaml';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, '..');
 
-// The copywriting core never installs into the directory it was invoked
-// from — every draft it produces is ephemeral scratch, and only the
-// finished piece is meant to reach the user's real project (as a plain
-// file, copied out by hedgehog-copywriting-loop's own courtesy-export
-// step). Relying on every caller (an agent reading a skill's prose, a
-// human typing the command by hand) to remember to cd into a scratch
-// directory first is exactly the kind of instruction that gets skipped
-// under context pressure — so `init --copywriting` enforces it here
-// instead, unconditionally, before DEST_ROOT is ever read. This has to
-// run before any other module-level state is computed from `process.cwd()`
-// — a raw argv scan rather than the full async arg parser lower in this
-// file, since nothing below has run yet at this point in module load.
+// A core whose registry entry declares `install_root: "scratch"` never
+// installs into the directory it was invoked from: every draft it produces
+// is ephemeral, and only the finished piece reaches the user's real
+// project, copied out by the core's own entry skill. The CLI enforces it
+// rather than trusting every caller to cd into a scratch directory first,
+// so it has to run before DEST_ROOT — or anything else computed from
+// `process.cwd()` — is read. The decision comes from the registry because
+// it is made before any core package is fetched; only `init` reads it, so
+// no other command depends on the registry loading.
 const ORIGDIR = process.cwd();
-{
-  // Catches both the shorthand (`--copywriting`) and the generic named-core
-  // form (`--core copywriting`, `--core=copywriting`) — namedCore()/
-  // coreFlags() do the real resolution later, async, off the registry, but
-  // this has to run synchronously before that and before DEST_ROOT below,
-  // so it matches the raw argv directly rather than waiting for it.
-  const rest = process.argv.slice(2);
-  const coreIdx = rest.indexOf('--core');
-  const isCopywriting =
-    rest.includes('--copywriting') ||
-    rest[coreIdx + 1] === 'copywriting' ||
-    rest.includes('--core=copywriting');
-  if (isCopywriting) {
-    const scratch = await mkdtemp(join(tmpdir(), 'hedgehog-copywriting-'));
+if (process.argv[2] === 'init') {
+  const named = await namedCore(process.argv.slice(3));
+  const entry = named ? await resolveCore(named) : null;
+  if (entry?.install_root === 'scratch') {
+    const scratch = await mkdtemp(join(tmpdir(), `hedgehog-${entry.name}-`));
     process.chdir(scratch);
     // No ANSI helpers yet — `dim` etc. are defined further down, after
     // DEST_ROOT, and this has to run before DEST_ROOT is computed.
-    console.log(`  (copywriting installs to a scratch directory, never here — using ${scratch})`);
+    console.log(`  (${entry.name} installs to a scratch directory, never here — using ${scratch})`);
   }
 }
 const DEST_ROOT = process.cwd();
@@ -712,6 +700,21 @@ async function plannedFiles(entry) {
 
 async function help() {
   const cores = await availableCores();
+  const registry = await loadRegistry();
+  const flagLines = registry
+    .filter((c) => c.flag)
+    .map((c) => {
+      const what =
+        c.install_root === 'scratch'
+          ? `install the ${c.name} core in a scratch directory`
+          : `scaffold the ${c.name} core now`;
+      return `  ${`npx @skyf0xx/hedgehog init ${c.flag}`.padEnd(46)}  ${what}`;
+    })
+    .join('\n');
+  const scratchCores = registry.filter((c) => c.install_root === 'scratch');
+  const refuses = scratchCores
+    .map((c) => `${c.name} (use init ${c.flag ?? `--core ${c.name}`})`)
+    .join(', ');
   console.log(`
 ${bold('Hedgehog installer')}
 
@@ -723,15 +726,13 @@ the discipline is committed alongside your code.
 ${bold('Usage')}
   npx @skyf0xx/hedgehog init                      install; planner picks the core at intake
   npx @skyf0xx/hedgehog init --core <name>        install that core now, by name
-  npx @skyf0xx/hedgehog init --ts-full-stack-app  scaffold the full-stack-app core now
-  npx @skyf0xx/hedgehog init --pwa-app            scaffold the pwa-app core now
-  npx @skyf0xx/hedgehog init --landing-page       scaffold the landing-page core now
+${flagLines}
   npx @skyf0xx/hedgehog cores list                every core this release can install
   npx @skyf0xx/hedgehog core install <name>       install a core into a project whose init named none:
                                                    its agents, skills, vendored shelves and workspace for
                                                    every installed host, its section in each host's
                                                    instructions file, and the record 'update' reads;
-                                                   refuses copywriting (use init --copywriting) and a
+                                                   refuses ${refuses ? `${refuses} and ` : ''}a
                                                    different recorded core; reports a recorded one as
                                                    installed [--force reinstalls it and overwrites
                                                    existing workspace files]
@@ -1058,21 +1059,25 @@ async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, global
       `  0. ${bold(`npx @skyf0xx/hedgehog@latest update`)} ${dim(`(picks up ${globalInstall.latest} before intake begins)`)}`,
     );
   }
-  // Copywriting never lands anywhere the caller can see directly (see the
-  // chdir into a scratch tempdir at module load, above) — the ordinary
-  // "commit here, describe what you want to build" steps assume a project
-  // the human is looking at, which this scratch directory isn't. Point at
-  // the loop skill instead; it owns pnpm install, the draft/checkCopy()
-  // cycle, and the courtesy export of the finished piece back to ORIGDIR.
-  if (core?.manifest.name === 'copywriting') {
+  // A core with an `entry_skill` in its registry entry hands off straight
+  // to that skill rather than to planner/bootstrap. A scratch-installed one
+  // also lands nowhere the caller can see directly (see the chdir at module
+  // load), so the ordinary "commit here, describe what you want to build"
+  // steps don't apply to it either.
+  const entry = core ? await resolveCore(core.manifest.name) : null;
+  if (entry?.entry_skill) {
     console.log(
-      `  1. Read ${bold(`${HOSTS[host].skillsDir}/hedgehog-copywriting-loop/SKILL.md`)} and follow it`,
+      `  1. Read ${bold(`${HOSTS[host].skillsDir}/${entry.entry_skill}/SKILL.md`)} and follow it`,
     );
-    console.log(dim(`     for everything from here, staying inside ${bold(DEST_ROOT)}.`));
-    console.log(
-      dim(`     The finished piece lands back at ${bold(ORIGDIR)} on its own — nothing`),
-    );
-    console.log(dim('     else needs doing there.'));
+    if (entry.install_root === 'scratch') {
+      console.log(dim(`     for everything from here, staying inside ${bold(DEST_ROOT)}.`));
+      console.log(
+        dim(`     The finished piece lands back at ${bold(ORIGDIR)} on its own — nothing`),
+      );
+      console.log(dim('     else needs doing there.'));
+    } else {
+      console.log(dim('     for everything from here.'));
+    }
   } else if (core?.manifest.workspace) {
     // `pnpm install` before the first commit, not after it. The core's
     // commit gate is lefthook, and lefthook's hooks are written by its
@@ -1106,9 +1111,8 @@ async function init({ force, core, host = DEFAULT_HOST, hostOnly = false, global
   // the session that ran this install — no restart, no dependence on whether
   // the harness re-scans its agent directory, and no chance of a bare
   // `planner` resolving to an unrelated global agent of the same name.
-  // Copywriting's own branch above already named its hand-off (the loop
-  // skill, not planner/bootstrap — this core has no bootstrap step).
-  if (core?.manifest.name !== 'copywriting') {
+  // A core with an entry skill already named its hand-off above.
+  if (!entry?.entry_skill) {
     const agents = HOSTS[host].agentsDir;
     const skills = HOSTS[host].skillsDir;
     console.log(
@@ -1377,12 +1381,13 @@ async function coreInstallCommand(name, { force = false, recordAdopted = false }
     process.exitCode = 1;
     return;
   }
-  // Copywriting installs only into a scratch directory, which `init
-  // --copywriting` creates before anything else runs (see ORIGDIR above).
-  if (entry.name === 'copywriting') {
+  // A scratch-installed core lands only in the scratch directory `init`
+  // creates before anything else runs (see ORIGDIR above).
+  if (entry.install_root === 'scratch') {
+    const initCmd = `hedgehog init ${entry.flag ?? `--core ${entry.name}`}`;
     console.error(
-      `${red('copywriting does not install into an existing project.')} Its drafts live in a\n` +
-        `scratch directory that ${bold('hedgehog init --copywriting')} creates; run that instead.\n` +
+      `${red(`${entry.name} does not install into an existing project.`)} Its drafts live in a\n` +
+        `scratch directory that ${bold(initCmd)} creates; run that instead.\n` +
         'Nothing was changed.\n',
     );
     process.exitCode = 1;
@@ -1831,15 +1836,14 @@ async function resolveCorePath() {
   return null;
 }
 
-// The active core's `id` (e.g. `full-stack-app`), or null when no core has
-// landed yet or it fails to parse — packet rendering degrades gracefully
-// either way (see next.mjs's layerShapeLines), so a caller only asking for
-// the id doesn't need its own try/catch.
-async function resolveCoreId() {
+// The active core as loadCore returns it, or null when no core has landed
+// yet or it fails to parse — packet rendering and scope hints degrade
+// gracefully either way, so a caller doesn't need its own try/catch.
+async function resolveActiveCore() {
   const corePath = await resolveCorePath();
   if (!corePath) return null;
   try {
-    return (await loadCore(corePath)).id;
+    return await loadCore(corePath);
   } catch {
     return null;
   }
@@ -2511,7 +2515,7 @@ async function nextCommand() {
     console.error('');
   }
 
-  console.log(formatNext(packet, await resolveCoreId(), packetExists));
+  console.log(formatNext(packet, await resolveActiveCore(), packetExists));
   await noteAvailableUpdate();
 }
 
@@ -2584,45 +2588,24 @@ async function missingBinariesForTask(db, taskId, owner) {
 
 // What an out-of-scope path most likely is, and what to do about it.
 // "Outside allowed scope" is true of every offending path and tells the
-// reader nothing about which of three quite different situations they're
-// in: a package shell the layer itself had to create (widen this one
-// task), shared config a source-level fix touched (commit it separately),
-// or a genuine stray. Each wants a different next move, and working out
-// which costs a beat every time.
+// reader nothing about which situation they're in — a package shell the
+// layer itself had to create, shared config a fix touched, or a genuine
+// stray — and each wants a different next move. The workspace-specific
+// cases come from the core's own `scope_hints` (core.yaml), checked in
+// declaration order; the build graph's own state is the one hint every
+// core shares.
 //
 // Evidence-only, like core.mjs's lint: an unrecognised path gets no
 // annotation rather than a guessed one.
-const SCOPE_HINTS = [
-  {
-    // A package root's own scaffolding — package.json, tsconfig*.json,
-    // vitest.config.mts, src/index.ts directly under packages/<pkg>/ or
-    // libs/<a>/<b>/. No {module}-bearing scope glob can cover these, so
-    // the first module through a layer that creates its package always
-    // lands here.
-    test: (p) =>
-      /^(packages\/[^/]+|libs\/[^/]+\/[^/]+)\/(package\.json|tsconfig[^/]*\.json|vitest\.config\.[cm]?ts|project\.json|eslint\.config\.[cm]?js|src\/index\.ts)$/.test(
-        p,
-      ),
-    hint: 'package shell — if this layer is the first to create this package, widen just this task with `hedgehog override add` (see hedgehog-loop, "First arrival in a package") and retry',
-  },
-  {
-    test: (p) =>
-      p === 'pnpm-workspace.yaml' ||
-      p === 'pnpm-lock.yaml' ||
-      p === 'tsconfig.json' ||
-      p === 'nx.json' ||
-      p === 'package.json' ||
-      p.startsWith('packages/config/'),
-    hint: 'shared workspace config — no layer owns it; commit it separately as its own `chore(workspace): …` before retrying',
-  },
-  {
-    test: (p) => p.startsWith('.hedgehog/'),
-    hint: 'build-graph state — intents, overrides and friction are committed by the command that writes them, not by a layer',
-  },
-];
+const BUILD_GRAPH_HINT =
+  'build-graph state — intents, overrides and friction are committed by the command that writes them, not by a layer';
 
-function scopeHintFor(path) {
-  return SCOPE_HINTS.find((h) => h.test(path))?.hint ?? null;
+function scopeHintFor(path, core) {
+  const segments = path.split('/').filter((s) => s !== '');
+  for (const { match, hint } of core?.scope_hints ?? []) {
+    if (match.some((glob) => matchesGlob(segments, glob))) return hint;
+  }
+  return path.startsWith('.hedgehog/') ? BUILD_GRAPH_HINT : null;
 }
 
 async function verifyCommand(args) {
@@ -2676,9 +2659,10 @@ async function verifyCommand(args) {
   if (result.outcome === 'scope_violation') {
     console.error(`${red(bold('Scope violation.'))} Task ${bold(taskId)} is now ${bold('blocked')}.\n`);
     console.error('Touched paths outside allowed scope:');
+    const activeCore = await resolveActiveCore();
     for (const path of result.offending) {
       console.error(`  ${red('✗')} ${path}`);
-      const hint = scopeHintFor(path);
+      const hint = scopeHintFor(path, activeCore);
       if (hint) console.error(`      ${dim(hint)}`);
     }
     console.error();
@@ -2762,14 +2746,14 @@ async function verifyCommand(args) {
 // agent is supposed to be dispatched with is no longer reachable from any
 // command. (`hedgehog show <task-id>` reprints it later.)
 async function printPackets(tasks) {
-  const coreId = await resolveCoreId();
+  const activeCore = await resolveActiveCore();
   const db = openDb();
   try {
     for (const task of tasks) {
       const packet = taskPacket(db, task.id);
       if (!packet) continue;
       console.log();
-      console.log(formatPacket(packet, taskStatusLine(packet.task), coreId, packetExists));
+      console.log(formatPacket(packet, taskStatusLine(packet.task), activeCore, packetExists));
     }
   } finally {
     db.close();
@@ -3103,7 +3087,7 @@ async function showCommand(args) {
   }
 
   console.log(
-    formatPacket(packet, taskStatusLine(packet.task), await resolveCoreId(), packetExists),
+    formatPacket(packet, taskStatusLine(packet.task), await resolveActiveCore(), packetExists),
   );
 }
 
