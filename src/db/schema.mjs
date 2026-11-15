@@ -155,7 +155,7 @@ const TASK_COLUMN_MIGRATIONS = [
 
 // Brings an already-created `tasks` table up to the current column set.
 // Idempotent and cheap (one PRAGMA). Requires a writable handle.
-export function ensureTaskColumns(db) {
+function ensureTaskColumns(db) {
   const existing = new Set(db.prepare('PRAGMA table_info(tasks)').all().map((row) => row.name));
   for (const [name, ddl] of TASK_COLUMN_MIGRATIONS) {
     if (!existing.has(name)) db.exec(`ALTER TABLE tasks ADD COLUMN ${ddl}`);

@@ -1,7 +1,6 @@
 // `hedgehog verify <task-id>` — lease check, scope pre-check, then
 // verify_command, then state transition. See
-// hedgehog-persistent-build-graph.md, "Task lifecycle", "`hedgehog
-// verify`", and "Scope enforcement is a hard pre-verification check".
+// BUILD_GRAPH.md, "5. Verification controls completion".
 //
 // Phase 0: load the task, reap its lease if `lease_expires_at` has
 // passed (same reaping claimTasks does lazily — otherwise a build that
@@ -73,7 +72,7 @@
 import { execSync, execFileSync } from 'node:child_process';
 import { withCommitLock } from './commitLock.mjs';
 import { reapExpiredLeases, pathFingerprint } from './claim.mjs';
-import { ensureTaskColumns } from './schema.mjs';
+import { loadDirectDependents } from './next.mjs';
 import { composeScope } from './overrides.mjs';
 import { FASTPATH_DIR } from './fastpath.mjs';
 import { writeNoopFile, loadNoopRecord } from './noop.mjs';
@@ -235,21 +234,6 @@ const insertArtifact = (db) =>
     VALUES (?, ?, ?, ?)
   `);
 
-// Direct dependents of `taskId` — same shape as next.mjs's
-// loadDirectDependents, kept local since verify.mjs owns the write side
-// and next.mjs owns the read side of the same query.
-function loadDirectDependents(db, taskId) {
-  return db
-    .prepare(
-      `
-      SELECT t.* FROM tasks t
-      JOIN dependencies d ON d.task_id = t.id
-      WHERE d.depends_on_task_id = ?
-      ORDER BY t.priority, t.id
-    `,
-    )
-    .all(taskId);
-}
 
 // True when every dependency of `taskId` is `complete` — the same
 // condition the readiness SELECT in next.mjs checks, reused here so a
@@ -413,10 +397,6 @@ function rollbackToBuilding(db, taskId) {
 // run verification against a task it doesn't hold.
 function claimForVerify(db, taskId, owner) {
   let task;
-  // Before BEGIN, and before any statement below names claim_snapshot: a
-  // DB created by an earlier version has no such column, and both the
-  // status writes here and the gate's snapshot read depend on it.
-  ensureTaskColumns(db);
   db.exec('BEGIN IMMEDIATE');
   try {
     // Reaps this (and any other) task's lease if lease_expires_at has

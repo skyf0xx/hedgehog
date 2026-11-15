@@ -124,7 +124,7 @@ function loadInheritedDecisions(db, taskId) {
   }
 }
 
-function loadDirectDependents(db, taskId) {
+export function loadDirectDependents(db, taskId) {
   return db
     .prepare(
       `

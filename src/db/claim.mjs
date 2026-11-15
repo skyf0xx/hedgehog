@@ -133,8 +133,9 @@ export function snapshotWorkingTree() {
   }
 }
 
-// Same no-incomplete-dependency shape as next.mjs's READY_TASK_SQL, without
-// the LIMIT 1 — claimTasks may take more than one candidate per call.
+// Every unleased `planned`/`ready` task with no incomplete dependency, in
+// claim order. `hedgehog next` takes the first; claimTasks may take more
+// than one per call.
 //
 // `exclusive DESC` within a priority band is a scheduling fix, not a
 // preference. conflicts() reports 'exclusive' if *either* side is
