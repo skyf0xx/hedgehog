@@ -272,83 +272,34 @@ export function taskStatusLine(task) {
   return task.status.toUpperCase();
 }
 
-// full-stack-app's own layer → Nx tag shape, mirroring the tag reference
-// table the @skyf0xx/hedgehog-core-full-stack-app package's
-// packages/config/eslint-base.js ships as a comment. A layer's
-// `depConstraints` failure is a mechanical consequence of this table crossed
-// with `core.yaml`'s `depends_on` chain — printing it in the packet turns
-// that failure into a pre-flight fact instead of something `nx lint`
-// teaches the agent after the fact. Keyed
-// by layer id, not module, since the shape is the same for every module.
-//
-// `scaffold` is the same kind of fact one step earlier: the generator in
-// `tools/generators/` every layer starts from (hedgehog-loop, "Scaffolding
-// a layer", which owns the flag contract these lines instantiate). It sits
-// here rather than in RELEVANT RULES because that section is per-intent —
-// identical across every layer of an intent, by plan.mjs's requirement
-// linkage — while the command differs per layer, which is exactly what
-// LAYER SHAPE already keys on.
-const FULL_STACK_APP_LAYER_TAGS = {
-  schema: {
-    tags: ['scope:db', 'type:adapter'],
-    dependsOnTags: [],
-    scaffold: "nx g ./tools/generators:schema --module={module} --fields='<name:type,...>'",
-  },
-  contract: {
-    tags: ['scope:contracts', 'type:contract'],
-    dependsOnTags: ['type:adapter', 'type:util'],
-    scaffold: "nx g ./tools/generators:contract --module={module} --fields='<the schema layer's list>'",
-  },
-  repository: {
-    tags: ['scope:{module}', 'type:adapter'],
-    dependsOnTags: ['type:adapter', 'type:contract', 'type:util'],
-    scaffold: 'nx g ./tools/generators:repository --module={module}',
-  },
-  service: {
-    tags: ['scope:{module}', 'type:service'],
-    dependsOnTags: ['type:adapter', 'type:contract', 'type:util'],
-    scaffold: 'nx g ./tools/generators:service --module={module}',
-  },
-  controller: {
-    tags: ['scope:api'],
-    dependsOnTags: ['type:adapter', 'type:service', 'type:contract', 'type:util'],
-    scaffold: "nx g ./tools/generators:controller --module={module} --fields='<the schema layer's list>'",
-  },
-  hook: {
-    tags: ['scope:hooks', 'type:hook'],
-    dependsOnTags: ['type:contract', 'type:util'],
-    scaffold: 'nx g ./tools/generators:hook --module={module} [--toggleField=<boolField>]',
-  },
-  screen: {
-    tags: ['scope:web'],
-    dependsOnTags: ['scope:contracts', 'scope:hooks', 'scope:shared', 'type:util'],
-    scaffold: 'nx g ./tools/generators:screen --module={module}   (skeleton only — UX is yours)',
-  },
-};
-
-// A LAYER SHAPE section for full-stack-app tasks only (`coreId ===
-// 'full-stack-app'`) — an authored core has no equivalent tag scheme
-// (layer-eng.md already points that agent at reading .hedgehog/core.yaml
-// directly instead), and `join` has no fixed tag shape of its own to
-// state, so both fall through to null and print nothing.
-function layerShapeLines(task, coreId) {
-  if (coreId !== 'full-stack-app') return null;
-  const shape = FULL_STACK_APP_LAYER_TAGS[task.layer];
-  if (!shape) return null;
-  const tags = shape.tags.map((t) => t.replace('{module}', task.module));
-  const lines = ['LAYER SHAPE', `  this layer's tags:      ${tags.join(', ')}`];
-  if (shape.dependsOnTags.length === 0) {
-    lines.push('  may depend on tags:     (nothing in-workspace — floor layer)');
-  } else {
-    lines.push(`  may depend on tags:     ${shape.dependsOnTags.join(', ')}`);
+// A layer's import shape and starting generator, from the optional
+// `tags`, `depends_on_tags` and `scaffold` fields its core.yaml declares,
+// closed by the core's own `layer_shape_note`. A dependency-constraint
+// lint failure is a mechanical consequence of these tags crossed with the
+// `depends_on` chain, so printing them turns that failure into a
+// pre-flight fact. The scaffold command differs per layer, which is why it
+// sits here rather than in RELEVANT RULES (per-intent, identical across
+// every layer of an intent). A layer that declares none of the three gets
+// no section.
+function layerShapeLines(task, core) {
+  const layer = core?.layers?.find((l) => l.id === task.layer);
+  if (!layer) return null;
+  const { tags, depends_on_tags: dependsOnTags, scaffold } = layer;
+  if (!tags && !dependsOnTags && !scaffold) return null;
+  const fill = (s) => s.replaceAll('{module}', task.module);
+  const lines = ['LAYER SHAPE'];
+  if (tags) lines.push(`  this layer's tags:      ${tags.map(fill).join(', ')}`);
+  if (dependsOnTags) {
+    lines.push(
+      dependsOnTags.length === 0
+        ? '  may depend on tags:     (nothing in-workspace — floor layer)'
+        : `  may depend on tags:     ${dependsOnTags.map(fill).join(', ')}`,
+    );
   }
-  lines.push(`  scaffold from:          ${shape.scaffold.replace('{module}', task.module)}`);
-  lines.push(
-    "  Confirm against packages/config/eslint-base.js's depConstraints before",
-    "  writing an import — a mismatch here is a pre-flight fact, not a lint",
-    '  failure to discover later. Start from the generator and author only',
-    "  this entity's delta on top of what it lands.",
-  );
+  if (scaffold) lines.push(`  scaffold from:          ${fill(scaffold)}`);
+  if (core.layer_shape_note) {
+    for (const line of core.layer_shape_note.split('\n')) lines.push(`  ${line}`);
+  }
   return lines;
 }
 
@@ -391,10 +342,10 @@ const HONESTY = [
 //
 // `statusLine` is what goes on the STATUS row. `next` passes READY
 // literally, as it always has; `show` passes taskStatusLine(task), which
-// names the task's real state. `coreId` is the active core's `id` (from
-// `core.yaml`) — optional, since a caller with no core resolved yet (a
+// names the task's real state. `core` is the active core as loadCore
+// returns it — optional, since a caller with no core resolved yet (a
 // deferred install) still has to be able to render *something*; LAYER
-// SHAPE only ever appears for a recognised full-stack-app layer.
+// SHAPE appears only for a layer that core declares a shape for.
 //
 // HONESTY is last deliberately: it's the one section that qualifies the
 // gate above it, so it reads as the answer to "and what if I can't clear
@@ -493,7 +444,7 @@ function firstArrivalLines(task, roots) {
   ];
 }
 
-export function formatPacket(packet, statusLine, coreId = null, exists = null) {
+export function formatPacket(packet, statusLine, core = null, exists = null) {
   const {
     task,
     intent,
@@ -589,7 +540,7 @@ export function formatPacket(packet, statusLine, coreId = null, exists = null) {
     lines.push(...firstArrivalLines(task, firstArrival));
     lines.push('');
   }
-  const shapeLines = layerShapeLines(task, coreId);
+  const shapeLines = layerShapeLines(task, core);
   if (shapeLines) {
     lines.push(...shapeLines);
     lines.push('');
@@ -604,6 +555,6 @@ export function formatPacket(packet, statusLine, coreId = null, exists = null) {
 
 // `hedgehog next`'s rendering: its task always came out of the readiness
 // SELECT, so STATUS is READY by construction.
-export function formatNext(packet, coreId = null, exists = null) {
-  return formatPacket(packet, 'READY', coreId, exists);
+export function formatNext(packet, core = null, exists = null) {
+  return formatPacket(packet, 'READY', core, exists);
 }
