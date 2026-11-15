@@ -12,12 +12,13 @@
 //      and `.hedgehog/` keeps the build-graph hint on every core.
 //   4. A `scope_hints` block placed after `layers` leaves the layers
 //      parsed, which is where a core puts it.
+//   5. A malformed `scope_hints` glob is a load error naming the glob.
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { makeProject, addIntent, cli, cleanup, check, checkContains, report } from './_lib.mjs';
-import { parseCoreYaml } from '../src/db/core.mjs';
+import { parseCoreYaml, validateCore } from '../src/db/core.mjs';
 
 const SHAPED = `
 id: shaped-fixture
@@ -135,5 +136,13 @@ try {
 const parsed = parseCoreYaml(SHAPED);
 check('scope_hints after layers leaves every layer parsed', 3, parsed.layers.length);
 check('and parses the hint', 'fixture hint — commit it separately', parsed.scope_hints[0]?.hint);
+
+let loadError = '';
+try {
+  validateCore(parseCoreYaml(SHAPED.replace('"shared/**"', '"shared/[z-a].ts"')));
+} catch (err) {
+  loadError = err.message;
+}
+checkContains('a malformed scope_hints glob fails the load', loadError, 'malformed glob "shared/[z-a].ts"');
 
 report('LAYER SHAPE and scope hints come from core.yaml for any core');

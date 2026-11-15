@@ -780,6 +780,15 @@ export function validateCore(core) {
     if (hint.match.some((glob) => typeof glob !== 'string' || glob.trim() === '')) {
       throw new Error(`scope_hints entry ${index + 1} has an empty entry in match`);
     }
+    for (const glob of hint.match) {
+      try {
+        for (const segment of segmentsOf(glob)) segmentRegExp(segment);
+      } catch (err) {
+        throw new Error(`scope_hints entry ${index + 1} has a malformed glob "${glob}": ${err.message}`, {
+          cause: err,
+        });
+      }
+    }
     if (typeof hint.hint !== 'string' || hint.hint.trim() === '') {
       throw new Error(`scope_hints entry ${index + 1} has no hint`);
     }
