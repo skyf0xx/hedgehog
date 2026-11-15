@@ -3,8 +3,9 @@
 // shape either way. See hedgehog-persistent-build-graph.md, "Core
 // definitions".
 //
-// The YAML subset here is deliberately narrow — top-level `id` (scalar)
-// and `layers` (a list of flat maps of scalars/inline string lists). That
+// The YAML subset here is deliberately narrow — top-level scalars, plus
+// `layers` and `scope_hints` (lists of flat maps of scalars/inline string
+// lists). That
 // subset is all a core definition ever needs, so this hand-rolled parser
 // covers it without adding a YAML dependency, the same "no dependency"
 // stance src/db/schema.mjs takes with node:sqlite.
@@ -186,10 +187,81 @@ function indentOf(line) {
 // no signal that anything is wrong).
 const VALID_PATTERNS = ['hexagonal', 'layered', 'vertical-slice', 'none'];
 
+const KNOWN_TOP_LEVEL_KEYS = new Set(['id', 'pluralizes', 'pattern', 'layer_shape_note']);
+
+// Reads a block list of flat maps — `layers:` and `scope_hints:` — from
+// line `i` until the next top-level line. Each item's values stay raw
+// strings; the caller decides which are scalars and which inline lists.
+function readMapList(lines, i, what) {
+  const items = [];
+  while (i < lines.length && lines[i].indent > 0) {
+    const itemMatch = lines[i].text.match(/^-\s*([A-Za-z0-9_]+):\s*(.*)$/);
+    if (!itemMatch) throw new Error(`expected a ${what} list item: ${lines[i].text}`);
+    const itemIndent = lines[i].indent;
+    const [, firstKey, firstValue] = itemMatch;
+    const item = { [firstKey]: firstValue };
+    i++;
+    while (i < lines.length && lines[i].indent > itemIndent) {
+      const fieldMatch = lines[i].text.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
+      if (!fieldMatch) throw new Error(`unparseable ${what} field: ${lines[i].text}`);
+      const [, fieldKey, fieldValue] = fieldMatch;
+      item[fieldKey] = fieldValue;
+      i++;
+    }
+    items.push(item);
+  }
+  return { items, next: i };
+}
+
+function parseLayer(layer) {
+  return {
+    id: parseScalar(layer.id ?? ''),
+    depends_on:
+      layer.depends_on !== undefined ? parseScalar(layer.depends_on) : null,
+    scope: layer.scope !== undefined ? parseInlineList(layer.scope) : [],
+    verify: layer.verify !== undefined ? parseScalar(layer.verify) : '',
+    commit: layer.commit !== undefined ? parseScalar(layer.commit) : '',
+    // Scheduler isolation flag (conflict.mjs) — absent means concurrency-safe.
+    exclusive:
+      layer.exclusive !== undefined && parseScalar(layer.exclusive) === 'true',
+    // Cardinality flag (plan.mjs) — absent means one task per intent, the
+    // module axis. `once: true` means one task for the whole build, no
+    // matter how many intents the graph holds.
+    once: layer.once !== undefined && parseScalar(layer.once) === 'true',
+    // null (not []) is the sentinel conflict.mjs reads as "fall back to scope".
+    verify_radius:
+      layer.verify_radius !== undefined
+        ? parseInlineList(layer.verify_radius)
+        : null,
+    // Binaries `verify` needs on PATH (src/db/requires.mjs). [] — not
+    // null — because "declares nothing" and "declares an empty list"
+    // mean the same thing here, unlike verify_radius.
+    requires:
+      layer.requires !== undefined ? parseInlineList(layer.requires) : [],
+    // LAYER SHAPE packet lines (next.mjs). null means undeclared; an
+    // empty depends_on_tags is a declared floor layer, which next.mjs
+    // renders differently from an absent one.
+    tags: layer.tags !== undefined ? parseInlineList(layer.tags) : null,
+    depends_on_tags:
+      layer.depends_on_tags !== undefined
+        ? parseInlineList(layer.depends_on_tags)
+        : null,
+    scaffold: layer.scaffold !== undefined ? parseScalar(layer.scaffold) : null,
+  };
+}
+
+function parseScopeHint(hint) {
+  return {
+    match: hint.match !== undefined ? parseInlineList(hint.match) : [],
+    hint: hint.hint !== undefined ? parseScalar(hint.hint) : '',
+  };
+}
+
 // Parses the narrow subset of YAML a core definition needs:
 //   id: <scalar>
 //   pluralizes: <bool>            # optional, default true
 //   pattern: <scalar>             # optional, one of hexagonal|layered|vertical-slice|none
+//   layer_shape_note: <scalar>    # optional, closing lines of every LAYER SHAPE ("\n" splits lines)
 //   layers:
 //     - id: <scalar>
 //       depends_on: <scalar>          # optional
@@ -200,6 +272,17 @@ const VALID_PATTERNS = ['hexagonal', 'layered', 'vertical-slice', 'none'];
 //       once: <bool>                  # optional, default false
 //       verify_radius: [<scalar>, ...] # optional, default null (falls back to scope)
 //       requires: [<scalar>, ...]     # optional, default [] — binaries `verify` needs
+//       tags: [<scalar>, ...]         # optional — this layer's lint tags, for LAYER SHAPE
+//       depends_on_tags: [<scalar>, ...] # optional — tags it may import; [] = floor layer
+//       scaffold: <scalar>            # optional — the generator command a layer starts from
+//   scope_hints:                  # optional — annotations for out-of-scope paths at verify
+//     - match: [<glob>, ...]
+//       hint: <scalar>
+//
+// Top-level keys may come in any order. An unrecognised top-level key and
+// any block nested under it are skipped. An engine that predates
+// `scope_hints` stops reading at the first top-level line after `layers`,
+// so a core places `scope_hints` after `layers` to stay loadable there.
 export function parseCoreYaml(text) {
   const rawLines = text.split('\n');
   const lines = [];
@@ -209,27 +292,37 @@ export function parseCoreYaml(text) {
     lines.push({ indent: indentOf(noComment), text: noComment.trim() });
   }
 
-  const core = { id: undefined, pluralizes: true, pattern: null, layers: [] };
+  const core = {
+    id: undefined,
+    pluralizes: true,
+    pattern: null,
+    layer_shape_note: null,
+    layers: [],
+    scope_hints: [],
+  };
   let i = 0;
 
-  while (i < lines.length && lines[i].indent === 0) {
+  while (i < lines.length) {
     const line = lines[i];
-    if (line.text === 'layers:') {
-      i++;
-      break;
-    }
+    if (line.indent !== 0) throw new Error(`expected a layer list item: ${line.text}`);
     const match = line.text.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
     if (!match) throw new Error(`unparseable line: ${line.text}`);
     const [, key, value] = match;
+    i++;
+    if (key === 'layers' || key === 'scope_hints') {
+      const { items, next } = readMapList(lines, i, key === 'layers' ? 'layer' : 'scope_hints');
+      i = next;
+      if (key === 'layers') core.layers.push(...items.map(parseLayer));
+      else core.scope_hints.push(...items.map(parseScopeHint));
+      continue;
+    }
     if (key === 'id') core.id = parseScalar(value);
     // Whether this core's own generator takes a module id plural — a
     // fixed, known fact about that generator, not a per-project unknown.
-    // Absent means true, so every core written before this field existed
-    // keeps warning exactly as it always has; a core whose generator
-    // never pluralizes (deepseek-harness's tool generator uses the id
-    // verbatim) declares `pluralizes: false` once and the singular-id
-    // advisory stops firing on it for good, rather than every user of
-    // that core re-discovering the same false positive.
+    // Absent means true; a core whose generator never pluralizes
+    // (deepseek-harness's tool generator uses the id verbatim) declares
+    // `pluralizes: false` once and the singular-id advisory stops firing
+    // on it.
     if (key === 'pluralizes') core.pluralizes = parseScalar(value) === 'true';
     // An architecture claim, checked by validateCore below — see that
     // function's pattern-conformance block for what each value asserts.
@@ -246,54 +339,10 @@ export function parseCoreYaml(text) {
       }
       core.pattern = declared;
     }
-    i++;
-  }
-
-  while (i < lines.length) {
-    const line = lines[i];
-    if (line.indent === 0) break;
-    const itemMatch = line.text.match(/^-\s*([A-Za-z0-9_]+):\s*(.*)$/);
-    if (!itemMatch) throw new Error(`expected a layer list item: ${line.text}`);
-    const layerIndent = line.indent;
-    const layer = {};
-    const [, firstKey, firstValue] = itemMatch;
-    layer[firstKey] = firstValue;
-    i++;
-
-    while (i < lines.length && lines[i].indent > layerIndent) {
-      const fieldMatch = lines[i].text.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
-      if (!fieldMatch) throw new Error(`unparseable layer field: ${lines[i].text}`);
-      const [, fieldKey, fieldValue] = fieldMatch;
-      layer[fieldKey] = fieldValue;
-      i++;
+    if (key === 'layer_shape_note') core.layer_shape_note = parseScalar(value);
+    if (!KNOWN_TOP_LEVEL_KEYS.has(key)) {
+      while (i < lines.length && lines[i].indent > 0) i++;
     }
-
-    core.layers.push({
-      id: parseScalar(layer.id ?? ''),
-      depends_on:
-        layer.depends_on !== undefined ? parseScalar(layer.depends_on) : null,
-      scope: layer.scope !== undefined ? parseInlineList(layer.scope) : [],
-      verify: layer.verify !== undefined ? parseScalar(layer.verify) : '',
-      commit: layer.commit !== undefined ? parseScalar(layer.commit) : '',
-      // Scheduler isolation flag (conflict.mjs) — absent means concurrency-safe.
-      exclusive:
-        layer.exclusive !== undefined && parseScalar(layer.exclusive) === 'true',
-      // Cardinality flag (plan.mjs) — absent means one task per intent, the
-      // module axis. `once: true` means one task for the whole build, no
-      // matter how many intents the graph holds.
-      once: layer.once !== undefined && parseScalar(layer.once) === 'true',
-      // null (not []) is the sentinel conflict.mjs reads as "fall back to scope".
-      verify_radius:
-        layer.verify_radius !== undefined
-          ? parseInlineList(layer.verify_radius)
-          : null,
-      // Binaries `verify` needs on PATH (src/db/requires.mjs). [] — not
-      // null — because "declares nothing" and "declares an empty list"
-      // mean the same thing here, unlike verify_radius, and every core
-      // written before this field existed lands in that case.
-      requires:
-        layer.requires !== undefined ? parseInlineList(layer.requires) : [],
-    });
   }
 
   return core;
@@ -706,7 +755,34 @@ export function validateCore(core) {
       }
     }
 
+    for (const field of ['tags', 'depends_on_tags']) {
+      const list = layer[field];
+      if (list === null || list === undefined) continue;
+      if (!Array.isArray(list)) throw new Error(`layer "${layer.id}" has a non-list ${field}`);
+      if (field === 'tags' && list.length === 0) {
+        throw new Error(`layer "${layer.id}" declares an empty tags list — omit the field instead`);
+      }
+      if (list.some((tag) => typeof tag !== 'string' || tag.trim() === '')) {
+        throw new Error(`layer "${layer.id}" has an empty entry in ${field}`);
+      }
+    }
+    if (layer.scaffold !== null && layer.scaffold !== undefined && layer.scaffold.trim() === '') {
+      throw new Error(`layer "${layer.id}" declares an empty scaffold — omit the field instead`);
+    }
+
     layerIds.add(layer.id);
+  }
+
+  for (const [index, hint] of (core.scope_hints ?? []).entries()) {
+    if (!Array.isArray(hint.match) || hint.match.length === 0) {
+      throw new Error(`scope_hints entry ${index + 1} has no match globs`);
+    }
+    if (hint.match.some((glob) => typeof glob !== 'string' || glob.trim() === '')) {
+      throw new Error(`scope_hints entry ${index + 1} has an empty entry in match`);
+    }
+    if (typeof hint.hint !== 'string' || hint.hint.trim() === '') {
+      throw new Error(`scope_hints entry ${index + 1} has no hint`);
+    }
   }
 
   // `depends_on` naming a layer that doesn't exist compiles to a
