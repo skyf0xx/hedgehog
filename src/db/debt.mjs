@@ -20,7 +20,6 @@
 // `hedgehog db rebuild` replays it from there (rebuild.mjs), the same way
 // it replays overrides and reconciliations.
 
-import { applySchema } from './schema.mjs';
 import { appendNote } from './notes.mjs';
 
 const insertDebt = (db) =>
@@ -41,12 +40,6 @@ function taskExists(db, taskId) {
 // ordering, for the same reason: if the write fails, nothing has been
 // recorded on a fact that would not survive the next rebuild.
 export async function addDebt(db, { taskId, note }, notesDir = undefined) {
-  // Idempotent, and the migration path for a build graph created before
-  // the `debt` table existed: dbInit only applies the schema to a DB it
-  // just created, so an in-flight project's DB would otherwise have no
-  // table to insert into.
-  applySchema(db);
-
   if (!taskId) throw new Error('debt requires a task id');
   if (!note) throw new Error('debt requires a note');
   if (!taskExists(db, taskId)) throw new Error(`no such task: ${taskId}`);
@@ -109,8 +102,6 @@ export function openDebtCount(db) {
 // point at nothing once replayed. The triple already committed for the
 // debt note itself is the one part of its identity that *is* stable.
 export async function resolveDebt(db, { debtId, reason }, notesDir = undefined) {
-  applySchema(db);
-
   if (!debtId) throw new Error('debt resolve requires a debt id');
   if (!reason) throw new Error('debt resolve requires a --reason');
 

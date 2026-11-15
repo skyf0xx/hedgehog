@@ -44,12 +44,22 @@ export function isBuildGraphStatePath(path, extraDirs = []) {
   );
 }
 
-export function isEngineStatePath(path, extraDirs = []) {
+// Written by `hedgehog graph` while its viewer server runs.
+export const GRAPH_PIDFILE_PATH = '.hedgehog/graph-server.json';
+
+// The gitignored files the engine derives and rewrites on its own: the
+// build graph and its SQLite sidecars, the commit lock, the star-prompt
+// state file. Unlike the record directories above, none of these is ever
+// committed.
+export function isDerivedStatePath(path) {
   return (
     path === DB_PATH ||
     path.startsWith(`${DB_PATH}-`) ||
     path === LOCK_PATH ||
-    path === COMMUNITY_PATH ||
-    isBuildGraphStatePath(path, extraDirs)
+    path === COMMUNITY_PATH
   );
+}
+
+export function isEngineStatePath(path, extraDirs = []) {
+  return isDerivedStatePath(path) || isBuildGraphStatePath(path, extraDirs);
 }

@@ -1,7 +1,6 @@
 // `hedgehog plan` — compiles pending intents against the project's core
-// definition into `tasks` + `dependencies` rows. See
-// hedgehog-persistent-build-graph.md, "The build graph" and "Task
-// lifecycle", plus the readiness SELECT under "Schema".
+// definition into `tasks` + `dependencies` rows. See BUILD_GRAPH.md,
+// "1. Intents become tasks" and "2. Readiness comes from dependencies".
 //
 // full-stack-app and pwa-app: one task per layer per intent (an intent is
 // a domain module — see the core definition's `{module}` placeholder).

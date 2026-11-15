@@ -1,10 +1,11 @@
 // `hedgehog graph` — read-only dependency-graph export for the build
 // graph: every task as a node, every `dependencies` row as an edge. See
-// hedgehog-persistent-build-graph.md, "Schema", for the `tasks` and
-// `dependencies` tables this mirrors.
+// BUILD_GRAPH.md, "Schema", for the `tasks` and `dependencies` tables
+// this mirrors.
 //
 // This module only shapes rows into { nodes, edges }; layout and
-// rendering live in graph-viewer.mjs's HTML template, not here — the
+// rendering live in src/templates/graph.html (served by graph-server.mjs),
+// not here — the
 // same separation status.mjs keeps between graphStatus() (data) and
 // formatStatus() (text rendering).
 

@@ -12,16 +12,10 @@
 // Read-only and never throws: a status command that fails because it
 // couldn't stat a hook would be worse than the thing it reports on.
 
-import { readFile, access } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join, isAbsolute, delimiter } from 'node:path';
 import { execFileSync } from 'node:child_process';
-
-const exists = (p) =>
-  access(p, constants.F_OK).then(
-    () => true,
-    () => false,
-  );
+import { exists } from './init.mjs';
 
 // The string `lefthook install` writes into the generated hook when
 // `assert_lefthook_installed: true` is set. Its presence is the only

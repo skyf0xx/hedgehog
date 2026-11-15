@@ -1,7 +1,6 @@
 // Core-definition loader. Parses `core.yaml` — a shipped core's own
 // definition, or an authored .hedgehog/core.yaml — into the same in-memory
-// shape either way. See hedgehog-persistent-build-graph.md, "Core
-// definitions".
+// shape either way. See BUILD_GRAPH.md, "1. Intents become tasks".
 //
 // The YAML subset here is deliberately narrow — top-level `id` (scalar)
 // and `layers` (a list of flat maps of scalars/inline string lists). That
@@ -357,6 +356,14 @@ export function matchesGlob(pathSegments, glob) {
     return walk(gi + 1, pi + 1);
   };
   return walk(0, 0);
+}
+
+// The one in-process scope matcher: true when the repo-relative `path`
+// matches any of `scopeGlobs`. A trailing `/**` also matches the
+// directory it names.
+export function pathInScope(path, scopeGlobs) {
+  const segments = segmentsOf(path);
+  return scopeGlobs.some((glob) => matchesGlob(segments, glob));
 }
 
 // Does the single-segment pattern `outer` match everything `inner` does?

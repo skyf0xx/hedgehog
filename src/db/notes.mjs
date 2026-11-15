@@ -1,20 +1,15 @@
 // `.hedgehog/notes/<task-id>.json` — the committed record behind `debt`
 // and `decisions` rows.
 //
-// Both tables are operator- or agent-recorded notes with no committed
-// source, in the same position `.hedgehog/reconciled/*.json` was in
-// before reconcile.mjs existed: the only place they live is the DB, and
-// `hedgehog db rebuild` clears and re-derives the DB from committed files
-// on every run (rebuild.mjs#clearDerivedGraph). Before this file existed,
-// rebuild carried debt/decisions across by reading them out of the *same*
-// DB it was about to wipe — which only works because today there is
-// always exactly one DB. A worktree gets its own DB with no memory of
-// what a sibling worktree's DB held, so a note logged there and merged
-// back has nothing for a post-merge rebuild to carry across, and is
-// silently dropped. This file gives both tables the committed source
-// `friction` has (`.hedgehog/friction/*.json`, friction.mjs) and `reconciled`
-// records have (`.hedgehog/reconciled/*.json`), so a rebuild anywhere —
-// worktree or trunk — replays the same notes from the same files.
+// Both tables hold operator- or agent-recorded notes, and `hedgehog db
+// rebuild` clears and re-derives the DB from committed files on every
+// run (rebuild.mjs#clearDerivedGraph). Each worktree has its own DB, so a
+// note logged in one and merged back exists for a post-merge rebuild only
+// as a committed file. This file is that committed source, the same role
+// `.hedgehog/friction/*.json` (friction.mjs) and
+// `.hedgehog/reconciled/*.json` (reconcile.mjs) play for their rows, so a
+// rebuild anywhere — worktree or trunk — replays the same notes from the
+// same files.
 //
 // One file per task, holding every debt and decision note logged against
 // it — unlike a reconciliation, which is one-shot per task, `debt add`

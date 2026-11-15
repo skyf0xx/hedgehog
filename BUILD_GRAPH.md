@@ -199,7 +199,7 @@ The reviewer reports findings, and a Block goes back through the Correction Prot
 
 ## Schema
 
-Nine tables in total:
+Eleven tables in total:
 
 ```mermaid
 erDiagram
@@ -214,27 +214,28 @@ erDiagram
     TASKS ||--o{ ARTIFACTS : "produces"
     TASKS ||--o{ VERIFICATIONS : "records"
     TASKS ||--o{ DEBT : "carries"
+    TASKS ||--o{ DECISIONS : "records"
     TASKS ||--o{ FRICTION : "logs"
 
     INTENTS {
-        int id PK
+        string id PK
         string goal
         string outcome
-        string priority
+        int priority
         string status "proposed to planned to active to complete"
         datetime created_at
     }
 
     TASKS {
-        int id PK
-        int intent_id FK
+        string id PK
+        string intent_id FK
         string module
         string layer
         string objective
         string scope_globs
         string verify_command
         string commit_message
-        string priority
+        int priority
         bool exclusive
         string verify_radius
         string status "proposed to planned to ready to building to verifying to complete, or blocked"
@@ -247,13 +248,13 @@ erDiagram
     }
 
     DEPENDENCIES {
-        int task_id FK
-        int depends_on_task_id FK
+        string task_id FK
+        string depends_on_task_id FK
     }
 
     ARTIFACTS {
         int id PK
-        int task_id FK
+        string task_id FK
         string path
         string kind "created or modified"
         string commit_sha
@@ -261,7 +262,7 @@ erDiagram
 
     VERIFICATIONS {
         int id PK
-        int task_id FK
+        string task_id FK
         string command
         int exit_code
         string output

@@ -49,11 +49,11 @@
 // exactly as today — eligibleIntents excludes `_core` by id, so it only
 // ever considers real pending intents.
 
-import { execFileSync } from 'node:child_process';
 import { readdir, readFile, mkdir, writeFile, rename, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { loadIntentDependencies } from './plan.mjs';
 import { intentFilePath } from './intent.mjs';
+import { git as runGit } from './git.mjs';
 
 export const ABANDONED_DIR = '.hedgehog/abandoned';
 
@@ -81,7 +81,7 @@ export function worktreePath(intentId, { repoRoot = process.cwd() } = {}) {
 }
 
 function git(args, options = {}) {
-  return execFileSync('git', args, { encoding: 'utf8', ...options }).trim();
+  return runGit(args, options).trim();
 }
 
 function gitOrNull(args, options = {}) {

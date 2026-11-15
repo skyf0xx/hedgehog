@@ -1,8 +1,8 @@
 // `hedgehog ready` — read-only preview of claim.mjs's fan-out: which ready
 // tasks would be claimable in one `hedgehog claim` call right now, and
 // which are held back by a conflict with one already in that batch. See
-// hedgehog-persistent-build-graph.md, "Claims" / concurrent execution, for
-// the exclusive/scope/verify ordering this mirrors. Claims nothing —
+// BUILD_GRAPH.md, "6. Multiple agents can work at once", for the
+// exclusive/scope/verify ordering this mirrors. Claims nothing —
 // claimTasks in claim.mjs is the only writer.
 
 import { findClaimableTasks, findInFlightTasks } from './claim.mjs';

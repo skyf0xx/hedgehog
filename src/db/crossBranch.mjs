@@ -1,62 +1,43 @@
 // Cross-branch commit-history visibility for `hedgehog ready`/`claim`/
-// `status`/`reconcile`, run live inside a `git worktree` checkout — where
-// `hedgehog db rebuild` (rebuild.mjs#loadCommitSubjects) intentionally
-// only ever reads the CURRENT branch's own `git log`.
+// `status`/`reconcile`, run live inside a `git worktree` checkout.
+// `hedgehog db rebuild` (rebuild.mjs#loadCommitSubjects) reads only the
+// current branch's own `git log`.
 //
-// The gap this closes: each worktree carries its own `.hedgehog/hedgehog.db`
-// (worktree.mjs's file header), and no DB row is ever copied between them
-// or from a worktree to trunk — that invariant is the reason the build
-// graph is a pure function of committed files plus git history in the
-// first place. But "current git history" was, until now, silently read as
-// "the current branch's history" everywhere a live command checked whether
-// a dependency was done: claim.mjs's CLAIMABLE_TASKS_SQL joins only the
-// current DB's own `tasks.status`, and reconcile.mjs's `commitsSince`
-// ranges over `HEAD` alone. A task completed and committed on trunk (or on
-// a sibling worktree's branch) is therefore invisible to a different
-// worktree's own DB even though the *commit* — the actual source of truth
-// — is sitting right there in the same repository's object store, reachable
-// from a local ref this checkout can already see.
+// Each worktree carries its own `.hedgehog/hedgehog.db` (worktree.mjs's
+// file header), and no DB row is ever copied between them or from a
+// worktree to trunk: the build graph is a pure function of committed
+// files plus git history. A task completed and committed on trunk (or on
+// a sibling worktree's branch) is therefore absent from a different
+// worktree's own `tasks.status`, while its commit sits in the same
+// repository's object store, reachable from a local ref this checkout
+// can see.
 //
-// This module answers the same question rebuild.mjs#loadCommitSubjects
+// This module answers the question rebuild.mjs#loadCommitSubjects
 // answers for the current branch (did a commit with this exact subject
-// ever happen), widened to `git log --all` — every local branch's
-// reachable history, which covers trunk and every open worktree's branch,
-// since a worktree's branch is still a local ref of the same checkout.
-// `--all` is exactly the right and only widening: it costs nothing beyond
-// one extra `git log` flag, needs no new git remotes or fetches, and a
-// project that has never used worktrees has exactly one branch with any
-// commits — `git log --all` degenerates to `git log` for it, so this
-// function is a strict no-op there (acceptance criterion: zero behavior
-// change for a project that never opened a worktree).
+// ever happen), widened to `git log --all`: every local branch's
+// reachable history, which covers trunk and every open worktree's
+// branch. A project that has never used worktrees has one branch with
+// commits, so `--all` reads the same history `git log` does there.
 //
-// ── the ambiguous-commit-message case: a documented, deliberate gap ────
+// ── ambiguous commit messages are left unresolved ──────────────────────
 //
 // rebuild.mjs#markCompletedTasks resolves a commit_message shared by more
 // than one task (the linear-chain core case — authored/adopted, no
-// `{module}` axis) via an ordering+consumption fixpoint walk over
-// `dependencies` rows, mutating `tasks.status` directly as it goes. That
-// walk is inseparable from the DB write path it drives (UPDATE statements
-// interleaved with the fixpoint, `reconciledTaskIds` seeded in up front,
-// re-open-on-failed-claim at the end) and rebuild.mjs is explicitly out of
-// scope for this change — re-deriving its `positionOf`/`available`/
-// `ranAfterPrerequisites` machinery here as a read-only, no-mutation
-// sibling would either (a) silently drift from the real algorithm the
-// first time either copy changes, which is exactly the "three divergent
-// implementations" this file exists to avoid, or (b) require touching
-// rebuild.mjs to extract a shared core, which the task constraints forbid.
+// `{module}` axis) with an ordering+consumption fixpoint walk over
+// `dependencies` rows that writes `tasks.status` as it goes. That walk is
+// bound to its DB write path, and a read-only copy of it here would drift
+// from it.
 //
-// So: a task whose `commit_message` is NOT unique across the whole graph
-// (the ambiguous / linear-chain case) is left OUT of `subjectsAllBranches`
-// entirely by this module — see `buildCrossBranchIndex`'s filtering below.
-// Every caller (claim.mjs, ready.mjs indirectly, status.mjs, reconcile.mjs)
-// then treats "not present in the index" as "can't determine — leave
+// So a task whose `commit_message` is NOT unique across the whole graph
+// is left OUT of `resolvableMessages` (see `buildCrossBranchIndex`).
+// Every caller (claim.mjs, ready.mjs indirectly, status.mjs,
+// reconcile.mjs) treats "not in the index" as "can't determine — leave
 // blocked", the safe direction: a cross-worktree dependency this module
-// can't resolve stays exactly as blocked as it already was, never
-// incorrectly unblocked. The module-axis case — the overwhelmingly common
-// one, since it's what `full-stack-app`/`pwa-app`/`landing-page` compile —
-// has a `commit_message` unique to each task by construction (the layer's
-// `commit` template interpolates `{module}`) and is fully solved.
-import { execSync } from 'node:child_process';
+// can't resolve stays blocked, never incorrectly unblocked. The
+// module-axis case, which `full-stack-app`/`pwa-app`/`landing-page`
+// compile, has a `commit_message` unique to each task by construction
+// (the layer's `commit` template interpolates `{module}`).
+import { git } from './git.mjs';
 
 // Memoized per `git log --all` call: a Map from commit subject to the
 // number of times it occurs, newest-history-order irrelevant here (unlike
@@ -69,10 +50,10 @@ import { execSync } from 'node:child_process';
 // within a run, and caching across separate `hedgehog` invocations would
 // risk serving a stale answer to a long-lived process (the graph server)
 // after a sibling worktree commits.
-function subjectCountsFrom(gitArgs) {
+function subjectCountsFrom(refArgs) {
   let output;
   try {
-    output = execSync(`git log ${gitArgs} --topo-order --format=%H%x00%s`, { encoding: 'utf8' });
+    output = git(['log', ...refArgs, '--topo-order', '--format=%H%x00%s']);
   } catch {
     // No commits reachable from the requested ref set yet (a brand-new
     // repo, or — for the current-branch-only call — a worktree whose
@@ -91,7 +72,7 @@ function subjectCountsFrom(gitArgs) {
 }
 
 function loadAllBranchesSubjectCounts() {
-  return subjectCountsFrom('--all');
+  return subjectCountsFrom(['--all']);
 }
 
 // The current branch's own subject counts — i.e. exactly what
@@ -112,7 +93,7 @@ function loadAllBranchesSubjectCounts() {
 // dependency isn't obviously satisfied" default this whole module commits
 // to elsewhere.
 function loadCurrentBranchSubjectCounts() {
-  return subjectCountsFrom('');
+  return subjectCountsFrom([]);
 }
 
 // Builds the set of commit_messages this module can safely credit as
@@ -172,15 +153,4 @@ export function buildCrossBranchIndex(db) {
 // rebuild.mjs#loadCommitSubjects's own one-call-per-run shape.
 export function commitMessageExistsAnywhere(task, index) {
   return index.resolvableMessages.has(task.commit_message);
-}
-
-// Convenience for a caller that only has a raw commit_message string (no
-// task row) — reconcile.mjs's evidence path doesn't need the
-// per-task-uniqueness guard, since it isn't resolving a *dependency*'s
-// status, only widening the commit window it reads from. Kept separate
-// from commitMessageExistsAnywhere (which is intentionally conservative
-// about ambiguity) so this narrower use doesn't inherit a guard it has no
-// use for.
-export function anyCommitAnywhereWithSubject(subject) {
-  return (loadAllBranchesSubjectCounts().get(subject) ?? 0) > 0;
 }

@@ -1,6 +1,5 @@
 // `hedgehog db init` — creates .hedgehog/hedgehog.db if absent, no-ops if
-// present. See hedgehog-persistent-build-graph.md, "The CLI is the only
-// writer".
+// present — and the one place every command opens the build graph from.
 
 import { DatabaseSync } from 'node:sqlite';
 import { mkdir } from 'node:fs/promises';
@@ -11,7 +10,7 @@ import { applySchema } from './schema.mjs';
 
 export const DB_PATH = '.hedgehog/hedgehog.db';
 
-const exists = (p) =>
+export const exists = (p) =>
   access(p, constants.F_OK).then(
     () => true,
     () => false,
@@ -43,15 +42,6 @@ export function openDb({ readOnly = false } = {}) {
   db.exec('PRAGMA synchronous = NORMAL');
   if (!readOnly) applySchema(db);
   return db;
-}
-
-export function withDb(fn, opts) {
-  const db = openDb(opts);
-  try {
-    return fn(db);
-  } finally {
-    db.close();
-  }
 }
 
 // openDb's cwd-relative counterpart for the one caller that has to open a

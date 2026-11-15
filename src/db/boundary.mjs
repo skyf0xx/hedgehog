@@ -36,28 +36,16 @@
 // against `tasks.commit_message`, which is exactly what verify.mjs
 // committed and what rebuild.mjs already matches on.
 
-import { execSync } from 'node:child_process';
-import { DB_PATH } from './init.mjs';
-import { LOCK_PATH } from './commitLock.mjs';
 import { graphStatus } from './status.mjs';
 import { nextTask, stalledTasks } from './next.mjs';
-import { COMMUNITY_PATH } from './community.mjs';
+import { isDerivedStatePath, GRAPH_PIDFILE_PATH } from './engineState.mjs';
+import { git } from './git.mjs';
 
-const GRAPH_PIDFILE_PATH = '.hedgehog/graph-server.json';
-
-// Engine state, written by this CLI and nobody else, and derived from
-// sources that are themselves committed — the same exclusion verify.mjs
-// applies to its scope diff, for the same reason: the engine's own
-// bookkeeping must never read as the operator's unfinished work. Covers
-// SQLite's journal/WAL/SHM sidecars.
-function isEngineStatePath(path) {
-  return (
-    path === DB_PATH ||
-    path.startsWith(`${DB_PATH}-`) ||
-    path === LOCK_PATH ||
-    path === GRAPH_PIDFILE_PATH ||
-    path === COMMUNITY_PATH
-  );
+// The engine's derived, gitignored files never read as the operator's
+// unfinished work. Its committed record directories (`.hedgehog/friction/`
+// and the rest) do: an uncommitted record still has to be committed.
+function isIgnoredForBoundary(path) {
+  return isDerivedStatePath(path) || path === GRAPH_PIDFILE_PATH;
 }
 
 // One porcelain line is `XY <path>`, or `XY <old> -> <new>` for a rename
@@ -77,7 +65,7 @@ function parsePorcelainLine(line) {
 export function workingTreeState() {
   let output;
   try {
-    output = execSync('git status --porcelain', { encoding: 'utf8', stdio: 'pipe' });
+    output = git(['status', '--porcelain'], { stdio: 'pipe' });
   } catch (err) {
     const detail = `${err.stderr ?? ''}`.trim() || err.message;
     return { ok: false, error: detail, dirty: [] };
@@ -86,7 +74,7 @@ export function workingTreeState() {
     .split('\n')
     .filter((line) => line.trim() !== '')
     .map(parsePorcelainLine)
-    .filter((path) => !isEngineStatePath(path));
+    .filter((path) => !isIgnoredForBoundary(path));
   return { ok: true, error: null, dirty };
 }
 
@@ -123,7 +111,7 @@ export function lastClosedTask(db) {
 
   let subjects;
   try {
-    subjects = execSync('git log --format=%s -n 200', { encoding: 'utf8', stdio: 'pipe' })
+    subjects = git(['log', '--format=%s', '-n', '200'], { stdio: 'pipe' })
       .split('\n')
       .filter((line) => line !== '');
   } catch (err) {
@@ -182,7 +170,7 @@ function loadIntent(db, intentId) {
 
 function headCommit() {
   try {
-    return execSync('git log -1 --format="%h %s"', { encoding: 'utf8', stdio: 'pipe' }).trim();
+    return git(['log', '-1', '--format=%h %s'], { stdio: 'pipe' }).trim();
   } catch {
     return null;
   }

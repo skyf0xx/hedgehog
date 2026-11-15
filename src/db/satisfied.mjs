@@ -23,12 +23,8 @@
 // files in this repo currently match one glob", which only git's own
 // pathspec matcher can answer without re-walking the whole tree.
 
-import { execFileSync } from 'node:child_process';
 import { isEngineStatePath } from './engineState.mjs';
-
-function git(args) {
-  return execFileSync('git', args, { encoding: 'utf8' });
-}
+import { git } from './git.mjs';
 
 function pathspecsFor(scopeGlobs) {
   return scopeGlobs.map((glob) => `:(glob)${glob}`);

@@ -1,7 +1,7 @@
 // `hedgehog claim` / `release` / `renew` / `retry` — lease-based task
 // assignment and the one transition back out of `blocked`. See
-// hedgehog-persistent-build-graph.md, "Claims", and the lease/claim
-// columns added to `tasks` in schema.mjs.
+// BUILD_GRAPH.md, "4. Agents claim ready work", and the lease/claim
+// columns on `tasks` in schema.mjs.
 //
 // Every write in this file keeps the schema's lease invariant —
 // `CHECK ((lease_owner IS NULL) = (status NOT IN ('building','verifying')))`
@@ -17,15 +17,14 @@
 // no DB row in this file ever crosses from one worktree's
 // `.hedgehog/hedgehog.db` to another's (worktree.mjs's file header).
 
-import { execFileSync } from 'node:child_process';
 import { readFileSync, readlinkSync, lstatSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
 import { inTransaction } from './init.mjs';
 import { conflicts } from './conflict.mjs';
 import { incompleteDependencies } from './next.mjs';
-import { ensureTaskColumns } from './schema.mjs';
 import { buildCrossBranchIndex, commitMessageExistsAnywhere } from './crossBranch.mjs';
+import { git } from './git.mjs';
 
 // ── Claim-time working-tree snapshot ──────────────────────────────────
 //
@@ -108,8 +107,7 @@ export function pathFingerprint(path) {
 // — because a path recorded here only ever makes the gate more forgiving
 // of something it already ignored.
 function dirtyPaths() {
-  const run = (args) =>
-    execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const run = (args) => git(args, { stdio: ['ignore', 'pipe', 'pipe'] });
   const tracked = run(['diff', '--name-only', 'HEAD']);
   const untracked = run(['ls-files', '--others', '--exclude-standard']);
   return [
@@ -352,7 +350,6 @@ function findBlockedTasks(db) {
 // and doesn't count against `count` — it neither joins the batch nor
 // short-circuits the loop.
 export function claimTasks(db, { owner, count = 1, leaseMinutes = 45 }) {
-  ensureTaskColumns(db);
   // Read the working tree *before* BEGIN — this file keeps verify.mjs's
   // rule that no subprocess runs with a sqlite transaction open. One
   // snapshot serves the whole batch: they all start from the same tree.
@@ -413,7 +410,6 @@ export function claimTasks(db, { owner, count = 1, leaseMinutes = 45 }) {
 //   conflict                — conflicts with a task already in flight
 //   race_lost               — a concurrent claim won the atomic UPDATE
 export function claimTask(db, taskId, { owner, leaseMinutes = 45 }) {
-  ensureTaskColumns(db);
   // Same rule as claimTasks: read before BEGIN, no subprocess inside a
   // transaction. buildCrossBranchIndex shells out to `git log --all`, so
   // it is built here unconditionally (cheap relative to a `git` process
