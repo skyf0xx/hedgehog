@@ -79,6 +79,18 @@ At the package root:
   by `hedgehog status` and `hedgehog verify`; see
   [`src/db/requires.mjs`](src/db/requires.mjs)'s header comment for the
   resolution semantics.
+  Three more optional per-layer fields feed the task packet's LAYER SHAPE
+  section (`src/db/next.mjs`): `tags: [<tag>, ...]` (the lint tags this
+  layer's code carries), `depends_on_tags: [<tag>, ...]` (the tags it may
+  import; `[]` marks a floor layer) and `scaffold: "<command>"` (the
+  generator the layer starts from). `{module}` is filled in each. A
+  top-level `layer_shape_note: "<text>"` closes every section, one line
+  per `\n`. A layer that declares none of the three gets no section.
+  An optional top-level `scope_hints:` list annotates out-of-scope paths
+  at `hedgehog verify`. Each entry is `match: [<glob>, ...]` plus
+  `hint: "<text>"`, checked in order, first match wins. Place it after
+  the `layers:` block: an engine that does not know the key stops reading
+  there, so the core still loads on it.
 
 ## The loop skill's dispatch step needs a fallback pointer
 
@@ -163,6 +175,15 @@ Adding the package to the CLI's `init` menu is one entry in
 `version` (the range `init` resolves, in the major-line form `"1.x"` or `"0.x"`), `flag` (the CLI install flag —
 `null`/absent for `authored` and `adopted`, which planning chooses rather than a user
 passing it at install time), `repository`, and `selects_when`.
+
+Two optional fields change how `init` lands the core, and must be in the
+registry because `init` acts on them before it fetches the package:
+
+- `install_root: "scratch"` — `init` installs into a fresh temporary
+  directory, never the invoking one, and `core install` refuses the core.
+- `entry_skill: "<skill>"` — `init`'s next step points at that skill
+  instead of `planner`. It must be one of the skills the core's manifest
+  lists; `scripts/check.mjs` checks this.
 
 `selects_when` is prose `planner` reads aloud in Phase 0 to choose a
 core, before any core package is fetched. That's why it lives in the
@@ -301,6 +322,10 @@ satisfies the package contract above.
       `docker-compose`).
 - [ ] No `requires:` entries for ordinary JS/TS toolchain binaries
       (vitest, tsc, eslint, nx, …) — those don't belong there.
+- [ ] If the workspace has lint-enforced import tags or per-layer
+      generators, each layer declares `tags`, `depends_on_tags` and
+      `scaffold` to match them, and `scope_hints` (after `layers:`)
+      covers the workspace's package-shell and shared-config paths.
 
 ### `CLAUDE.core.md`
 
