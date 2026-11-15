@@ -14,7 +14,7 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { parse } from '../src/hosts/frontmatter.mjs';
-import { AGENT_CAPABILITY } from '../src/hosts/capabilities.mjs';
+import { parseTools } from '../src/hosts/capabilities.mjs';
 import { HOSTS } from '../src/hosts/index.mjs';
 import { loadCore, lintCore } from '../src/db/core.mjs';
 import { loadRegistry } from '../src/registry/index.mjs';
@@ -161,7 +161,6 @@ for (const core of cores) {
     );
   }
   for (const name of [...manifest.agents, ...manifest.skills]) coreOwned.add(name);
-  for (const name of manifest.agents) coreAgents.add(name);
 
   // The core's own repo, as a sibling checkout of this one.
   const siblingPath = resolve(ROOT, `../hedgehog-core-${core.name}/hedgehog-core.yaml`);
@@ -322,22 +321,13 @@ let registryChecksSkipped = 0;
   }
 }
 
-// ── 3. Cross-references: every agent named in AGENT_CAPABILITY exists,
-//    and every agent file exists in AGENT_CAPABILITY (capabilities.mjs
-//    fails closed to 'readonly' for unknown agents, so a silently
-//    unlisted agent is a real gap, not a style nit). The table covers
-//    the cores' agents too — they install into a project alongside the
-//    engine's own, and a host that cannot register a per-agent grant
-//    reads their capability from here. ─────────────────────────────────
-const installable = new Set([...agentNames, ...coreAgents]);
-for (const capName of Object.keys(AGENT_CAPABILITY)) {
-  if (!installable.has(capName)) {
-    fail(`src/hosts/capabilities.mjs: AGENT_CAPABILITY references unknown agent "${capName}"`);
-  }
-}
-for (const name of installable) {
-  if (!(name in AGENT_CAPABILITY)) {
-    fail(`src/hosts/capabilities.mjs: AGENT_CAPABILITY has no entry for agent "${name}" (would fail closed to readonly)`);
+// ── 3. Tool grants: every agent states its tools in `tools:`, which is
+//    what a host without per-agent grants derives its capability from
+//    (src/hosts/capabilities.mjs). A missing field fails closed to
+//    'readonly', so an agent without one is a real gap. ──────────────────
+for (const a of agents) {
+  if (parseTools(parse(a.text).data.tools).length === 0) {
+    fail(`src/agents/${a.file}: missing or empty tools frontmatter (would fail closed to readonly)`);
   }
 }
 

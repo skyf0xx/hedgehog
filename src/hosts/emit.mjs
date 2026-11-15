@@ -17,7 +17,7 @@ export function emitPromptAgent(text) {
   const kept = { ...data };
   for (const key of CLAUDE_ONLY) delete kept[key];
 
-  const grant = grantFor(data.name);
+  const grant = grantFor(data);
   const constraint = `**Tools for this role:** ${grant.summary}\n\n`;
   return stringify(kept, `\n${constraint}${body.replace(/^\n+/, '')}`);
 }
@@ -33,7 +33,7 @@ export function emitOpencodeAgent(text) {
   for (const key of [...CLAUDE_ONLY, 'name']) delete kept[key];
   kept.mode = 'subagent';
 
-  const grant = grantFor(data.name);
+  const grant = grantFor(data);
   const constraint = `**Tools for this role:** ${grant.summary}\n\n`;
   return stringify(kept, `\n${constraint}${body.replace(/^\n+/, '')}`);
 }

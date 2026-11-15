@@ -141,9 +141,10 @@ names them; `init` fetches the one a project asks for.
   (Claude Code, Cursor, Gemini CLI, OpenCode, Windsurf, GitHub Copilot): where the payload lands, which
   instructions file that agent loads, and how to emit the agent files
   when its format differs from the canonical one. `capabilities.mjs`
-  owns the agent → tool-grant fact for hosts that can't register a
-  per-agent grant; `routing.mjs` generates the root `AGENTS.md` index
-  from the agents' and skills' own frontmatter; `claude-md-merge.mjs`
+  derives each agent's tool grant from its own `tools:` frontmatter for
+  hosts that can't register a per-agent grant; `routing.mjs` generates
+  the root `AGENTS.md` index from the engine's and the installed core's
+  agent and skill frontmatter; `claude-md-merge.mjs`
   safely merges a core's CLAUDE.md section into a repo's hand-written
   root instructions file (adoption case), run by `core install`. `version.mjs` owns
   payload-staleness detection: `init` and `update` stamp the version they

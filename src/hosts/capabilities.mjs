@@ -1,39 +1,12 @@
 // Which tools each agent role needs, named as a host-neutral capability.
 //
-// Each host spells its tool grant in its own vocabulary, so the grant is
-// stated once here and mapped per host below. This file owns the
-// agent -> capability fact; `src/agents/*.md` carries the Claude Code
-// spelling of it in its `tools:` frontmatter, which Claude Code reads
-// directly.
+// Each host spells its tool grant in its own vocabulary. The grant is
+// stated once, in each agent file's `tools:` frontmatter (Claude Code's
+// spelling, which Claude Code reads directly), and derived from there
+// into a capability that every other host maps below. An agent a core
+// package ships gets its capability the same way as one the engine ships.
 
-/** @typedef {'full'|'no-bash'|'readonly-bash'|'readonly'|'write-only'} Capability */
-
-/** @type {Record<string, Capability>} */
-export const AGENT_CAPABILITY = {
-  // Build and scaffold: read, write, and run commands.
-  'backend-eng': 'full',
-  bootstrap: 'full',
-  'copy-writer': 'full',
-  'front-end-eng': 'full',
-  'harness-eng': 'full',
-  'landing-builder': 'full',
-  'landing-copywriter': 'full',
-  'landing-executor': 'full',
-  'layer-eng': 'full',
-  planner: 'full',
-  'pwa-eng': 'full',
-  tweaker: 'full',
-
-  // Inspect and report; the verification command (and, for the Polish
-  // Loop reviewers, the build/screenshot/interaction commands) is theirs
-  // to run.
-  reviewer: 'readonly-bash',
-  'landing-visual-reviewer': 'readonly-bash',
-  'landing-ux-reviewer': 'readonly-bash',
-
-  // Write its rationale artifact, nothing else.
-  'ux-planner': 'write-only',
-};
+/** @typedef {'full'|'readonly-bash'|'readonly'|'write-only'} Capability */
 
 // What each capability permits, in host-neutral terms. Hosts that can't
 // enforce a per-agent grant state these as constraints in the agent's
@@ -46,12 +19,6 @@ export const CAPABILITY_GRANT = {
     write: true,
     run: true,
     summary: 'Read, write, and edit files, and run shell commands.',
-  },
-  'no-bash': {
-    read: true,
-    write: true,
-    run: false,
-    summary: 'Read, write, and edit files. Do not run shell commands.',
   },
   'readonly-bash': {
     read: true,
@@ -76,13 +43,38 @@ export const CAPABILITY_GRANT = {
   },
 };
 
-// The capability for one agent, by `name` frontmatter. Unknown agents get
-// the most restrictive grant rather than the most permissive one, so a new
-// agent added without a table entry fails closed.
-export function capabilityFor(agentName) {
-  return AGENT_CAPABILITY[agentName] ?? 'readonly';
+/**
+ * The tool names in a `tools:` frontmatter value — a comma-separated
+ * list, optionally bracketed. Empty when the field is absent or blank.
+ * @param {string | undefined} tools
+ * @returns {string[]}
+ */
+export function parseTools(tools) {
+  if (typeof tools !== 'string') return [];
+  return tools
+    .replace(/^\s*\[|\]\s*$/g, '')
+    .split(',')
+    .map((t) => t.trim().replace(/^["']|["']$/g, ''))
+    .filter(Boolean);
 }
 
-export function grantFor(agentName) {
-  return CAPABILITY_GRANT[capabilityFor(agentName)];
+/**
+ * The capability a `tools:` grant amounts to. An absent or empty field
+ * gets the most restrictive grant, so an agent that states no tools
+ * fails closed.
+ * @param {string | undefined} tools
+ * @returns {Capability}
+ */
+export function capabilityFromTools(tools) {
+  const names = new Set(parseTools(tools));
+  const run = names.has('Bash');
+  if (names.has('Edit') && names.has('Write') && run) return 'full';
+  if (names.has('Write') && !run) return 'write-only';
+  if (run && !names.has('Edit') && !names.has('Write')) return 'readonly-bash';
+  return 'readonly';
+}
+
+/** The grant for one agent, from its parsed frontmatter. */
+export function grantFor(frontmatter) {
+  return CAPABILITY_GRANT[capabilityFromTools(frontmatter?.tools)];
 }

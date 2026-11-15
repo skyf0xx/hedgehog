@@ -109,7 +109,8 @@ import {
   formatReconciliations,
   RECONCILED_DIR,
 } from '../src/db/reconcile.mjs';
-import { NOOP_DIR } from '../src/db/noop.mjs';
+import { NOOP_DIR, loadNoopRecords } from '../src/db/noop.mjs';
+import { writeReopenedRecords, clearReopenedRecord, REOPENED_DIR } from '../src/db/reopened.mjs';
 import { runFastpath, loadFastpaths, orphanedFastpathTasks, FASTPATH_DIR } from '../src/db/fastpath.mjs';
 import { HOSTS, HOST_FLAGS, DEFAULT_HOST, availableHosts } from '../src/hosts/index.mjs';
 import { recordHosts, installedHosts } from '../src/hosts/installed.mjs';
@@ -275,7 +276,7 @@ function plan(core, host = DEFAULT_HOST, { hostOnly = false } = {}) {
     // Whatever else this host needs to find the payload — its own rules
     // file, extension manifest, or routing doc. Empty for a host that
     // auto-loads its bootstrap file and registers agents from disk.
-    ...(h.extraEntries ?? []),
+    ...withCore(h.extraEntries ?? [], core),
   ];
 
   // Host-independent: one copy per project however many hosts read it.
@@ -400,8 +401,14 @@ function updatePlan(host = DEFAULT_HOST, core = null) {
     // Derived from the agents and skills above — an agent added, renamed,
     // or redescribed upstream has to be reflected in the index that
     // points at it, so it is regenerated alongside them.
-    ...(h.extraEntries ?? []).filter((e) => e.type === 'generated'),
+    ...withCore((h.extraEntries ?? []).filter((e) => e.type === 'generated'), core),
   ];
+}
+
+// A generated entry indexes the installed core's agents and skills as
+// well as the engine's, so it carries that core to its generator.
+function withCore(entries, core) {
+  return entries.map((e) => (e.type === 'generated' ? { ...e, core } : e));
 }
 
 const exists = (p) =>
@@ -664,7 +671,10 @@ async function writePlannedFile(f) {
   // Rendered from the payload rather than copied from it — the routing
   // doc's tables are built from the agents' and skills' own frontmatter.
   if (f.generate) {
-    await writeFile(f.dest, await f.generate({ pkgRoot: PKG_ROOT, projectRoot: DEST_ROOT }));
+    await writeFile(
+      f.dest,
+      await f.generate({ pkgRoot: PKG_ROOT, projectRoot: DEST_ROOT, core: f.core ?? null }),
+    );
     return;
   }
   // A host whose format differs from the canonical one rewrites the file
@@ -683,7 +693,7 @@ async function plannedFiles(entry) {
     return [{ dest: join(DEST_ROOT, entry.to), merge: entry }];
   }
   if (entry.type === 'generated') {
-    return [{ dest: join(DEST_ROOT, entry.to), generate: entry.generate }];
+    return [{ dest: join(DEST_ROOT, entry.to), generate: entry.generate, core: entry.core ?? null }];
   }
   // `root` names the package an entry's sources come from — a fetched
   // core's extraction directory. Engine payload carries none and resolves
@@ -1473,6 +1483,22 @@ async function coreInstallCommand(name, { force = false, recordAdopted = false }
     }
     if (outcome !== 'keep') written++;
     console.log(`  ${outcome === 'keep' ? dim('keep') : green(outcome)}  ${rel}`);
+  }
+
+  // The routing index lists the core's agents and skills, so it is
+  // regenerated once per generated path now that the core is known.
+  const generated = new Map();
+  for (const host of targets) {
+    for (const e of withCore(HOSTS[host].extraEntries ?? [], core)) {
+      if (e.type === 'generated' && !generated.has(e.to)) generated.set(e.to, e);
+    }
+  }
+  for (const e of generated.values()) {
+    for (const f of await plannedFiles(e)) {
+      await writePlannedFile(f);
+      written++;
+      console.log(`  ${green('update')}  ${relative(DEST_ROOT, f.dest)}`);
+    }
   }
 
   if (recordAdopted) {
@@ -2678,7 +2704,9 @@ async function verifyCommand(args) {
   }
 
   console.log(`${green(bold('Verified.'))} Task ${bold(taskId)} is now ${bold('complete')}.`);
-  if (result.noop) {
+  if (result.noop && result.verifyRan) {
+    console.log(`  ${dim('no-op — verify command passed; nothing in scope to commit')}`);
+  } else if (result.noop) {
     console.log(`  ${dim('no-op — nothing in scope to verify or commit')}`);
   } else if (result.commitSha) {
     console.log(`  ${dim('commit')}  ${result.commitSha}`);
@@ -2961,6 +2989,24 @@ async function retryCommand(args) {
 // a complete task does, transitively, for everything built on top of it
 // — that's consequential enough to need the caller to say so explicitly
 // rather than default to it.
+// Whether each reopened task's earlier close ran its verify command: a
+// passed verifications row, a no-op record's `verify_ran`, or otherwise a
+// commit close. A reconciled or fast-pathed task closed with no verify
+// run. See src/db/reopened.mjs for how verify uses the answer.
+async function reopenedRecordsFor(db, taskIds) {
+  const noopRecords = await loadNoopRecords();
+  const reconciled = await loadReconciliations();
+  const fastpathed = new Set([...(await loadFastpaths()).values()].flatMap((r) => r.tasks));
+  const passed = db.prepare("SELECT 1 FROM verifications WHERE task_id = ? AND status = 'passed'");
+  return taskIds.map((task) => {
+    let verifyRan;
+    if (passed.get(task) !== undefined) verifyRan = true;
+    else if (noopRecords.has(task)) verifyRan = noopRecords.get(task).verify_ran;
+    else verifyRan = !reconciled.has(task) && !fastpathed.has(task);
+    return { task, verify_ran: verifyRan };
+  });
+}
+
 async function reopenCommand(args) {
   await ensureDb();
 
@@ -2991,8 +3037,10 @@ async function reopenCommand(args) {
 
   const db = openDb();
   let result;
+  let reopenedRecords = [];
   try {
     result = reopenTask(db, taskId);
+    if (result.reopened) reopenedRecords = await reopenedRecordsFor(db, result.reopenedIds);
   } finally {
     db.close();
   }
@@ -3009,10 +3057,15 @@ async function reopenCommand(args) {
     return;
   }
 
+  await writeReopenedRecords(reopenedRecords);
+
   console.log(
     `${green(bold('Reopened.'))} ${bold(result.reopenedIds.length)} task(s) back to ${bold('planned')}: ${result.reopenedIds.join(', ')}`,
   );
   console.log(`  ${dim('claim the fix with')}  hedgehog claim ${taskId} --owner <owner>`);
+  console.log(
+    `  ${bold('Commit')} ${REOPENED_DIR}/ ${dim('— it keeps these tasks open across `hedgehog db rebuild` until each verifies again.')}`,
+  );
   if (result.stillInFlight.length > 0) {
     console.log(
       `\n${yellow(bold('Downstream, not reopened'))} (not complete — nothing shipped yet to invalidate):`,
@@ -3022,7 +3075,7 @@ async function reopenCommand(args) {
     }
   }
   console.log(
-    `\n${dim('Hand-committing the fix instead of running it through')} ${bold('hedgehog verify')}${dim('? Reconcile graph state afterward with')} ${bold('hedgehog db rebuild')}${dim('.')}`,
+    `\n${dim('Hand-committing the fix instead of running it through')} ${bold('hedgehog verify')}${dim('? Credit each reopened task afterward with')} ${bold('hedgehog reconcile confirm <task-id> --reason "<why>"')}${dim('.')}`,
   );
 }
 
@@ -3896,6 +3949,7 @@ async function reconcileCommand(args) {
       db.close();
     }
 
+    await clearReopenedRecord(result.record.task);
     const file = `${RECONCILED_DIR}/${result.record.task.toLowerCase()}.json`;
     console.log(`  ${green('complete')}  ${bold(result.record.task)} ${dim('(reconciled, not verified)')}`);
     console.log(`  ${green('recorded')}  ${file}`);
@@ -4015,6 +4069,7 @@ async function fastpathCommand(args) {
     db.close();
   }
 
+  for (const taskId of result.record.tasks) await clearReopenedRecord(taskId);
   const file = `${FASTPATH_DIR}/${result.record.intent.toLowerCase()}.json`;
   console.log(
     `  ${green('complete')}  ${bold(result.record.intent)} ${dim(`(${result.record.tasks.length} task(s), fast-pathed, not per-layer verified)`)}`,
