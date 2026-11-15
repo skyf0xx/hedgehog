@@ -7,7 +7,7 @@ pattern: vertical-slice
 pluralizes: false
 layers:
   - id: scaffold
-    scope: ["plugins/{module}/**", ".hedgehog/dsh-smoke/{module}.md"]
+    scope: ["plugins/{module}/**", ".hedgehog/dsh-smoke/{module}.md", "README.md", "pnpm-lock.yaml"]
     verify: "node tools/generators/verify-scaffold.mjs {module}"
     commit: "feat({module}): scaffold"
 

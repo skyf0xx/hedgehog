@@ -1,7 +1,7 @@
 name: deepseek-harness
 flag: --deepseek-harness
 language: typescript
-engine: "^6.0.0"
+engine: "^6.8.0"
 workspace: workspace/
 template: CLAUDE.core.md
 agents: [harness-eng]

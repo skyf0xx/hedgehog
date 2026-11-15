@@ -1,32 +1,20 @@
-# Shipped core definition for pwa-app. Layer order, scope, and verify
-# commands are the same shape this package's skills/hedgehog-loop Domain
-# Module step tables describe in prose — this file is their data form.
-# {module} is filled in by the compiler with the domain module name a
-# task is generated for.
+# Shipped core definition for pwa-app: layer order, scope, verify
+# command, and commit message per layer. {module} is filled in by the
+# compiler with the domain module name a task is generated for.
 #
-# Five layers, not six: `service` is folded into `repository` (see
-# .design-notes.md §3 / issue #172 §4) — a local-first app with no
-# server tier rarely has domain logic that doesn't fit naturally in
-# either the repository or the hook.
-#
-# Every per-module layer's scope carries {module} — module-disjoint by
-# construction (src/db/core.mjs's validateCore enforces this: a
-# module-axis core rejects any non-exclusive layer whose scope omits
-# {module}). `schema`'s scope additionally lists the shared
-# src/db/schema.ts barrel — every module's schema layer appends one
-# import + one .stores() line to it, the same append-only discipline
-# hedgehog-core-full-stack-app's packages/db/src/schema/index.ts barrel
-# uses. Two modules' schema tasks both listing schema.ts in scope means
-# the scheduler treats them as conflicting and serializes them — no
-# extra locking layer needed. join is exclusive: true and scoped to
-# everything, running the full verify chain once after every module's
-# layers land, the backstop that catches cross-module breakage (or a
-# Dexie version collision) that the parallel per-module layers can't see.
+# Every per-module layer's scope carries {module}, so the layers are
+# module-disjoint. `schema`'s scope also lists the shared src/db/schema.ts
+# barrel, which every module's schema layer appends one import and one
+# .stores() line to; two modules' schema tasks therefore conflict on it
+# and the scheduler serializes them. It also lists the Supabase migration
+# a `--remote` module's schema layer writes. join is exclusive and scoped
+# to everything: the backstop that catches cross-module breakage (or a
+# Dexie version collision) the parallel per-module layers can't see.
 id: pwa-app
 pattern: vertical-slice
 layers:
   - id: schema
-    scope: ["src/features/{module}/data/{module}.schema.ts", "src/features/{module}/data/{module}.schema.spec.ts", "src/db/tables/{module}.table.ts", "src/db/schema.ts"]
+    scope: ["src/features/{module}/data/{module}.schema.ts", "src/features/{module}/data/{module}.schema.spec.ts", "src/db/tables/{module}.table.ts", "src/db/schema.ts", "supabase/migrations/*_{module}.sql"]
     verify: "pnpm vitest run src/features/{module}/data/{module}.schema"
     commit: "feat({module}): schema"
   - id: repository
