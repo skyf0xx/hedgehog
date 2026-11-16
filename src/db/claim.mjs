@@ -588,9 +588,19 @@ export function reopenTask(db, taskId) {
       if (result !== undefined) reopenedIds.push(result.id);
     }
 
+    const reopenedIntentIds = [];
+    const activateIntent = db.prepare(
+      "UPDATE intents SET status = 'active' WHERE id = ? AND status = 'complete' RETURNING id",
+    );
+    for (const intentId of new Set(toReopen.map((t) => t.intent_id))) {
+      const result = activateIntent.get(intentId);
+      if (result !== undefined) reopenedIntentIds.push(result.id);
+    }
+
     return {
       reopened: true,
       reopenedIds,
+      reopenedIntentIds,
       stillInFlight,
       task: loadTask(db, taskId),
     };
