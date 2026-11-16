@@ -119,6 +119,15 @@ try {
     Object.fromEntries(Object.entries(taskStatuses(dir)).filter(([id]) => id.startsWith('SASSY-'))),
   );
 
+  // A no-op reopen: a task that is still planned cannot be reopened.
+  const reopenAgain = cli(dir, ['reopen', 'SASSY-SCHEMA', '--confirm']);
+  check('reopening a task that is not complete refuses', true, reopenAgain.status !== 0);
+  checkContains(
+    "refusal names the task's actual status",
+    `${reopenAgain.stdout}${reopenAgain.stderr}`,
+    'planned',
+  );
+
   // The loop closes normally from here: claim, verify, and the chain is
   // complete again — reopening is not a ratchet. Claiming picks the one
   // ready task (SASSY-SCHEMA, nothing else has a satisfied dependency
@@ -143,14 +152,7 @@ try {
   check('intent completes again after all tasks verify', 'complete', intentStatuses(dir).sassy);
   check('unrelated active intent remains unchanged', 'active', intentStatuses(dir).other);
 
-  // A no-op reopen: reopening a task that isn't complete refuses cleanly.
-  const reopenAgain = cli(dir, ['reopen', 'SASSY-API', '--confirm']);
-  check('reopening a task that is not complete refuses', true, reopenAgain.status !== 0);
-  checkContains(
-    "refusal names the task's actual status",
-    `${reopenAgain.stdout}${reopenAgain.stderr}`,
-    'complete',
-  );
+
 } finally {
   cleanup(dir);
 }
