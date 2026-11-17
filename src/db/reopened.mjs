@@ -8,7 +8,8 @@
 // again from that commit mid-correction. rebuild.mjs replays these records
 // after every completion source, forcing each named task back to
 // `planned`. verify.mjs removes the record once the task closes
-// `complete` again.
+// `complete` again, and reconcile.mjs removes it once a reconciliation
+// closes the task instead.
 //
 // `verify_ran` records whether the task's earlier close ran its verify
 // command (a commit close, or a no-op close that ran the check). Only then
@@ -17,6 +18,7 @@
 // (a test filter matching no files exits nonzero), so it closes as an
 // empty no-op again.
 
+import { existsSync } from 'node:fs';
 import { readdir, readFile, mkdir, writeFile, rename, rm } from 'node:fs/promises';
 
 export const REOPENED_DIR = '.hedgehog/reopened';
@@ -71,6 +73,10 @@ export async function reopenedAfterCheckRan(taskId, reopenedDir = REOPENED_DIR) 
   } catch {
     return false;
   }
+}
+
+export function hasReopenedRecord(taskId, reopenedDir = REOPENED_DIR) {
+  return existsSync(reopenedFilePath(taskId, reopenedDir));
 }
 
 export async function clearReopenedRecord(taskId, reopenedDir = REOPENED_DIR) {

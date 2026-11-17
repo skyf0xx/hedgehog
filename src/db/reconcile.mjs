@@ -54,6 +54,7 @@
 // anything.
 
 import { readdir, readFile, mkdir, writeFile, rename, rm } from 'node:fs/promises';
+import { REOPENED_DIR, hasReopenedRecord, clearReopenedRecord } from './reopened.mjs';
 import { git } from './git.mjs';
 import { pathInScope } from './core.mjs';
 
@@ -275,13 +276,14 @@ const OPEN_TASKS_SQL = `
 //     path: { task, commits: [{sha, subject, paths}], paths }
 //   - `alreadyReconciled` open task ids that already have a committed
 //     confirmation on disk (their file exists but the graph has not been
-//     rebuilt since)
+//     rebuilt since). A task `hedgehog reopen` sent back is a candidate
+//     again instead: its record is the closure the reopen superseded.
 //
 // This is evidence, not proof. A commit touching a task's scope says
 // files moved where that task would have moved them; it says nothing
 // about whether the task's objective was met. Every caller must put the
 // judgment to the user.
-export function gatherEvidence(db, { reconciliations = new Map() } = {}) {
+export function gatherEvidence(db, { reconciliations = new Map(), reopenedDir = REOPENED_DIR } = {}) {
   const since = newestGraphCommit(db);
   const commits = commitsSince(since);
   const openTasks = db.prepare(OPEN_TASKS_SQL).all();
@@ -289,7 +291,10 @@ export function gatherEvidence(db, { reconciliations = new Map() } = {}) {
   const candidates = [];
   const alreadyReconciled = [];
   for (const task of openTasks) {
-    if (reconciliations.has(task.id)) alreadyReconciled.push(task.id);
+    if (reconciliations.has(task.id) && !hasReopenedRecord(task.id, reopenedDir)) {
+      alreadyReconciled.push(task.id);
+      continue;
+    }
 
     const scopeGlobs = JSON.parse(task.scope_globs);
     const matched = [];
@@ -316,18 +321,23 @@ export function gatherEvidence(db, { reconciliations = new Map() } = {}) {
 // loadReconciliations to trip on — overrides.mjs#writeOverrideFile and
 // intent.mjs#writeIntentFile use the same pattern for the same reason.
 //
-// Refuses to overwrite silently. A task is reconciled once; a second
+// Refuses to overwrite silently unless `allowReplace` is set. A second
 // confirmation for the same id is a wrong id or a forgotten first run,
-// and either is worth stopping for.
-export async function writeReconciledFile(record, reconciledDir = RECONCILED_DIR) {
+// and either is worth stopping for. The one exception is a task
+// `hedgehog reopen` sent back: confirmReconciliation passes
+// `allowReplace` for it, and the new record replaces the one the reopen
+// superseded.
+export async function writeReconciledFile(record, reconciledDir = RECONCILED_DIR, { allowReplace = false } = {}) {
   const path = reconciledFilePath(record.task, reconciledDir);
-  try {
-    await readFile(path, 'utf8');
-    throw new Error(
-      `${path} already exists — ${record.task} is already recorded as reconciled. Edit that file directly rather than re-confirming.`,
-    );
-  } catch (err) {
-    if (!err || err.code !== 'ENOENT') throw err;
+  if (!allowReplace) {
+    try {
+      await readFile(path, 'utf8');
+      throw new Error(
+        `${path} already exists — ${record.task} is already recorded as reconciled. Edit that file directly rather than re-confirming.`,
+      );
+    } catch (err) {
+      if (!err || err.code !== 'ENOENT') throw err;
+    }
   }
 
   await mkdir(reconciledDir, { recursive: true });
@@ -443,6 +453,7 @@ export async function confirmReconciliation(
   db,
   { taskId, reason, evidence },
   reconciledDir = RECONCILED_DIR,
+  reopenedDir = REOPENED_DIR,
 ) {
   if (!taskId) throw new Error('reconcile requires a task id');
   if (!reason) throw new Error('reconcile requires a --reason');
@@ -467,8 +478,10 @@ export async function confirmReconciliation(
     '(new reconciliation)',
   );
 
-  await writeReconciledFile(record, reconciledDir);
+  const wasReopened = hasReopenedRecord(id, reopenedDir);
+  await writeReconciledFile(record, reconciledDir, { allowReplace: wasReopened });
   const applied = applyReconciliation(db, record);
+  if (wasReopened) await clearReopenedRecord(id, reopenedDir);
   return { record, ...applied };
 }
 
