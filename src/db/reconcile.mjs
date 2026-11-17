@@ -54,6 +54,8 @@
 // anything.
 
 import { readdir, readFile, mkdir, writeFile, rename, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { REOPENED_DIR, clearReopenedRecord } from './reopened.mjs';
 import { git } from './git.mjs';
 import { pathInScope } from './core.mjs';
 
@@ -289,7 +291,10 @@ export function gatherEvidence(db, { reconciliations = new Map() } = {}) {
   const candidates = [];
   const alreadyReconciled = [];
   for (const task of openTasks) {
-    if (reconciliations.has(task.id)) alreadyReconciled.push(task.id);
+    if (reconciliations.has(task.id) && !existsSync(`${REOPENED_DIR}/${task.id.toLowerCase()}.json`)) {
+      alreadyReconciled.push(task.id);
+      continue;
+    }
 
     const scopeGlobs = JSON.parse(task.scope_globs);
     const matched = [];
@@ -319,15 +324,17 @@ export function gatherEvidence(db, { reconciliations = new Map() } = {}) {
 // Refuses to overwrite silently. A task is reconciled once; a second
 // confirmation for the same id is a wrong id or a forgotten first run,
 // and either is worth stopping for.
-export async function writeReconciledFile(record, reconciledDir = RECONCILED_DIR) {
+export async function writeReconciledFile(record, reconciledDir = RECONCILED_DIR, { allowReplace = false } = {}) {
   const path = reconciledFilePath(record.task, reconciledDir);
-  try {
-    await readFile(path, 'utf8');
-    throw new Error(
-      `${path} already exists — ${record.task} is already recorded as reconciled. Edit that file directly rather than re-confirming.`,
-    );
-  } catch (err) {
-    if (!err || err.code !== 'ENOENT') throw err;
+  if (!allowReplace) {
+    try {
+      await readFile(path, 'utf8');
+      throw new Error(
+        `${path} already exists — ${record.task} is already recorded as reconciled. Edit that file directly rather than re-confirming.`,
+      );
+    } catch (err) {
+      if (!err || err.code !== 'ENOENT') throw err;
+    }
   }
 
   await mkdir(reconciledDir, { recursive: true });
@@ -467,8 +474,10 @@ export async function confirmReconciliation(
     '(new reconciliation)',
   );
 
-  await writeReconciledFile(record, reconciledDir);
+  const wasReopened = existsSync(`${REOPENED_DIR}/${id.toLowerCase()}.json`);
+  await writeReconciledFile(record, reconciledDir, { allowReplace: wasReopened });
   const applied = applyReconciliation(db, record);
+  if (wasReopened) await clearReopenedRecord(id);
   return { record, ...applied };
 }
 
