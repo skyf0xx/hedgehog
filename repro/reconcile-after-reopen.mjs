@@ -51,7 +51,9 @@ try {
   check('dependent unlocked again', 'ready', taskStatuses(dir)['ALPHA-API']);
   check('rebuild', 0, rebuildFromScratch(dir).status);
   check('rebuild preserves completion', 'complete', taskStatuses(dir)['ALPHA-SCHEMA']);
-  check('rebuild preserves dependent readiness', 'ready', taskStatuses(dir)['ALPHA-API']);
+  // rebuild leaves every open task `planned`; `next` derives readiness live.
+  check('rebuild leaves dependent open', 'planned', taskStatuses(dir)['ALPHA-API']);
+  checkContains('next hands out the dependent after rebuild', cli(dir, ['next']).stdout, 'ALPHA-API');
   check('repeat confirmation while complete refuses', 1, cli(dir, ['reconcile', 'confirm', 'ALPHA-SCHEMA', '--reason', 'duplicate']).status);
 } finally {
   cleanup(dir);
