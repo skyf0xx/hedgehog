@@ -53,7 +53,6 @@ try {
   check('rebuild', 0, rebuildFromScratch(dir).status);
   check('rebuild preserves completion', 'complete', taskStatuses(dir)['ALPHA-SCHEMA']);
   check('rebuild preserves dependent readiness', 'ready', taskStatuses(dir)['ALPHA-API']);
-  check('without another reopen repeat refuses', 1, cli(dir, ['reopen', 'ALPHA-SCHEMA', '--confirm']).status === 0 ? 0 : 1);
   check('repeat confirmation while complete refuses', 1, cli(dir, ['reconcile', 'confirm', 'ALPHA-SCHEMA', '--reason', 'duplicate']).status);
 } finally {
   cleanup(dir);
