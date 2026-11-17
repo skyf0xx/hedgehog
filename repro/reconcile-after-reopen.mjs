@@ -31,7 +31,6 @@ try {
   check('first confirmation', 0, cli(dir, ['reconcile', 'confirm', 'ALPHA-SCHEMA', '--reason', 'first implementation']).status);
   check('dependent unlocked', 'ready', taskStatuses(dir)['ALPHA-API']);
   const recordPath = join(dir, '.hedgehog/reconciled/alpha-schema.json');
-  const first = JSON.parse(readFileSync(recordPath, 'utf8'));
   check('complete task refuses confirmation', 1, cli(dir, ['reconcile', 'confirm', 'ALPHA-SCHEMA', '--reason', 'not reopened']).status);
   check('reopen', 0, cli(dir, ['reopen', 'ALPHA-SCHEMA', '--confirm']).status);
   const marker = join(dir, '.hedgehog/reopened/alpha-schema.json');
