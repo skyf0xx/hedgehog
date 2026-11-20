@@ -811,10 +811,10 @@ ${flagLines}
   npx @skyf0xx/hedgehog graph --no-open           start (or reuse) the server; print the URL instead
   npx @skyf0xx/hedgehog why <path>                provenance chain for a file
   npx @skyf0xx/hedgehog friction add "<note>"     log a friction note [--task <task-id>]
-  npx @skyf0xx/hedgehog friction list [--all]     list open friction, oldest first (--all includes resolved)
+  npx @skyf0xx/hedgehog friction list [--all | --resolved]     list open friction, oldest first (--all or --resolved includes resolved)
   npx @skyf0xx/hedgehog friction resolve <friction-id> --reason "<why>"   mark a friction note resolved
   npx @skyf0xx/hedgehog debt add <task-id> "<note>"   declare debt that lands in dependent tasks' packets
-  npx @skyf0xx/hedgehog debt list [<task-id>] [--all]   list open debt, oldest first (--all includes resolved)
+  npx @skyf0xx/hedgehog debt list [<task-id>] [--all | --resolved]   list open debt, oldest first (--all or --resolved includes resolved)
   npx @skyf0xx/hedgehog debt resolve <debt-id> --reason "<why>"   mark a debt note resolved
   npx @skyf0xx/hedgehog decision add <task-id> "<note>"   declare a decision that lands in dependent tasks' packets
   npx @skyf0xx/hedgehog decision list [<task-id>]     list declared decisions, oldest first
@@ -3743,7 +3743,7 @@ async function frictionCommand(args) {
   }
 
   console.error(
-    `${red('Unknown friction subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog friction add "<note>" [--task <task-id>]\n   or: hedgehog friction list [--all]\n   or: hedgehog friction resolve <friction-id> --reason "<why>"\n`,
+    `${red('Unknown friction subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog friction add "<note>" [--task <task-id>]\n   or: hedgehog friction list [--all | --resolved]\n   or: hedgehog friction resolve <friction-id> --reason "<why>"\n`,
   );
   process.exitCode = 1;
 }
@@ -4486,7 +4486,7 @@ async function debtCommand(args) {
   }
 
   console.error(
-    `${red('Unknown debt subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog debt add <task-id> "<note>"\n   or: hedgehog debt list [<task-id>] [--all]\n   or: hedgehog debt resolve <debt-id> --reason "<why>"\n`,
+    `${red('Unknown debt subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog debt add <task-id> "<note>"\n   or: hedgehog debt list [<task-id>] [--all | --resolved]\n   or: hedgehog debt resolve <debt-id> --reason "<why>"\n`,
   );
   process.exitCode = 1;
 }
