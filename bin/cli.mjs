@@ -7,6 +7,8 @@
 //   npx @skyf0xx/hedgehog init --ts-full-stack-app     scaffold the full-stack-app core now
 //   npx @skyf0xx/hedgehog init --pwa-app               scaffold the pwa-app core now
 //   npx @skyf0xx/hedgehog init --landing-page          scaffold the landing-page core now
+//   npx @skyf0xx/hedgehog init --copywriting           scaffold the copywriting core now (lands in a scratch dir)
+//   npx @skyf0xx/hedgehog init --deepseek-harness      scaffold the deepseek-harness core now
 //   npx @skyf0xx/hedgehog init --cursor                install for Cursor (default: Claude Code)
 //   npx @skyf0xx/hedgehog init --all-hosts             install for every supported coding agent
 //   npx @skyf0xx/hedgehog init --force                 overwrite files that already exist
@@ -247,7 +249,7 @@ async function namedCore(args) {
 // which core applies left for `planner` to decide. `bootstrap` lands the
 // core workspace and fills the CLAUDE.md section for whichever core
 // `planner` picks — the first time either way. An explicit flag
-// (`--ts-full-stack-app`, `--pwa-app`, `--landing-page`) is a confirmed choice, so it
+// (`--ts-full-stack-app`, `--pwa-app`, `--landing-page`, `--copywriting`, `--deepseek-harness`) is a confirmed choice, so it
 // scaffolds that workspace immediately, at install time.
 //
 // A core is passed in as `{ manifest, root }` from fetchCore — the parsed
@@ -717,6 +719,9 @@ ${bold('Usage')}
   npx @skyf0xx/hedgehog init --ts-full-stack-app  scaffold the full-stack-app core now
   npx @skyf0xx/hedgehog init --pwa-app            scaffold the pwa-app core now
   npx @skyf0xx/hedgehog init --landing-page       scaffold the landing-page core now
+  npx @skyf0xx/hedgehog init --copywriting        scaffold the copywriting core now — installs to a
+                                                   scratch directory the CLI creates, never this one
+  npx @skyf0xx/hedgehog init --deepseek-harness   scaffold the deepseek-harness core now
   npx @skyf0xx/hedgehog cores list                every core this release can install
   npx @skyf0xx/hedgehog core record-adopted       land the adopted core's agents/skills and record
                                                    this project as adopted (hedgehog-adopt calls this
