@@ -1578,9 +1578,15 @@ async function coreCheckCommand(pathArg) {
     process.exitCode = 1;
     return;
   }
-  const label = relative(DEST_ROOT, corePath) || corePath;
+  // A path outside the project reads as a pile of `..` segments when
+  // relativized, so print the absolute path the user actually passed.
+  const rel = relative(DEST_ROOT, corePath) || corePath;
+  const label = rel.startsWith('..') ? corePath : rel;
   if (!(await exists(corePath))) {
-    console.error(`${red('Not found:')} ${label}\n`);
+    console.error(
+      `${red('Not found:')} ${label}\n` +
+        `Pass a path to a ${bold('core.yaml')} file: ${bold('hedgehog core check <path>')}\n`,
+    );
     process.exitCode = 1;
     return;
   }
