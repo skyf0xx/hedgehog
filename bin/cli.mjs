@@ -2209,7 +2209,10 @@ async function intentCommand(args) {
   try {
     record = await parseIntentArgs(args.slice(1));
   } catch (err) {
-    console.error(`${red('Invalid arguments:')} ${err.message}\n`);
+    console.error(
+      `${red('Invalid arguments:')} ${err.message}\n\n` +
+        `Usage: hedgehog intent add --id <id> --goal <goal> --outcome <outcome> [--rule <r>]... [--depends-on <id>]...\n   or: hedgehog intent add --file <path.json>\n`,
+    );
     process.exitCode = 1;
     return;
   }
