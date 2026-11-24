@@ -2187,13 +2187,18 @@ async function parseIntentArgs(args) {
   return record;
 }
 
+const INTENT_ADD_USAGE = [
+  'Usage: hedgehog intent add --id <id> --goal <goal> --outcome <outcome> [--rule <r>]... [--depends-on <id>]...',
+  '   or: hedgehog intent add --file <path.json>',
+].join('\n');
+
 async function intentCommand(args) {
   await ensureDb();
 
   const sub = args[0];
   if (sub !== 'add') {
     console.error(
-      `${red('Unknown intent subcommand:')} ${sub ?? '(none)'}\n\nUsage: hedgehog intent add --id <id> --goal <goal> --outcome <outcome> [--rule <r>]... [--depends-on <id>]...\n   or: hedgehog intent add --file <path.json>\n`,
+      `${red('Unknown intent subcommand:')} ${sub ?? '(none)'}\n\n${INTENT_ADD_USAGE}\n`,
     );
     process.exitCode = 1;
     return;
@@ -2211,7 +2216,7 @@ async function intentCommand(args) {
   } catch (err) {
     console.error(
       `${red('Invalid arguments:')} ${err.message}\n\n` +
-        `Usage: hedgehog intent add --id <id> --goal <goal> --outcome <outcome> [--rule <r>]... [--depends-on <id>]...\n   or: hedgehog intent add --file <path.json>\n`,
+        `${INTENT_ADD_USAGE}\n`,
     );
     process.exitCode = 1;
     return;
@@ -2231,7 +2236,7 @@ async function intentCommand(args) {
             `reset to 'planned' rather than removed. To change it, edit ${intentFilePath(record.id)}\n` +
             `by hand and run \`hedgehog plan\` to recompile; don't run \`intent add\` again for this id.\n\n`
           : '') +
-        `Usage: hedgehog intent add --id <id> --goal <goal> --outcome <outcome> [--rule <r>]... [--depends-on <id>]...\n   or: hedgehog intent add --file <path.json>\n`,
+        `${INTENT_ADD_USAGE}\n`,
     );
     process.exitCode = 1;
     return;
