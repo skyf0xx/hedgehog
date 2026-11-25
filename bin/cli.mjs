@@ -784,7 +784,9 @@ ${flagLines}
                                                    worktree and branch — the id stays taken; to change
                                                    an abandoned intent, edit its .hedgehog/intents/<id>.json
                                                    by hand and run 'hedgehog plan', not 'intent add' again
-  npx @skyf0xx/hedgehog intent add [flags]        add an intent (rules/requirements/dependencies)
+  npx @skyf0xx/hedgehog intent add [flags]        add an intent: --id, --goal, --outcome (required),
+                                                   --priority <n> (default 100), repeatable --rule,
+                                                   --constraint, --acceptance, --depends-on <intent-id>
   npx @skyf0xx/hedgehog intent add --file <path>  add an intent from a JSON file — fails on an id already
                                                    in the build graph, including one reset by 'hedgehog
                                                    abandon' (still 'planned', not removed); see 'abandon' above
@@ -2188,7 +2190,8 @@ async function parseIntentArgs(args) {
 }
 
 const INTENT_ADD_USAGE = [
-  'Usage: hedgehog intent add --id <id> --goal <goal> --outcome <outcome> [--rule <r>]... [--depends-on <id>]...',
+  'Usage: hedgehog intent add --id <id> --goal <goal> --outcome <outcome> [--priority <n>]',
+  '         [--rule <r>]... [--constraint <c>]... [--acceptance <a>]... [--depends-on <id>]...',
   '   or: hedgehog intent add --file <path.json>',
 ].join('\n');
 
