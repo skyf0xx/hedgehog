@@ -2927,7 +2927,7 @@ async function retryCommand(args) {
 
   const taskId = args[0] && !args[0].startsWith('--') ? args[0] : undefined;
   if (!taskId) {
-    console.error(`${red('Usage:')} hedgehog retry <task-id> [--owner <owner>]\n`);
+    console.error(`${red('Usage:')} hedgehog retry <task-id>\n`);
     process.exitCode = 1;
     return;
   }
