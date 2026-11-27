@@ -9,10 +9,8 @@ Report privately through GitHub's advisory form:
 That channel is private between you and the maintainers, and it lets a
 fix land before the details are public.
 
-If the form is unavailable, open a normal issue with only the affected
-component and the words "security — details on request", and a private
-channel will be arranged from there. Don't put the reproduction in a
-public issue in that case.
+If the form is unavailable, email **kawess@gmail.com**. Don't put the
+reproduction in a public issue.
 
 Expect an acknowledgement within a few days. You'll get the assessment,
 the fix if there is one, and credit in the release notes unless you'd
