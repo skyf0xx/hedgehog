@@ -71,7 +71,12 @@ Out of scope:
 
 ## How to exercise it
 
-- The image runs as the non-root `node` user. Node 22, run with `--experimental-sqlite`. The image has dev
+- The scanner's shell is root. `repro/add-intent-write-failure.mjs`
+  relies on a chmod-denied write, which root bypasses, so it fails as
+  root and passes as `node`:
+  `su node -c 'cd /src && node --experimental-sqlite repro/add-intent-write-failure.mjs'`.
+  That failure is not a finding.
+- Node 22, run with `--experimental-sqlite`. The image has dev
   dependencies installed and every registered core cached under
   `~/.hedgehog/cores/`, so `init` works offline.
 - Scratch project:
